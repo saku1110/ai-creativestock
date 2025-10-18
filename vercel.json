@@ -1,8 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
   "framework": "vite",
-  "installCommand": "npm --prefix project-bolt-sb1-a6rmxyri/project ci",
-  "buildCommand": "npm --prefix project-bolt-sb1-a6rmxyri/project run build && rm -rf public && cp -r project-bolt-sb1-a6rmxyri/project/dist public",
-  "outputDirectory": "public",
+  "installCommand": "npm ci && npm --prefix project-bolt-sb1-a6rmxyri/project ci",
+  "buildCommand": "npm --prefix project-bolt-sb1-a6rmxyri/project run build",
+  "outputDirectory": "project-bolt-sb1-a6rmxyri/project/dist",
   "env": {
     "VITE_SUPABASE_URL": "@supabase_url",
     "VITE_SUPABASE_ANON_KEY": "@supabase_anon_key",
