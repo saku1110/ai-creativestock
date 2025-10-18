@@ -5,20 +5,8 @@
   "installCommand": "npm ci && npm --prefix project-bolt-sb1-a6rmxyri/project ci",
   "buildCommand": "npm --prefix project-bolt-sb1-a6rmxyri/project run build",
   "outputDirectory": "project-bolt-sb1-a6rmxyri/project/dist",
-  "env": {
-    "VITE_SUPABASE_URL": "@supabase_url",
-    "VITE_SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "VITE_STRIPE_PUBLISHABLE_KEY": "@stripe_publishable_key",
-    "VITE_UPLOAD_API_KEY": "@upload_api_key",
-    "VITE_APP_ENV": "production",
-    "VITE_APP_URL": "@app_url",
-    "SUPABASE_URL": "@supabase_url",
-    "SUPABASE_SERVICE_KEY": "@supabase_service_key",
-    "UPLOAD_API_KEY": "@upload_api_key",
-    "UPLOAD_ALLOWED_ORIGIN": "@upload_allowed_origin",
-    "STRIPE_SECRET_KEY": "@stripe_secret_key",
-    "STRIPE_WEBHOOK_SECRET": "@stripe_webhook_secret"
-  },
+  // Note: Environment variables are managed in Vercel dashboard.
+  // Using project envs avoids hard dependency on Vercel Secrets at build time.
   "routes": [
     { "handle": "filesystem" },
     { "src": "/.*", "dest": "/index.html" }
