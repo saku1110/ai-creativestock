@@ -1,8 +1,8 @@
 {
   "framework": "vite",
-  "installCommand": "npm ci && npm --prefix project-bolt-sb1-a6rmxyri/project ci",
-  "buildCommand": "npm --prefix project-bolt-sb1-a6rmxyri/project run build",
-  "outputDirectory": "project-bolt-sb1-a6rmxyri/project/dist",
+  "installCommand": "npm --prefix project-bolt-sb1-a6rmxyri/project ci",
+  "buildCommand": "npm --prefix project-bolt-sb1-a6rmxyri/project run build && rm -rf public && cp -r project-bolt-sb1-a6rmxyri/project/dist public",
+  "outputDirectory": "public",
   "env": {
     "VITE_SUPABASE_URL": "@supabase_url",
     "VITE_SUPABASE_ANON_KEY": "@supabase_anon_key",
