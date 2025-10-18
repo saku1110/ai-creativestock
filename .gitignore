@@ -1,0 +1,50 @@
+node_modules
+dist
+coverage
+.DS_Store
+# Node
+node_modules
+.dist
+coverage
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.*
+
+# Codex/Claude artifacts
+.codex*
+.codex_tmp/
+.codex_npm_cache/
+.claude*
+.claude-backups/
+.claude-history.json
+.serena/
+
+# Dev server artifacts
+dev-server.log
+dev-server.pid
+
+# Project-bolt caches/build
+project-bolt-*/project/node_modules/
+project-bolt-*/project/dist/
+project-bolt-*/project/.vite/
+project-bolt-*/project/coverage/
+project-bolt-*/project/.codex*
+project-bolt-*/project/.codex_tmp/
+project-bolt-*/project/.codex_npm_cache/
+
+# Local media (do not commit videos)
+project-bolt-*/project/src/local-content/**/*.mp4
+project-bolt-*/project/src/local-content/hero/originals/
+
+# Archives
+*.zip

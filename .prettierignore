@@ -1,0 +1,8 @@
+dist
+node_modules
+coverage
+**/project-bolt-*/**
+project-bolt-sb1-a6rmxyri/**
+*.html
+.serena/**
+.claude*/**
