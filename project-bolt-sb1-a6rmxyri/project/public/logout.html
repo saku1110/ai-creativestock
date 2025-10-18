@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ログアウト</title>
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            margin-bottom: 1rem;
+        }
+        .status {
+            font-size: 1.2rem;
+            margin: 1rem 0;
+        }
+        .success {
+            color: #4ade80;
+        }
+        .btn {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 12px 24px;
+            background: white;
+            color: #764ba2;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ログアウト処理中...</h1>
+        <div class="status" id="status">認証情報をクリアしています...</div>
+        <a href="/" class="btn" style="display: none;" id="homeBtn">ホームページへ戻る</a>
+    </div>
+
+    <script>
+        // ログアウト処理
+        function logout() {
+            try {
+                // 開発環境の認証情報をクリア
+                localStorage.removeItem('dev_user');
+                localStorage.removeItem('dev_logged_in');
+                
+                // Supabase関連の認証情報もクリア
+                const keys = Object.keys(localStorage);
+                keys.forEach(key => {
+                    if (key.includes('supabase') || key.includes('auth')) {
+                        localStorage.removeItem(key);
+                    }
+                });
+                
+                // セッションストレージもクリア
+                sessionStorage.clear();
+                
+                // 成功メッセージ
+                document.getElementById('status').innerHTML = '<span class="success">✓ ログアウトが完了しました</span>';
+                document.getElementById('homeBtn').style.display = 'inline-block';
+                
+                // 3秒後に自動的にホームページへリダイレクト
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 3000);
+                
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ エラーが発生しました: ' + error.message;
+                document.getElementById('homeBtn').style.display = 'inline-block';
+            }
+        }
+        
+        // ページ読み込み時にログアウト実行
+        logout();
+    </script>
+</body>
+</html>

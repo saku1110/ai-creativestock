@@ -1,0 +1,20 @@
+# 開発用Dockerfile
+FROM node:18-alpine
+
+# 作業ディレクトリの設定
+WORKDIR /app
+
+# パッケージファイルをコピー
+COPY package*.json ./
+
+# 依存関係のインストール
+RUN npm ci
+
+# アプリケーションコードをコピー
+COPY . .
+
+# ポート5173を公開
+EXPOSE 5173
+
+# 開発サーバーを起動
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

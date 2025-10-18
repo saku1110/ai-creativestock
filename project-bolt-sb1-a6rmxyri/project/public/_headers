@@ -1,0 +1,42 @@
+# 本番環境用セキュリティヘッダー（Netlify/Vercel等用）
+/*
+  # CSP - 厳格なContent Security Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://via.placeholder.com; media-src 'self' blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.ipify.org; frame-src 'self' https://js.stripe.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  
+  # XSS保護
+  X-XSS-Protection: 1; mode=block
+  
+  # コンテンツタイプスニッフィング防止
+  X-Content-Type-Options: nosniff
+  
+  # フレーム埋め込み防止
+  X-Frame-Options: DENY
+  
+  # HTTPS強制（本番環境）
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  
+  # リファラーポリシー
+  Referrer-Policy: strict-origin-when-cross-origin
+  
+  # 権限ポリシー
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(self), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), ambient-light-sensor=(), autoplay=(self)
+  
+  # IE用設定
+  X-Download-Options: noopen
+  X-Permitted-Cross-Domain-Policies: none
+  
+  # キャッシュ制御
+  Cache-Control: public, max-age=31536000, immutable
+
+# 静的アセット用の追加キャッシュ設定
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTMLファイル用のキャッシュ設定
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# APIエンドポイント用設定（もしある場合）
+/api/*
+  Cache-Control: no-store, no-cache, must-revalidate
+  Content-Security-Policy: default-src 'none'

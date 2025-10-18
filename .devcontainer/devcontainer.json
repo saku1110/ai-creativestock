@@ -1,0 +1,27 @@
+{
+  "name": "ai-cs",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "remoteUser": "node",
+
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+
+  "mounts": [
+    "source=C:\\Users\\kise7\\OneDrive\\Videos\\categories,target=/workspace/project-bolt-sb1-a6rmxyri/project/uploads/categories,type=bind"
+  ],
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode-remote.remote-containers",
+        "ms-azuretools.vscode-docker",
+        "openai.chatgpt",
+        "Anthropic.claude-code"
+      ]
+    }
+  },
+
+  "containerEnv": {
+    "TZ": "Asia/Tokyo"
+  }
+}

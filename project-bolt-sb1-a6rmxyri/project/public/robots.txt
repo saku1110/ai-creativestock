@@ -1,0 +1,22 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/private/
+Disallow: /temp/
+Disallow: /*.json$
+
+# Sitemap
+Sitemap: https://ai-creative-stock.com/sitemap.xml
+
+# クロール頻度制限
+Crawl-delay: 1
+
+# 主要検索エンジン向け特別設定
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /

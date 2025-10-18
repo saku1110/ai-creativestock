@@ -48,3 +48,11 @@ project-bolt-*/project/src/local-content/hero/originals/
 
 # Archives
 *.zip
+# Claude helper files (exclude)
+CLAUDE.md
+claude-hook.js
+
+# Broader media exclusions under local-content
+project-bolt-*/project/src/local-content/**/*.{mp4,mov,avi,mkv,webm}
+project-bolt-*/project/src/local-content/**/*.{jpg,jpeg,png,gif,webp,svg}
+project-bolt-*/project/src/local-content/**/*.{mp3,wav,flac,aac,ogg}
