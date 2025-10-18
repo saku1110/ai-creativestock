@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { createReadStream } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
@@ -104,28 +104,56 @@ async function planTasks(root: string, scheme: Scheme, regex: string): Promise<U
   return tasks;
 }
 
-async function existsObject(client: SupabaseClient, bucket: string, destPath: string): Promise<boolean> {
+// NOTE:
+// SupabaseClient has heavy generic parameters that can vary project-to-project
+// depending on Database typings. Under strict TS settings such as
+// exactOptionalPropertyTypes and noUncheckedIndexedAccess, passing a client
+// between differently-parameterised call sites can become incompatible.
+//
+// For this upload utility we only rely on the Storage API surface we actually
+// use. Relax the type to a minimal, structural shape so it works regardless of
+// the consuming repo's Database generics.
+type StorageBucketApi = {
+  list: (
+    ...args: any[]
+  ) => Promise<{ data: Array<{ name: string }> | null; error: { message?: string } | null }>;
+  createSignedUploadUrl: (
+    ...args: any[]
+  ) => Promise<{ data: { token: string } | null; error: { message?: string } | null }>;
+  uploadToSignedUrl: (
+    ...args: any[]
+  ) => Promise<{ data?: unknown; error: { message?: string } | null }>;
+};
+type AnySupabaseClient = { storage: { from: (bucket: string) => StorageBucketApi } };
+
+async function existsObject(client: AnySupabaseClient, bucket: string, destPath: string): Promise<boolean> {
   const prefix = path.posix.dirname(destPath);
   const name = path.posix.basename(destPath);
-  const { data, error } = await client.storage.from(bucket).list(prefix === '.' ? '' : prefix, { search: name, limit: 100 });
+  const { data, error } = await client.storage
+    .from(bucket)
+    .list(prefix === '.' ? '' : prefix, { search: name, limit: 100 });
   if (error) return false; // treat unknown as not found
   return (data ?? []).some((d) => d.name === name);
 }
 
-async function uploadOne(client: SupabaseClient, bucket: string, task: UploadTask, upsert: boolean): Promise<{ ok: boolean; error?: string }> {
+async function uploadOne(client: AnySupabaseClient, bucket: string, task: UploadTask, upsert: boolean): Promise<{ ok: boolean; error?: string }> {
   try {
     if (!upsert) {
       const already = await existsObject(client, bucket, task.destPath);
       if (already) return { ok: true };
     }
-    const { data, error } = await client.storage.from(bucket).createSignedUploadUrl(task.destPath);
-    if (error || !data) return { ok: false, error: error?.message || 'failed to create signed upload url' };
+    const { data, error } = await client.storage
+      .from(bucket)
+      .createSignedUploadUrl(task.destPath);
+    if (error || !data) return { ok: false, error: (error?.message ?? 'failed to create signed upload url') };
     const stream = createReadStream(task.localPath);
-    const { error: upErr } = await client.storage.from(bucket).uploadToSignedUrl(task.destPath, data.token, stream as unknown as Blob, {
-      contentType: 'video/mp4',
-      upsert,
-    } as any);
-    if (upErr) return { ok: false, error: upErr.message };
+    const { error: upErr } = await client.storage
+      .from(bucket)
+      .uploadToSignedUrl(task.destPath, data.token, stream as unknown as Blob, {
+        contentType: 'video/mp4',
+        upsert,
+      } as any);
+    if (upErr) return { ok: false, error: (upErr.message ?? 'uploadToSignedUrl failed') };
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
@@ -165,8 +193,10 @@ async function main() {
   let ok = 0, fail = 0, skipped = 0;
   const next = async (): Promise<void> => {
     if (idx >= tasks.length) return;
-    const current = tasks[idx]!; // safe due to guard above
+    const i = idx;
     idx++;
+    const current = tasks[i];
+    if (!current) return; // satisfies noUncheckedIndexedAccess
     inFlight++;
     try {
       const res = await uploadOne(client, opts.bucket, current, opts.upsert);
