@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createReadStream } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
@@ -104,7 +104,7 @@ async function planTasks(root: string, scheme: Scheme, regex: string): Promise<U
   return tasks;
 }
 
-async function existsObject(client: ReturnType<typeof createClient>, bucket: string, destPath: string): Promise<boolean> {
+async function existsObject(client: SupabaseClient, bucket: string, destPath: string): Promise<boolean> {
   const prefix = path.posix.dirname(destPath);
   const name = path.posix.basename(destPath);
   const { data, error } = await client.storage.from(bucket).list(prefix === '.' ? '' : prefix, { search: name, limit: 100 });
@@ -112,7 +112,7 @@ async function existsObject(client: ReturnType<typeof createClient>, bucket: str
   return (data ?? []).some((d) => d.name === name);
 }
 
-async function uploadOne(client: ReturnType<typeof createClient>, bucket: string, task: UploadTask, upsert: boolean): Promise<{ ok: boolean; error?: string }> {
+async function uploadOne(client: SupabaseClient, bucket: string, task: UploadTask, upsert: boolean): Promise<{ ok: boolean; error?: string }> {
   try {
     if (!upsert) {
       const already = await existsObject(client, bucket, task.destPath);
@@ -165,7 +165,8 @@ async function main() {
   let ok = 0, fail = 0, skipped = 0;
   const next = async (): Promise<void> => {
     if (idx >= tasks.length) return;
-    const current = tasks[idx++];
+    const current = tasks[idx]!; // safe due to guard above
+    idx++;
     inFlight++;
     try {
       const res = await uploadOne(client, opts.bucket, current, opts.upsert);
