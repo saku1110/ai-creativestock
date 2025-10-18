@@ -17,9 +17,9 @@
     "STRIPE_SECRET_KEY": "@stripe_secret_key",
     "STRIPE_WEBHOOK_SECRET": "@stripe_webhook_secret"
   },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/" }
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/.*", "dest": "/index.html" }
   ],
   "headers": [
     {
@@ -47,4 +47,3 @@
     "api/stripe-webhook.ts": { "maxDuration": 10 }
   }
 }
-
