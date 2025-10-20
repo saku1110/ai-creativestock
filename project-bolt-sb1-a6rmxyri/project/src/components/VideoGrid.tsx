@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Filter, Grid, List, SlidersHorizontal, Search, Cpu, Zap } from 'lucide-react';
 import VideoCard from './VideoCard';
 import { VideoAsset } from '../types';
+import { fetchSupabaseImages, fetchSupabaseVideos, stem } from '../lib/media';
 
 interface VideoGridProps {
   onAuthRequest: () => void;
@@ -12,12 +13,13 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('popular');
+  const [remoteVideos, setRemoteVideos] = useState<VideoAsset[] | null>(null);
   
   // デモ用：未加入ユーザーとして設定（実際のアプリでは認証状態から取得）
   const isSubscribed = false;
 
   // サンプルデータ（9:16の8秒動画のみ - 16本に拡張）
-  const videos: VideoAsset[] = [
+  const localVideos: VideoAsset[] = [
     {
       id: '1',
       title: '実写級美容クリニック向けTikTok動画',
@@ -307,6 +309,52 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
       license: 'standard'
     }
   ];
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [imgs, vids] = await Promise.all([
+          fetchSupabaseImages({ bucket: 'images', prefix: 'lp', limit: 500, expires: 3600 }),
+          fetchSupabaseVideos({ bucket: 'videos', prefix: 'lp-grid', limit: 500, expires: 3600 })
+        ]);
+
+        if ((imgs?.length || 0) === 0 || (vids?.length || 0) === 0) return;
+
+        const imgMap = new Map<string, string>();
+        imgs.forEach(i => imgMap.set(stem(i.path), i.url));
+
+        const assets: VideoAsset[] = vids.map((v, idx) => {
+          const s = stem(v.path);
+          const thumb = imgMap.get(s) || imgMap.get(s.replace(/_thumb$/, '')) || imgMap.get(s + '_thumb') || imgs[0]?.url || '';
+          const title = s.replace(/[-_]+/g, ' ').replace(/\s{2,}/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          return {
+            id: `sb-${idx}-${v.path}`,
+            title: title || 'Clip',
+            description: 'Supabaseから読み込んだ動画素材です',
+            category: 'リモート',
+            tags: ['remote', 'supabase'],
+            duration: 8,
+            resolution: '9:16 4K',
+            price: 1980,
+            thumbnailUrl: thumb,
+            videoUrl: v.url,
+            createdAt: new Date().toISOString().slice(0,10),
+            downloads: 0,
+            rating: 4.6,
+            isNew: true,
+            isFeatured: false,
+            license: 'standard'
+          } as VideoAsset;
+        });
+
+        setRemoteVideos(assets);
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  const videos: VideoAsset[] = useMemo(() => (remoteVideos && remoteVideos.length > 0 ? remoteVideos : localVideos), [remoteVideos]);
 
   const categories = [
     'all',
