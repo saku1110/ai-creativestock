@@ -14,7 +14,8 @@
     "format": "prettier \"src/**/*.{ts,tsx}\" \"*.{js,ts,json,cjs,mjs,md}\" \"{eslint,vitest}.config.{js,ts}\" --check",
     "format:write": "prettier \"src/**/*.{ts,tsx}\" \"*.{js,ts,json,cjs,mjs,md}\" \"{eslint,vitest}.config.{js,ts}\" --write",
     "audit": "npm audit --audit-level=high",
-    "upload:supabase": "tsx src/tools/supa-upload.ts"
+    "upload:supabase": "tsx src/tools/supa-upload.ts",
+    "watch:supabase": "tsx src/tools/supa-watch.ts --dir ./assets/videos --bucket videos --scheme dir"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.98",
