@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { localHeroVideos } from '../local-content';
+import { fetchSupabaseVideos } from '../lib/media';
 
 interface HeroProps {
   onAuthRequest: () => void;
@@ -20,12 +21,8 @@ const FALLBACK_HERO_VIDEOS: HeroVideoItem[] = [
   { id: 'sample-5', title: '企業紹介', src: '/videos/sample5.mp4' }
 ];
 
-const HERO_VIDEOS: HeroVideoItem[] = localHeroVideos.length > 0
-  ? localHeroVideos.map(video => ({
-      id: video.id,
-      title: video.title,
-      src: video.url
-    }))
+const LOCAL_HERO_VIDEOS: HeroVideoItem[] = localHeroVideos.length > 0
+  ? localHeroVideos.map(video => ({ id: video.id, title: video.title, src: video.url }))
   : FALLBACK_HERO_VIDEOS;
 
 const playSilently = (videoEl: HTMLVideoElement | null) => {
@@ -121,10 +118,9 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
   const speedPerMsRef = useRef<number>(0.02);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const itemsRef = useRef<Map<Element, RegisteredItem>>(new Map());
-  const uniqueVideoCount = useMemo(
-    () => new Set(HERO_VIDEOS.map((video) => video.src)).size,
-    []
-  );
+  const [remoteVideos, setRemoteVideos] = useState<HeroVideoItem[] | null>(null);
+  const videos = remoteVideos && remoteVideos.length > 0 ? remoteVideos : LOCAL_HERO_VIDEOS;
+  const uniqueVideoCount = useMemo(() => new Set(videos.map((v) => v.src)).size, [videos]);
   const [isReady, setIsReady] = useState(uniqueVideoCount === 0);
   const isReadyRef = useRef(isReady);
   const loadedVideosRef = useRef<Set<string>>(new Set());
@@ -356,7 +352,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
     return () => observer.disconnect();
   }, []);
 
-  const doubledVideos = HERO_VIDEOS.length > 0 ? [...HERO_VIDEOS, ...HERO_VIDEOS] : [];
+  const doubledVideos = videos.length > 0 ? [...videos, ...videos] : [];
 
   useEffect(() => {
     computeSpeed();
@@ -436,3 +432,18 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
 };
 
 export default Hero;
+  // Try to load videos from Supabase Storage when available
+  useEffect(() => {
+    (async () => {
+      try {
+        const items = await fetchSupabaseVideos({ bucket: 'videos', prefix: 'hero', limit: 50, expires: 3600 });
+        if (items && items.length > 0) {
+          setRemoteVideos(
+            items.map((it, idx) => ({ id: `sb-${idx}-${it.path}`, title: it.path.split('/').pop() || 'Clip', src: it.url }))
+          );
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
