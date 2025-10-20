@@ -125,6 +125,22 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
   const isReadyRef = useRef(isReady);
   const loadedVideosRef = useRef<Set<string>>(new Set());
 
+  // Try to load videos from Supabase Storage when available
+  useEffect(() => {
+    (async () => {
+      try {
+        const items = await fetchSupabaseVideos({ bucket: 'videos', prefix: 'hero', limit: 50, expires: 3600 });
+        if (items && items.length > 0) {
+          setRemoteVideos(
+            items.map((it, idx) => ({ id: `sb-${idx}-${it.path}`, title: it.path.split('/').pop() || 'Clip', src: it.url }))
+          );
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
   const computeSpeed = () => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -432,18 +448,3 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
 };
 
 export default Hero;
-  // Try to load videos from Supabase Storage when available
-  useEffect(() => {
-    (async () => {
-      try {
-        const items = await fetchSupabaseVideos({ bucket: 'videos', prefix: 'hero', limit: 50, expires: 3600 });
-        if (items && items.length > 0) {
-          setRemoteVideos(
-            items.map((it, idx) => ({ id: `sb-${idx}-${it.path}`, title: it.path.split('/').pop() || 'Clip', src: it.url }))
-          );
-        }
-      } catch {
-        // ignore
-      }
-    })();
-  }, []);
