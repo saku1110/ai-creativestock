@@ -1,0 +1,37 @@
+name: Upload Media to Supabase Storage
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'project-bolt-sb1-a6rmxyri/project/src/local-content/**'
+      - 'assets/videos/**'
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Upload local-content (videos bucket)
+        run: |
+          npx tsx src/tools/supa-upload.ts --dir ./project-bolt-sb1-a6rmxyri/project/src/local-content --bucket videos --scheme dir --upsert
+
+      - name: Upload assets/videos (videos bucket)
+        if: ${{ hashFiles('assets/videos/**') != '' }}
+        run: |
+          npx tsx src/tools/supa-upload.ts --dir ./assets/videos --bucket videos --scheme dir --upsert
+

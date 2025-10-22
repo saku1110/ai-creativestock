@@ -52,10 +52,24 @@ type StorageBucketApi = {
 };
 type AnySupabaseClient = { storage: { from: (bucket: string) => StorageBucketApi } };
 
-function extractCategory(filename: string, relPath: string, scheme: Scheme, regex?: string): string {
+/**
+ * Derive destination prefix from the relative path or filename.
+ *
+ * - For scheme 'dir':
+ *   - hero/<file>          -> prefix: hero
+ *   - lp-grid/<file>       -> prefix: lp-grid
+ *   - dashboard/<cat>/<f>  -> prefix: dashboard/<cat>
+ * - For scheme 'regex':
+ *   - Uses the first capture group or named group 'category' in filename.
+ */
+function extractPrefix(filename: string, relPath: string, scheme: Scheme, regex?: string): string {
   if (scheme === 'dir') {
-    const first = relPath.split(/[\\/]/)[0];
-    return first || 'uncategorized';
+    const parts = relPath.split(/[\\/]/).filter(Boolean);
+    if (parts[0] === 'dashboard') {
+      const cat = parts[1] || 'uncategorized';
+      return `dashboard/${cat}`;
+    }
+    return parts[0] || 'uncategorized';
   }
   const base = path.basename(filename);
   const pattern = regex ?? '^(?<category>[^_\-]+)[_\-]';
@@ -97,8 +111,8 @@ async function main() {
       const lower = full.toLowerCase();
       if (!(/[.](mp4|webm|mov|ogg)$/i.test(lower))) return;
       const rel = path.relative(opts.dir, full);
-      const category = extractCategory(full, rel, opts.scheme, opts.regex);
-      const destPath = path.posix.join(category, path.basename(full));
+      const prefix = extractPrefix(full, rel, opts.scheme, opts.regex);
+      const destPath = path.posix.join(prefix, path.basename(full));
       console.log(`[upload] ${rel} -> ${opts.bucket}/${destPath}`);
       await uploadFile(client, opts.bucket, full, destPath, opts.upsert);
       console.log(`[ok] ${rel}`);
@@ -114,4 +128,3 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   // eslint-disable-next-line @typescript-eslint/no-floating-promises
   main();
 }
-

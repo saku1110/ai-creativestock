@@ -137,7 +137,7 @@ const VideoRequestSection: React.FC<VideoRequestSectionProps> = ({ onTrialReques
               <div className="bg-pink-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold mb-4">3</div>
               <h4 className="text-white font-bold mb-3">ダウンロード</h4>
               <p className="text-gray-300 text-sm">
-                2-3営業日後、ダッシュボードから通知。即座にダウンロードして広告クリエイティブに活用できます。
+                プランごとに優先的にリクエスト動画がアップロードされます。即座にダウンロードして広告クリエイティブに活用できます。
               </p>
             </div>
           </div>

@@ -1,58 +1,14 @@
-node_modules
-dist
-coverage
-.DS_Store
-# Node
-node_modules
-.dist
-coverage
-*.log
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Env
+﻿# Prevent committing secrets
 .env
-.env.local
 .env.*
+!.env.example
 
-# Codex/Claude artifacts
-.codex*
-.codex_tmp/
-.codex_npm_cache/
-.claude*
-.claude-backups/
-.claude-history.json
-.serena/
+# Vercel local data
+.vercel
 
-# Dev server artifacts
-dev-server.log
-dev-server.pid
-
-# Project-bolt caches/build
-project-bolt-*/project/node_modules/
-project-bolt-*/project/dist/
-project-bolt-*/project/.vite/
-project-bolt-*/project/coverage/
-project-bolt-*/project/.codex*
-project-bolt-*/project/.codex_tmp/
-project-bolt-*/project/.codex_npm_cache/
-
-# Local media (do not commit videos)
-project-bolt-*/project/src/local-content/**/*.mp4
-project-bolt-*/project/src/local-content/hero/originals/
-
-# Archives
-*.zip
-# Claude helper files (exclude)
-CLAUDE.md
-claude-hook.js
-
-# Broader media exclusions under local-content
-project-bolt-*/project/src/local-content/**/*.{mp4,mov,avi,mkv,webm}
-project-bolt-*/project/src/local-content/**/*.{jpg,jpeg,png,gif,webp,svg}
-project-bolt-*/project/src/local-content/**/*.{mp3,wav,flac,aac,ogg}
+# Temp/build
+/dist
+/public
+/temp
+/node_modules
+*.log

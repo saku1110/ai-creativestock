@@ -15,7 +15,8 @@
     "format:write": "prettier \"src/**/*.{ts,tsx}\" \"*.{js,ts,json,cjs,mjs,md}\" \"{eslint,vitest}.config.{js,ts}\" --write",
     "audit": "npm audit --audit-level=high",
     "upload:supabase": "tsx src/tools/supa-upload.ts",
-    "watch:supabase": "tsx src/tools/supa-watch.ts --dir ./assets/videos --bucket videos --scheme dir"
+    "watch:supabase": "tsx src/tools/supa-watch.ts --dir ./assets/videos --bucket videos --scheme dir",
+    "watch:supabase:local-content": "tsx src/tools/supa-watch.ts --dir ./project-bolt-sb1-a6rmxyri/project/src/local-content --bucket videos --scheme dir"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.98",
@@ -27,6 +28,7 @@
     "@typescript-eslint/eslint-plugin": "^8.41.0",
     "@typescript-eslint/parser": "^8.41.0",
     "@vitest/coverage-v8": "^3.2.4",
+    "chokidar": "^4.0.3",
     "dotenv": "^17.2.1",
     "eslint": "^9.34.0",
     "eslint-plugin-import": "^2.32.0",
