@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import chokidar from 'chokidar';
 import path from 'path';
-import { createReadStream } from 'fs';
+import { readFile } from 'fs/promises';
 import { createClient } from '@supabase/supabase-js';
 
 type Scheme = 'dir' | 'regex';
@@ -80,15 +80,57 @@ function extractPrefix(filename: string, relPath: string, scheme: Scheme, regex?
   return cat || 'uncategorized';
 }
 
+// skip rules: don't upload originals/ folder or *.original.* files
+function shouldSkip(relPath: string): boolean {
+  const parts = relPath.split(/\\\\|\//).filter(Boolean).map((s) => s.toLowerCase());
+  if (parts.includes('originals')) return true;
+  const base = parts[parts.length - 1] || '';
+  if (/\\.original\\.[a-z0-9]+$/i.test(base)) return true;
+  if (/^\./.test(base)) return true; // hidden/temp
+  return false;
+}
+
+// make a storage-safe ASCII filename while keeping the original extension
+function sanitizeBasename(name: string): string {
+  const idx = name.lastIndexOf('.');
+  const base = idx >= 0 ? name.slice(0, idx) : name;
+  const ext = idx >= 0 ? name.slice(idx) : '';
+  // allow only ascii [a-z0-9._-]
+  let safe = base
+    .normalize('NFKD')
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '');
+  if (!safe) safe = `file-${Date.now()}`;
+  // limit length to avoid overly long keys
+  if (safe.length > 120) safe = safe.slice(0, 120);
+  return `${safe}${ext}`;
+}
+
 async function uploadFile(client: AnySupabaseClient, bucket: string, localPath: string, destPath: string, upsert: boolean): Promise<void> {
   const { data, error } = await client.storage.from(bucket).createSignedUploadUrl(destPath);
   if (error || !data) throw new Error(error?.message || 'failed to create signed upload url');
-  const stream = createReadStream(localPath);
-  const { error: upErr } = await client.storage.from(bucket).uploadToSignedUrl(destPath, data.token, stream as unknown as Blob, {
+  // Use Buffer -> Blob to avoid Node fetch "duplex" requirement for Readable streams
+  const buf = await readFile(localPath);
+  const blob = new Blob([buf], { type: 'video/mp4' });
+  const { error: upErr } = await client.storage.from(bucket).uploadToSignedUrl(destPath, data.token, blob, {
     contentType: 'video/mp4',
     upsert,
   } as any);
   if (upErr) throw new Error(upErr.message || 'uploadToSignedUrl failed');
+}
+
+// best-effort check to avoid duplicate uploads with the same key
+async function objectExists(client: AnySupabaseClient, bucket: string, key: string): Promise<boolean> {
+  try {
+    const dir = key.includes('/') ? key.split('/').slice(0, -1).join('/') : '';
+    const name = key.split('/').pop() || key;
+    const { data, error } = await (client.storage as any).from(bucket).list(dir, { limit: 1000 });
+    if (error) return false;
+    return (data || []).some((f: any) => f.name === name);
+  } catch {
+    return false;
+  }
 }
 
 async function main() {
@@ -106,15 +148,13 @@ async function main() {
     awaitWriteFinish: { stabilityThreshold: 1000, pollInterval: 100 },
   });
 
-  const onAdd = async (full: string) => {
-    try {
-      const lower = full.toLowerCase();
-      if (!(/[.](mp4|webm|mov|ogg)$/i.test(lower))) return;
-      const rel = path.relative(opts.dir, full);
-      const prefix = extractPrefix(full, rel, opts.scheme, opts.regex);
-      const destPath = path.posix.join(prefix, path.basename(full));
-      console.log(`[upload] ${rel} -> ${opts.bucket}/${destPath}`);
-      await uploadFile(client, opts.bucket, full, destPath, opts.upsert);
+  
+  param($m)
+  $block = $m.Groups[1].Value
+  $block = $block -replace "const rel = path.relative\(opts.dir, full\);", "const rel = path.relative(opts.dir, full);`n      if (shouldSkip(rel)) { console.log(`[skip] ${rel}`); return; }"
+  $block = $block -replace "const destPath = path.posix.join\(prefix, safeBase\);", "const destPath = path.posix.join(prefix, safeBase);`n      if (uploadedKeys.has(destPath)) { console.log(`[dup] ${rel} -> ${destPath}`); return; }`n      if (await objectExists(client, opts.bucket, destPath)) { console.log(`[exists] ${opts.bucket}/${destPath}`); uploadedKeys.add(destPath); return; }"
+  return "const onAdd = async (full: string) => {" + $block + "await uploadFile(client, opts.bucket, full, destPath, opts.upsert);"
+
       console.log(`[ok] ${rel}`);
     } catch (e: any) {
       console.warn(`[fail] ${full}: ${e?.message || e}`);
