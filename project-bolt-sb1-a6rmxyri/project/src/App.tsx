@@ -45,7 +45,32 @@ import { User } from '@supabase/supabase-js';
 function App() {
   // URLパラメータからバリアントを取得（デフォルトは'landing'）
   const urlParams = new URLSearchParams(window.location.search);
-  const initialVariant = urlParams.get('variant') || 'landing';
+  const path = window.location.pathname.replace(/^\/+/, '');
+  const pathPage = ((): string => {
+    switch (path) {
+      case 'terms':
+      case 'privacy':
+      case 'pricing':
+      case 'dashboard':
+      case 'mypage':
+      case 'favorites':
+      case 'download-history':
+      case 'payment-history':
+      case 'payment-success':
+      case 'payment-cancel':
+      case 'subscription-test':
+      case 'admin':
+      case 'staging-review':
+      case 'auto-upload':
+      case 'simple-landing':
+      case 'white-landing':
+        return path;
+      case '':
+      default:
+        return '';
+    }
+  })();
+  const initialVariant = pathPage || urlParams.get('variant') || 'landing';
   
   const [currentPage, setCurrentPage] = useState(initialVariant);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -68,7 +93,7 @@ function App() {
 
     // ユーザーの認証プロバイダーをチェック
     const authProvider = user.app_metadata?.provider;
-    const validProviders = ['google', 'apple'];
+    const validProviders = ['google'];
     
     console.log('Auth provider check:', { 
       provider: authProvider, 
@@ -192,7 +217,7 @@ function App() {
             // 無効な認証プロバイダーの場合はログアウト
             await auth.signOut();
             setCurrentPage('landing');
-            handleApiError(new Error('許可された認証方法ではありません。GoogleまたはApple IDでログインしてください。'), '認証エラー');
+            handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
           }
         } else {
           setCurrentPage('landing'); // 未ログインの場合はランディングページに
@@ -257,7 +282,7 @@ function App() {
               // 無効な認証プロバイダーの場合はログアウト
               await auth.signOut();
               setCurrentPage('landing');
-              handleApiError(new Error('許可された認証方法ではありません。GoogleまたはApple IDでログインしてください。'), '認証エラー');
+              handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
             }
           } else {
             setUserData(null);
@@ -360,6 +385,35 @@ function App() {
     setShowRegistrationModal(true);
   };
 
+  // ルーティング: ページ変更時にURLを更新、戻る/進むに追従
+  useEffect(() => {
+    const onPopState = () => {
+      const newPath = window.location.pathname.replace(/^\/+/, '');
+      setCurrentPage(newPath || 'landing');
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  // setCurrentPage を伴う遷移で URL を同期
+  useEffect(() => {
+    const publicPages = new Set([
+      'landing',
+      'simple-landing',
+      'white-landing',
+      'terms',
+      'privacy',
+      'pricing',
+    ]);
+    const pathForPage = currentPage === 'landing' ? '/' : `/${currentPage}`;
+    if (window.location.pathname !== pathForPage) {
+      window.history.pushState({}, '', pathForPage);
+    }
+    if (publicPages.has(currentPage)) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [currentPage]);
+
   const handleAuthSuccess = (user: User) => {
     const validProvider = checkAuthProvider(user);
     setIsValidAuthProvider(validProvider);
@@ -371,7 +425,7 @@ function App() {
       setCurrentPage('dashboard'); // 既存ユーザーのログインはダッシュボードに移動
     } else {
       setCurrentPage('landing');
-      handleApiError(new Error('許可された認証方法ではありません。GoogleまたはApple IDでログインしてください。'), '認証エラー');
+      handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
     }
     
     // 開発環境では localStorage に保存
@@ -393,7 +447,7 @@ function App() {
       setCurrentPage('pricing'); // 新規ユーザーは料金プランページに誘導
     } else {
       setCurrentPage('landing');
-      handleApiError(new Error('許可された認証方法ではありません。GoogleまたはApple IDでログインしてください。'), '認証エラー');
+      handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
     }
     
     // 開発環境では localStorage に保存
@@ -414,7 +468,7 @@ function App() {
       setCurrentPage('dashboard'); // 登録完了後はダッシュボードに移動
     } else {
       setCurrentPage('landing');
-      handleApiError(new Error('許可された認証方法ではありません。GoogleまたはApple IDでログインしてください。'), '認証エラー');
+      handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
     }
     
     // 開発環境では localStorage に保存
@@ -514,7 +568,7 @@ function App() {
     }
 
     // ログイン済み時: 動画プラットフォーム
-    // Google/Apple認証のみアクセス許可
+    // Google認証のみアクセス許可
     if (!isValidAuthProvider) {
       return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -586,7 +640,7 @@ function App() {
   // SEOデータを取得
   const pageType = getPageType(currentPage);
   const seoData = pageType ? pageSEOData[pageType] : pageSEOData.dashboard;
-  const pathname = isLoggedIn ? `/${currentPage}` : '/';
+  const pathname = currentPage === 'landing' ? '/' : `/${currentPage}`;
 
   return (
     <HelmetProvider>
