@@ -97,7 +97,7 @@ const HeroVideoCard: React.FC<HeroVideoCardProps> = ({ video, register, onReady 
           src={video.src}
           className="w-full h-full object-cover" crossOrigin="anonymous"
           muted
-          playsInline
+          playsInline autoPlay onError={() => onReady(video.src)}
           preload="metadata"
           loop
         />
