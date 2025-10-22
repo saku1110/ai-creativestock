@@ -95,7 +95,7 @@ const HeroVideoCard: React.FC<HeroVideoCardProps> = ({ video, register, onReady 
         <video
           ref={videoRef}
           src={video.src}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover" crossOrigin="anonymous"
           muted
           playsInline
           preload="metadata"
@@ -129,7 +129,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
   useEffect(() => {
     (async () => {
       try {
-        const items = await fetchSupabaseVideos({ bucket: 'videos', prefix: 'hero', limit: 50, expires: 3600 });
+        const items = await fetchSupabaseVideos({ bucket: 'videos', prefix: 'hero', limit: 50, expires: 21600 });
         if (items && items.length > 0) {
           setRemoteVideos(
             items.map((it, idx) => ({ id: `sb-${idx}-${it.path}`, title: it.path.split('/').pop() || 'Clip', src: it.url }))
