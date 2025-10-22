@@ -5,8 +5,8 @@ import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 // @ts-ignore - type defs not required for runtime
 import ffmpegPath from 'ffmpeg-static';
-import { supabaseAdmin } from './_supabaseAdmin';
-import { inferCategoryFromFilename, isVideoCategory, type VideoCategory } from '../src/utils/categoryInference';
+import { supabaseAdmin } from './_supabaseAdmin.js';
+import { inferCategoryFromFilename, isVideoCategory, type VideoCategory } from '../src/utils/categoryInference.js';
 
 // CORS: 許可オリジンを環境変数で制御（未設定時は閉じすぎないが、可能なら必ず設定）
 const ALLOWED_ORIGIN = process.env.UPLOAD_ALLOWED_ORIGIN || '';
