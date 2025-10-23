@@ -121,7 +121,8 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
   const [remoteVideos, setRemoteVideos] = useState<HeroVideoItem[] | null>(null);
   const videos = remoteVideos && remoteVideos.length > 0 ? remoteVideos : LOCAL_HERO_VIDEOS;
   const uniqueVideoCount = useMemo(() => new Set(videos.map((v) => v.src)).size, [videos]);
-  const [isReady, setIsReady] = useState(uniqueVideoCount === 0);
+  // Start in a not-ready state to avoid any motion before deciding the actual source list
+  const [isReady, setIsReady] = useState(false);
   const isReadyRef = useRef(isReady);
   const loadedVideosRef = useRef<Set<string>>(new Set());
 
@@ -198,9 +199,9 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
   // Reset readiness tracking whenever the `videos` list changes (e.g., after remote fetch)
   useEffect(() => {
     loadedVideosRef.current.clear();
-    const nextReady = uniqueVideoCount === 0;
-    isReadyRef.current = nextReady;
-    setIsReady(nextReady);
+    // Always go back to not-ready on list changes; will become ready when all report onReady
+    isReadyRef.current = false;
+    setIsReady(false);
   }, [videos, uniqueVideoCount]);
 
   useEffect(() => {
