@@ -194,6 +194,15 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
     [uniqueVideoCount]
   );
 
+  // Ensure autoplay/scroll doesn't start until the current video list has loaded
+  // Reset readiness tracking whenever the `videos` list changes (e.g., after remote fetch)
+  useEffect(() => {
+    loadedVideosRef.current.clear();
+    const nextReady = uniqueVideoCount === 0;
+    isReadyRef.current = nextReady;
+    setIsReady(nextReady);
+  }, [videos, uniqueVideoCount]);
+
   useEffect(() => {
     isReadyRef.current = isReady;
 
