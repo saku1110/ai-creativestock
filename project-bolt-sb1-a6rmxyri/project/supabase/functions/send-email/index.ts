@@ -24,6 +24,33 @@ interface EmailRequest {
 }
 
 const EMAIL_TEMPLATES = {
+  contact: {
+    subject: 'AI Creative Stock - お問い合わせ受信',
+    html: (data: any) => `
+      <div style="font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; background: #0b0b0b; color: #fff;">
+        <div style="background: linear-gradient(135deg, #06b6d4 0%, #8b5cf6 100%); padding: 24px; border-radius: 12px; text-align: center; margin-bottom: 24px;">
+          <h1 style="margin: 0; color: #fff; font-size: 20px;">お問い合わせを受信しました</h1>
+        </div>
+        <div style="background:#0f1115; border:1px solid #1f2937; border-radius:12px; padding:20px;">
+          <p style="margin:0 0 12px; color:#cbd5e1;">以下の内容でお問い合わせを受け付けました。</p>
+          <table style="width:100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding:8px 12px; color:#9ca3af; width:120px;">お名前</td>
+              <td style="padding:8px 12px; color:#e5e7eb;">${data?.name ?? ''}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 12px; color:#9ca3af;">メール</td>
+              <td style="padding:8px 12px; color:#e5e7eb;">${data?.from_email ?? ''}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 12px; color:#9ca3af; vertical-align: top;">内容</td>
+              <td style="padding:8px 12px; color:#e5e7eb; white-space: pre-wrap;">${(data?.message ?? '').replace(/</g,'&lt;')}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    `,
+  },
   admin_mfa: {
     subject: 'AI Creative Stock - 管理者ログイン認証コード',
     html: (data: any) => `
