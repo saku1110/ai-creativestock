@@ -16,6 +16,9 @@ import FinalCTA from './components/FinalCTA';
 import Footer from './components/Footer';
 import TermsOfService from './components/TermsOfService';
 import PrivacyPolicy from './components/PrivacyPolicy';
+import RefundPolicy from './components/RefundPolicy';
+import CommercialTransaction from './components/CommercialTransaction';
+import Contact from './components/Contact';
 import Dashboard from './components/Dashboard';
 import MyPage from './components/MyPage';
 import AdminUpload from './components/AdminUpload';
@@ -50,6 +53,9 @@ function App() {
     switch (path) {
       case 'terms':
       case 'privacy':
+      case 'refund':
+      case 'commercial':
+      case 'contact':
       case 'pricing':
       case 'dashboard':
       case 'mypage':
@@ -80,6 +86,7 @@ function App() {
   const [userData, setUserData] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isValidAuthProvider, setIsValidAuthProvider] = useState(false);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [isNewUserRegistration, setIsNewUserRegistration] = useState(false);
   const isNewUserRegistrationRef = useRef(false); // 同期フラグ管理用
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
@@ -93,7 +100,7 @@ function App() {
 
     // ユーザーの認証プロバイダーをチェック
     const authProvider = user.app_metadata?.provider;
-    const validProviders = ['google'];
+    const validProviders = ['google', 'email'];
     
     console.log('Auth provider check:', { 
       provider: authProvider, 
@@ -620,6 +627,12 @@ function App() {
         return <TermsOfService onPageChange={handlePageChange} />;
       case 'privacy':
         return <PrivacyPolicy onPageChange={handlePageChange} />;
+      case 'refund':
+        return <RefundPolicy onPageChange={handlePageChange} />;
+      case 'commercial':
+        return <CommercialTransaction onPageChange={handlePageChange} />;
+      case 'contact':
+        return <Contact onPageChange={handlePageChange} />;
       default:
         return <Dashboard />; // デフォルトはダッシュボード
     }

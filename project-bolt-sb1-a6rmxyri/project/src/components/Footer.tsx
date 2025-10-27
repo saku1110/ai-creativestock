@@ -43,9 +43,11 @@ const Footer: React.FC<FooterProps> = ({ onPageChange }) => {
             </h4>
             <ul className="space-y-3 sm:space-y-4">
               {[
-                'お問い合わせ',
+                { name: 'お問い合わせ', page: 'contact' },
                 { name: '利用規約', page: 'terms' },
-                { name: 'プライバシーポリシー', page: 'privacy' }
+                { name: 'プライバシーポリシー', page: 'privacy' },
+                { name: '返金ポリシー', page: 'refund' },
+                { name: '特定商取引法に基づく表記', page: 'commercial' }
               ].map((item, index) => (
                 <li key={index}>
                   {typeof item === 'string' ? (
