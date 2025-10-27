@@ -1,11 +1,11 @@
-﻿{
+{
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "framework": "vite",
   "installCommand": "npm ci && npm --prefix project-bolt-sb1-a6rmxyri/project ci",
   "buildCommand": "npm --prefix project-bolt-sb1-a6rmxyri/project run build && rm -rf public && mkdir -p public && cp -R project-bolt-sb1-a6rmxyri/project/dist/. public/ && cp -R project-bolt-sb1-a6rmxyri/project/static-pages/. public/",
   "outputDirectory": "public",
-  
+
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "handle": "filesystem" },
@@ -37,4 +37,3 @@
     "api/stripe-webhook.ts": { "maxDuration": 10 }
   }
 }
-
