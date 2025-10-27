@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { ArrowLeft, Mail, MessageSquare } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -15,6 +15,13 @@ export default function Contact({ onPageChange }: ContactProps) {
   });
 
   const [submitting, setSubmitting] = React.useState(false);
+
+  // 初回表示で必ずページ最上部へスクロール
+  React.useEffect(() => {
+    try {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    } catch {}
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,22 +66,27 @@ export default function Contact({ onPageChange }: ContactProps) {
           className="inline-flex items-center text-purple-400 hover:text-purple-300 mb-8 cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5 mr-2" />
-          繝帙・繝縺ｫ謌ｻ繧・        </button>
+          トップに戻る
+        </button>
 
-        <h1 className="text-4xl font-bold mb-8">縺雁撫縺・粋繧上○</h1>
+        <h1 className="text-4xl font-bold mb-8">お問い合わせ</h1>
 
         <div className="prose prose-invert max-w-none">
           <p className="text-gray-300 mb-8">
-            繧ｵ繝ｼ繝薙せ縺ｫ髢｢縺吶ｋ縺碑ｳｪ蝠上√＃隕∵悍縲√◎縺ｮ莉悶♀蝠上＞蜷医ｏ縺帙・縲∽ｻ･荳九・繝輔か繝ｼ繝繧医ｊ縺企√ｊ縺上□縺輔＞縲・          </p>
+            製品やサービスに関するご質問、導入のご相談、
+            不具合のご報告などがございましたら、下記のフォーム
+            からお気軽にお問い合わせください。
+          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
             <div className="bg-gray-900 rounded-xl p-6">
               <div className="flex items-center gap-3 mb-3">
                 <Mail className="w-6 h-6 text-pink-400" />
-                <h2 className="text-xl font-semibold">繝｡繝ｼ繝ｫ縺ｧ縺ｮ縺雁撫縺・粋繧上○</h2>
+                <h2 className="text-xl font-semibold">メールでのお問い合わせ</h2>
               </div>
               <p className="text-gray-300 text-sm">
-                騾壼ｸｸ2縲・蝟ｶ讌ｭ譌･莉･蜀・↓縺碑ｿ比ｿ｡縺・◆縺励∪縺吶・              </p>
+                2営業日以内に担当よりご返信いたします。
+              </p>
             </div>
 
             <div className="bg-gray-900 rounded-xl p-6">
@@ -83,14 +95,15 @@ export default function Contact({ onPageChange }: ContactProps) {
                 <h2 className="text-xl font-semibold">その他の連絡方法</h2>
               </div>
               <p className="text-gray-300 text-sm">
-                縺雁撫縺・粋繧上○縺ｮ蜑阪↓縲：AQ繧ゅ＃遒ｺ隱阪￥縺縺輔＞縲・              </p>
+                緊急のご用件は件名の先頭に【至急】とご記載ください。
+              </p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-2">
-                縺雁錐蜑・<span className="text-pink-400">*</span>
+                お名前 <span className="text-pink-400">*</span>
               </label>
               <input
                 type="text"
@@ -105,7 +118,7 @@ export default function Contact({ onPageChange }: ContactProps) {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                繝｡繝ｼ繝ｫ繧｢繝峨Ξ繧ｹ <span className="text-pink-400">*</span>
+                メールアドレス <span className="text-pink-400">*</span>
               </label>
               <input
                 type="email"
@@ -120,7 +133,7 @@ export default function Contact({ onPageChange }: ContactProps) {
 
             <div>
               <label htmlFor="subject" className="block text-sm font-medium text-gray-300 mb-2">
-                莉ｶ蜷・<span className="text-pink-400">*</span>
+                件名 <span className="text-pink-400">*</span>
               </label>
               <input
                 type="text"
@@ -135,7 +148,7 @@ export default function Contact({ onPageChange }: ContactProps) {
 
             <div>
               <label htmlFor="message" className="block text-sm font-medium text-gray-300 mb-2">
-                縺雁撫縺・粋繧上○蜀・ｮｹ <span className="text-pink-400">*</span>
+                お問い合わせ内容 <span className="text-pink-400">*</span>
               </label>
               <textarea
                 id="message"
@@ -144,7 +157,7 @@ export default function Contact({ onPageChange }: ContactProps) {
                 value={formData.message}
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                 className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-pink-500 transition-colors resize-none"
-                placeholder="縺雁撫縺・粋繧上○蜀・ｮｹ繧定ｩｳ縺励￥縺碑ｨ伜・縺上□縺輔＞"
+                placeholder="お問い合わせ内容を詳しくご記入ください"
               />
             </div>
 
@@ -161,12 +174,13 @@ export default function Contact({ onPageChange }: ContactProps) {
 
           <div className="mt-12 pt-8 border-t border-gray-800">
             <p className="text-gray-400 text-sm">
-              窶ｻ 縺企√ｊ縺・◆縺縺・◆蛟倶ｺｺ諠・ｱ縺ｯ縲√♀蝠上＞蜷医ｏ縺帙∈縺ｮ蝗樒ｭ比ｻ･螟悶・逶ｮ逧・〒縺ｯ菴ｿ逕ｨ縺・◆縺励∪縺帙ｓ縲・
+              送信内容は当社のプライバシーポリシーに基づいて適切に管理いたします。
             </p>
-            <p className="text-gray-400 text-sm mt-2">AI CreativeStock 驕句霧莠句漁螻</p>
+            <p className="text-gray-400 text-sm mt-2">AI Creative Stock サポート窓口</p>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
