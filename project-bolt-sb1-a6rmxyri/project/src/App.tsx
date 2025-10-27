@@ -216,8 +216,13 @@ function App() {
             handleApiError(new Error('許可された認証方法ではありません。GoogleまたはApple IDでログインしてください。'), '認証エラー');
           }
         } else {
-          setCurrentPage('landing'); // 未ログインの場合はランディングページに
-          console.log('初期化: 未認証ユーザー - ランディングページに移動');
+          // 未ログイン: パスが公開ページなら維持、そうでなければLPへ
+          if (!PUBLIC_PAGES.includes(currentPage)) {
+            setCurrentPage('landing');
+            console.log('初期化: 未認証ユーザー - ランディングページに移動');
+          } else {
+            console.log('初期化: 未認証ユーザー - 公開ページを維持:', currentPage);
+          }
         }
       } catch (error) {
         console.error('認証初期化エラー:', error);
@@ -290,8 +295,13 @@ function App() {
             setUserData(null);
             setIsLoggedIn(false);
             setIsValidAuthProvider(false);
-            setCurrentPage('landing'); // ログアウト時はランディングページに移動
-            console.log('ログアウト: ランディングページに移動');
+            // ログアウト時: 公開ページにいるなら維持、そうでなければLPへ
+            if (!PUBLIC_PAGES.includes(currentPage)) {
+              setCurrentPage('landing');
+              console.log('ログアウト: ランディングページに移動');
+            } else {
+              console.log('ログアウト: 公開ページを維持:', currentPage);
+            }
           }
           setIsLoading(false);
         }
@@ -376,7 +386,10 @@ function App() {
   };
 
   const handleContactRequest = () => {
-    setShowContactModal(true);
+    // 問い合わせはページ遷移で表示（LPに戻らない）
+    setShowContactModal(false);
+    setCurrentPage('contact');
+    try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch {}
   };
 
   const handlePurchaseRequest = () => {
