@@ -79,6 +79,13 @@ function App() {
   const initialVariant = pathPage || urlParams.get('variant') || 'landing';
   
   const [currentPage, setCurrentPage] = useState(initialVariant);
+  const publicPages = new Set([
+    'terms',
+    'privacy',
+    'refund',
+    'commercial',
+    'contact'
+  ]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
@@ -90,6 +97,18 @@ function App() {
   const [isNewUserRegistration, setIsNewUserRegistration] = useState(false);
   const isNewUserRegistrationRef = useRef(false); // 同期フラグ管理用
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
+  // Admin IP allowlist (client-side)
+  const adminIpAllowlist = (import.meta.env.VITE_ADMIN_IP_ALLOWLIST || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+  
+  // 未ログインでも公開ページは直接アクセス可能にする
+  useEffect(() => {
+    if (!isLoggedIn && !publicPages.has(currentPage)) {
+      const rawPath = window.location.pathname.replace(/^\/+/, '');
+      if (publicPages.has(rawPath)) {
+        setCurrentPage(rawPath);
+      }
+    }
+  }, [isLoggedIn]);
 
   // 認証プロバイダーチェック関数
   const checkAuthProvider = (user: User): boolean => {
@@ -196,7 +215,7 @@ function App() {
           }
           */
           // 常にログアウト状態でランディングページを表示
-          setCurrentPage('landing');
+          setCurrentPage(prev => (publicPages.has(prev) || prev === 'landing' || prev === 'simple-landing' || prev === 'white-landing') ? prev : 'landing');
           setIsLoggedIn(false);
           setUserData(null);
           // localStorageもクリア
@@ -344,7 +363,21 @@ function App() {
         handleApiError(new Error('ログインが必要です'), '管理者ページアクセス');
         return;
       }
-      
+      // Enforce IP allowlist for admin areas if configured
+      if (adminIpAllowlist.length > 0 && (page === 'admin' || page === 'staging-review')) {
+        try {
+          const resp = await fetch('https://api.ipify.org?format=json');
+          const ip = (await resp.json()).ip as string;
+          if (!adminIpAllowlist.includes(ip)) {
+            handleApiError(new Error('管理者画面へのアクセスが制限されています（IP制限）'), 'アクセス制限');
+            return;
+          }
+        } catch {
+          handleApiError(new Error('IP検証に失敗しました'), 'アクセス制限');
+          return;
+        }
+      }
+
       try {
         const { isAdmin } = await database.checkAdminStatus(userData.id);
         if (!isAdmin) {
@@ -533,7 +566,7 @@ function App() {
     console.log('renderContent called:', { isLoggedIn, currentPage, isLoading });
     
     
-    if (!isLoggedIn) {
+    if (!isLoggedIn && !publicPages.has(currentPage)) {
       // 未ログイン時: ランディングページ選択
       if (currentPage === 'simple-landing') {
         // シンプルLPを表示
@@ -576,7 +609,7 @@ function App() {
 
     // ログイン済み時: 動画プラットフォーム
     // Google認証のみアクセス許可
-    if (!isValidAuthProvider) {
+    if (!isValidAuthProvider && !publicPages.has(currentPage)) {
       return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center">
           <div className="text-center max-w-md mx-auto p-8">

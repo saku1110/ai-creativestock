@@ -19,9 +19,39 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const [authStep, setAuthStep] = useState<'login' | 'register' | 'success' | 'error'>('login');
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const [password, setPassword] = useState('');
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+
+  const MAX_ATTEMPTS = 10;
+  const LOCK_MINUTES = 30;
+
+  const keyFor = (addr: string) => `login_lockout_${addr.toLowerCase()}`;
+  const nowTs = () => Date.now();
+  const loadLock = (addr: string) => {
+    try {
+      const raw = localStorage.getItem(keyFor(addr));
+      if (!raw) return { attempts: 0, until: 0 };
+      const v = JSON.parse(raw);
+      return { attempts: Number(v.attempts) || 0, until: Number(v.until) || 0 };
+    } catch { return { attempts: 0, until: 0 }; }
+  };
+  const saveLock = (addr: string, attempts: number, until: number) => {
+    try { localStorage.setItem(keyFor(addr), JSON.stringify({ attempts, until })); } catch {}
+  };
+  const resetLock = (addr: string) => saveLock(addr, 0, 0);
+  const checkLocked = (addr: string) => {
+    const st = loadLock(addr);
+    if (st.until && st.until > nowTs()) return st.until;
+    if (st.until && st.until <= nowTs()) resetLock(addr);
+    return 0;
+  };
 
   const handleAuthSuccess = (userData: User) => {
     setAuthStep('success');
+    // reset lockout on successful login
+    try { localStorage.removeItem(`login_lockout_${(userData.email || '').toLowerCase()}`) } catch {}
     setTimeout(() => {
       onAuthSuccess(userData);
       onClose();
@@ -32,12 +62,36 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const handleAuthError = (error: string) => {
     setErrorMessage(error);
     setAuthStep('error');
+    // increment attempts for lockout
+    try {
+      if (email) {
+        const key = `login_lockout_${email.toLowerCase()}`;
+        const raw = localStorage.getItem(key);
+        const v = raw ? JSON.parse(raw) : { attempts: 0, until: 0 };
+        const attempts = (Number(v.attempts) || 0) + 1;
+        if (attempts >= 10) {
+          const untilTs = Date.now() + 30 * 60 * 1000;
+          localStorage.setItem(key, JSON.stringify({ attempts, until: untilTs }));
+          setLockoutUntil(untilTs);
+        } else {
+          localStorage.setItem(key, JSON.stringify({ attempts, until: 0 }));
+        }
+      }
+    } catch {}
     setTimeout(() => {
       setAuthStep('login');
     }, 3000);
   };
 
   const handleGoogleSignIn = async () => {
+    // lockout check before attempting login
+    const until = checkLocked(email);
+    if (until) {
+      const mins = Math.ceil((until - Date.now()) / 60000);
+      handleAuthError(`試行回数超過のためロック中です（約${mins}分）`);
+      setLockoutUntil(until);
+      return;
+    }
     setIsLoading(true);
     try {
       // Supabaseを使用したGoogle認証
@@ -80,6 +134,49 @@ const AuthModal: React.FC<AuthModalProps> = ({
       }
       
       handleAuthError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // メールのマジックリンクを送信
+  const handleEmailMagicLink = async () => {
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      handleAuthError('有効なメールアドレスを入力してください。');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { error } = await auth.signInWithMagicLink(email);
+      if (error) throw error;
+      setEmailSent(true);
+      setAuthStep('success');
+    } catch (e: any) {
+      handleAuthError(e?.message || 'メール送信に失敗しました。時間をおいてお試しください。');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // メール + パスワードでログイン
+  const handleEmailPasswordLogin = async () => {
+    if (!email || !password) {
+      handleAuthError('メールとパスワードを入力してください');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { data, error } = await auth.signInWithEmail(email, password);
+      if (error) throw error;
+      // すぐにユーザー情報を取得
+      const { user } = await auth.getCurrentUser();
+      if (user) {
+        handleAuthSuccess(user as User);
+      } else {
+        handleAuthError('ログインに失敗しました。もう一度お試しください');
+      }
+    } catch (e: any) {
+      handleAuthError(e?.message || 'メールログインに失敗しました');
     } finally {
       setIsLoading(false);
     }
@@ -147,9 +244,62 @@ const AuthModal: React.FC<AuthModalProps> = ({
                   </svg>
                 )}
                 <span>{isLoading ? '認証中...' : 'Googleでログイン'}</span>
-              </button>
+                </button>
 
-              </div>
+                {/* 区切り */}
+                <div className="relative py-2">
+                  <div className="absolute inset-0 border-t border-white/10" />
+                  <div className="relative flex justify-center">
+                    <span className="px-3 text-xs text-gray-500 bg-black/60">または</span>
+                  </div>
+                </div>
+
+                {/* メールでログイン（パスワード） */}
+                <div className="grid grid-cols-1 gap-3">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="メールアドレス"
+                    className="w-full rounded-xl bg-black/40 border border-white/20 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
+                    disabled={isLoading}
+                  />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="パスワード"
+                    className="w-full rounded-xl bg-black/40 border border-white/20 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
+                    disabled={isLoading}
+                  />
+                  <button
+                    onClick={handleEmailPasswordLogin}
+                    disabled={isLoading}
+                    className={`w-full flex items-center justify-center space-x-3 glass-effect border border-white/20 text-white hover:text-cyan-400 px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:bg-white/5 ${
+                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {isLoading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : null}
+                    <span>メールでログイン</span>
+                  </button>
+                </div>
+
+                {/* 任意: Magic Link も利用可能 */}
+                <div className="grid grid-cols-1 gap-3 mt-2">
+                  <button
+                    onClick={handleEmailMagicLink}
+                    disabled={isLoading || emailSent}
+                    className={`w-full text-xs flex items-center justify-center space-x-2 glass-effect border border-white/10 text-gray-300 hover:text-cyan-300 px-4 py-2 rounded-lg transition-all ${
+                      (isLoading || emailSent) ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <span>{emailSent ? '送信済み: メールをご確認ください' : 'またはメールにログインリンクを送信'}</span>
+                  </button>
+                </div>
+
+                </div>
 
             {/* セキュリティ情報 */}
             <div className="glass-effect rounded-2xl p-4 border border-cyan-400/30">

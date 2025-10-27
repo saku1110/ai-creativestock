@@ -24,6 +24,22 @@ interface EmailRequest {
 }
 
 const EMAIL_TEMPLATES = {
+  admin_mfa: {
+    subject: 'AI Creative Stock - 管理者ログイン認証コード',
+    html: (data: any) => `
+      <div style="font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #06b6d4 0%, #8b5cf6 100%); padding: 28px; border-radius: 12px; text-align: center; margin-bottom: 24px; color: #fff;">
+          <h1 style="margin: 0; font-size: 22px;">管理者ログイン認証コード</h1>
+        </div>
+        <div style="background: #ffffff; border: 1px solid #eef2f7; border-radius: 10px; padding: 24px;">
+          <p style="color: #333; line-height: 1.7; margin: 0 0 16px;">以下の 6 桁コードを 5 分以内に入力してください。</p>
+          <div style="text-align: center; font-size: 28px; letter-spacing: 6px; font-weight: 700; color: #111; padding: 16px 0;">${data.code}</div>
+          <p style="color: #666; font-size: 13px; margin: 16px 0 0;">コードの有効期限: 5 分</p>
+        </div>
+        <p style="color: #6b7280; font-size: 12px; margin-top: 16px;">このメールに覚えがない場合は破棄してください。</p>
+      </div>
+    `,
+  },
   subscription_created: {
     subject: 'AI Creative Stock - サブスクリプション開始のお知らせ',
     html: (data: any) => `

@@ -39,6 +39,25 @@ serve(async (req) => {
       throw new Error('Missing required parameters: priceId, userId, billing, and planId')
     }
 
+    // Security: throttle checkout session creation per user
+    try {
+      const { data: rl, error: rlError } = await supabase.rpc('check_rate_limit', {
+        p_identifier: userId,
+        p_action_type: 'checkout',
+        p_window_minutes: 10,
+        p_max_requests: 5,
+      })
+      if (rlError) throw rlError
+      if (rl && (rl as any).allowed === false) {
+        return new Response(
+          JSON.stringify({ error: 'Too many requests. Please try again later.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 },
+        )
+      }
+    } catch (e) {
+      console.error('Rate limit check failed:', e)
+    }
+
     // ユーザー情報の取得
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -125,21 +144,15 @@ serve(async (req) => {
       ])
       .select()
 
-    return new Response(
-      JSON.stringify({ sessionId: session.id }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
-    )
+    return new Response(JSON.stringify({ sessionId: session.id }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    })
   } catch (error) {
     console.error('Stripe checkout error:', error)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      },
-    )
+    return new Response(JSON.stringify({ error: 'Payment processing error' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    })
   }
 })

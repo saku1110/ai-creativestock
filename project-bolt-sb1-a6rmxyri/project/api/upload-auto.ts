@@ -39,6 +39,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    // IP allowlist (optional): only allow specified IPs to hit this admin upload API
+    const allowlist = (process.env.UPLOAD_IP_ALLOWLIST || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (allowlist.length > 0) {
+      const xfwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+      const remoteIp = xfwd || (req.socket && (req.socket as any).remoteAddress) || '';
+      const matched = allowlist.includes(remoteIp);
+      if (!matched) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    }
     // ffmpeg path setup (for serverless)
     if (ffmpegPath) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,6 +59,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const form = formidable({
       maxFileSize: 100 * 1024 * 1024, // 100MB
       keepExtensions: true,
+      filter: ({ mimetype, originalFilename }) => {
+        const okTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'];
+        const ext = (originalFilename || '').toLowerCase();
+        const okExt = ['.mp4', '.mov', '.avi', '.webm'];
+        return (!!mimetype && okTypes.includes(mimetype)) || okExt.some(e => ext.endsWith(e));
+      }
     });
 
     const [fields, files] = await form.parse(req);
@@ -67,6 +83,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         details: validationErrors
       });
     }
+
+    // Basic filename sanitization
+    const safeName = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '_');
     
     const categoryFieldRaw = (Array.isArray(fields.category) ? fields.category[0] : fields.category) as string | undefined;
     let normalizedCategory: VideoCategory | undefined;
@@ -101,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const thumbnailBuffer = await fs.readFile(thumbnailPath);
 
     // Upload video to Supabase Storage (Admin client)
-    const videoFileName = `${Date.now()}_${videoFile.originalFilename}`;
+    const videoFileName = `${Date.now()}_${safeName(videoFile.originalFilename || 'upload.mp4')}`;
     const { data: videoData, error: videoError } = await supabaseAdmin.storage
       .from('video-assets')
       .upload(`videos/${videoFileName}`, videoBuffer, {
