@@ -49,22 +49,7 @@ function App() {
   // URL繝代Λ繝｡繝ｼ繧ｿ縺九ｉ繝舌Μ繧｢繝ｳ繝医ｒ蜿門ｾ暦ｼ医ョ繝輔か繝ｫ繝医・'landing'・・
   const urlParams = new URLSearchParams(window.location.search);
   const path = window.location.pathname.replace(/^\/+/, '');
-  // 強制的に静的ページへ委譲したいパス（文字化け・スクロール問題の回避）
-  const STATIC_PAGES = new Set([
-    'terms',
-    'privacy',
-    'refund',
-    'commercial',
-    'contact'
-  ]);
-  if (STATIC_PAGES.has(path)) {
-    // すでに静的HTMLを返すよう Vercel 側でルーティング済みだが、
-    // SPA がロードされた場合にも確実にサーバー遷移させる
-    const dest = `/${path}/index.html`;
-    if (!window.location.pathname.endsWith('/index.html')) {
-      window.location.replace(dest);
-    }
-  }
+  // 直接アクセス時もSPAで処理するため、強制リダイレクトは行わない
   const pathPage = ((): string => {
     switch (path) {
       case 'terms':
