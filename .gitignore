@@ -12,3 +12,17 @@
 /temp
 /node_modules
 *.log
+
+# Claude Code session data
+.claude-backups/
+.claude-history.json
+
+# Codex cache and temp
+.codex_tmp/
+.codex_npm_cache/
+
+# Test coverage
+coverage/
+
+# Dev server PID
+dev-server.pid
