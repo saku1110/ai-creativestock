@@ -11,6 +11,7 @@
     { "src": "/privacy", "dest": "/privacy/index.html" },
     { "src": "/refund", "dest": "/refund/index.html" },
     { "src": "/commercial", "dest": "/commercial/index.html" },
+    { "src": "/contact", "dest": "/contact/index.html" },
     { "handle": "filesystem" },
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/.*", "dest": "/index.html" }

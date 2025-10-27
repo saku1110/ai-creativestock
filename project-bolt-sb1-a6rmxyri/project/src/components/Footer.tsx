@@ -6,14 +6,8 @@ interface FooterProps {
 }
 
 const Footer: React.FC<FooterProps> = ({ onPageChange }) => {
-  const handleLinkClick = (e: React.MouseEvent, page: string) => {
-    // SPA内遷移に切り替え（スクロール位置の維持/最下部開始の回避）
-    if (onPageChange) {
-      e.preventDefault();
-      try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch {}
-      onPageChange(page);
-    }
-  };
+  // フッターは静的ページ（サーバー遷移）へリンクし、確実にトップから表示させる方針
+  // SPA遷移は使用しない（履歴復帰時のスクロール位置保持などの副作用を避ける）
 
   return (
     <footer className="bg-black border-t border-white/10">
@@ -45,15 +39,9 @@ const Footer: React.FC<FooterProps> = ({ onPageChange }) => {
               <span>サポート</span>
             </h4>
             <ul className="space-y-3 sm:space-y-4">
-              {[{ name: "お問い合わせ", href: "/contact", page: 'contact' },{ name: "利用規約", href: "/terms", page: 'terms' },{ name: "プライバシーポリシー", href: "/privacy", page: 'privacy' },{ name: "返金ポリシー", href: "/refund", page: 'refund' },{ name: "特定商取引法に基づく表記", href: "/commercial", page: 'commercial' }].map((item, index) => (
+              {[{ name: "お問い合わせ", href: "/contact" },{ name: "利用規約", href: "/terms" },{ name: "プライバシーポリシー", href: "/privacy" },{ name: "返金ポリシー", href: "/refund" },{ name: "特定商取引法に基づく表記", href: "/commercial" }].map((item, index) => (
                 <li key={index}>
-                  <a
-                    href={item.href}
-                    onClick={(e) => handleLinkClick(e, item.page)}
-                    className="text-gray-400 hover:text-cyan-400 transition-colors font-medium text-sm sm:text-base"
-                  >
-                    {item.name}
-                  </a>
+                  <a href={item.href} className="text-gray-400 hover:text-cyan-400 transition-colors font-medium text-sm sm:text-base">{item.name}</a>
                 </li>
               ))}
             </ul>
