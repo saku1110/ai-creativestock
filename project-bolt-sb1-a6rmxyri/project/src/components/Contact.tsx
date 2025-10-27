@@ -1,5 +1,5 @@
-﻿import { ArrowLeft, Mail, MessageSquare } from 'lucide-react';
-import { useState } from 'react';
+﻿import React from 'react';
+import { ArrowLeft, Mail, MessageSquare } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface ContactProps {
@@ -7,14 +7,14 @@ interface ContactProps {
 }
 
 export default function Contact({ onPageChange }: ContactProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = React.useState({
     name: '',
     email: '',
-    subject: '【お問い合わせ】' + formData.subject,
+    subject: '',
     message: ''
   });
 
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +31,7 @@ export default function Contact({ onPageChange }: ContactProps) {
       const { error } = await (supabase.functions as any).invoke('send-email', {
         body: {
           to: 'support@ai-creative-stock.com',
-          subject: '【お問い合わせ】' + formData.subject,
+          subject: '',
           template: 'contact',
           data: {
             name: formData.name,
@@ -42,7 +42,7 @@ export default function Contact({ onPageChange }: ContactProps) {
       });
       if (error) throw error;
       alert('お問い合わせを送信しました。担当よりご連絡いたします。');
-      setFormData({ name: '', email: '', subject: '【お問い合わせ】' + formData.subject, message: '' });
+      setFormData({ name: '', email: '', subject: '', message: '' });
     } catch (err) {
       console.error('contact submit error:', err);
       alert('送信に失敗しました。時間をおいて再度お試しください。');
