@@ -1,6 +1,5 @@
 import React from 'react';
 import { ArrowLeft, Mail, MessageSquare } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 
 interface ContactProps {
   onPageChange: (page: string) => void;
@@ -35,19 +34,20 @@ export default function Contact({ onPageChange }: ContactProps) {
     }
     setSubmitting(true);
     try {
-      const { error } = await (supabase.functions as any).invoke('send-email', {
-        body: {
-          to: 'support@ai-creative-stock.com',
-          subject: '',
-          template: 'contact',
-          data: {
-            name: formData.name,
-            from_email: formData.email,
-            message: formData.message,
-          },
-        },
+      // 同一オリジンのAPIを呼ぶ（Vercel本番/プレビュー、または vercel dev + Vite proxy）
+      const resp = await fetch(`/api/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          from_email: formData.email,
+          subject: formData.subject || 'お問い合わせ',
+          message: formData.message,
+        }),
       });
-      if (error) throw error;
+      if (!resp.ok) throw new Error('Contact API returned non-2xx');
+
+      // 成功時
       alert('お問い合わせを送信しました。担当よりご連絡いたします。');
       setFormData({ name: '', email: '', subject: '', message: '' });
     } catch (err) {
@@ -183,4 +183,3 @@ export default function Contact({ onPageChange }: ContactProps) {
     </div>
   );
 }
-

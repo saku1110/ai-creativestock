@@ -5,6 +5,51 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [
     react(),
+    // 開発時のみ /api/contact をViteで受ける簡易API（vercel dev なしでも送信可）
+    {
+      name: 'dev-contact-api',
+      configureServer(server) {
+        server.middlewares.use(async (req, res, next) => {
+          const url = req.url || '';
+          if (!url.startsWith('/api/contact')) return next();
+
+          // CORS
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+          if (req.method === 'OPTIONS') {
+            res.statusCode = 204; res.end(); return;
+          }
+          if (req.method !== 'POST') {
+            res.statusCode = 405; res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Method Not Allowed' })); return;
+          }
+          try {
+            const chunks: Buffer[] = [];
+            req.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+            req.on('end', () => {
+              try {
+                const bodyStr = Buffer.concat(chunks).toString('utf8') || '{}';
+                const body = JSON.parse(bodyStr);
+                const { name, from_email, subject, message } = body || {};
+                if (!name || !from_email || !subject || !message) {
+                  res.statusCode = 400; res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ error: 'Missing required fields' })); return;
+                }
+                res.statusCode = 200; res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ ok: true, dev: true }));
+              } catch (e: any) {
+                res.statusCode = 500; res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: e?.message || 'parse error' }));
+              }
+            });
+          } catch (e: any) {
+            res.statusCode = 500; res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: e?.message || 'unknown error' }));
+          }
+        });
+      },
+    },
     // セキュリティヘッダーを自動的に追加するプラグイン
     {
       name: 'security-headers',
@@ -108,6 +153,14 @@ export default defineConfig({
       'X-XSS-Protection': '1; mode=block',
       'Cache-Control': 'no-store, no-cache, must-revalidate',
       'Pragma': 'no-cache'
+    },
+    proxy: {
+      // Proxy API calls to Vercel dev server when running locally
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      },
     },
     watch: {
       usePolling: true,
