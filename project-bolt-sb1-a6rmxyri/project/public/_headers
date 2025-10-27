@@ -1,42 +1,36 @@
-# 本番環境用セキュリティヘッダー（Netlify/Vercel等用）
-/*
-  # CSP - 厳格なContent Security Policy
+﻿# 譛ｬ逡ｪ迺ｰ蠅・畑繧ｻ繧ｭ繝･繝ｪ繝・ぅ繝倥ャ繝繝ｼ・・etlify/Vercel遲臥畑・・/*
+  # CSP - 蜴ｳ譬ｼ縺ｪContent Security Policy
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://via.placeholder.com; media-src 'self' blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.ipify.org; frame-src 'self' https://js.stripe.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
   
-  # XSS保護
+  # XSS菫晁ｭｷ
   X-XSS-Protection: 1; mode=block
   
-  # コンテンツタイプスニッフィング防止
+  # 繧ｳ繝ｳ繝・Φ繝・ち繧､繝励せ繝九ャ繝輔ぅ繝ｳ繧ｰ髦ｲ豁｢
   X-Content-Type-Options: nosniff
   
-  # フレーム埋め込み防止
+  # 繝輔Ξ繝ｼ繝蝓九ａ霎ｼ縺ｿ髦ｲ豁｢
   X-Frame-Options: DENY
   
-  # HTTPS強制（本番環境）
-  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  # HTTPS蠑ｷ蛻ｶ・域悽逡ｪ迺ｰ蠅・ｼ・  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
   
-  # リファラーポリシー
+  # 繝ｪ繝輔ぃ繝ｩ繝ｼ繝昴Μ繧ｷ繝ｼ
   Referrer-Policy: strict-origin-when-cross-origin
   
-  # 権限ポリシー
-  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(self), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), ambient-light-sensor=(), autoplay=(self)
+  # 讓ｩ髯舌・繝ｪ繧ｷ繝ｼ
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(self), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), autoplay=(self)
   
-  # IE用設定
-  X-Download-Options: noopen
+  # IE逕ｨ險ｭ螳・  X-Download-Options: noopen
   X-Permitted-Cross-Domain-Policies: none
   
-  # キャッシュ制御
+  # 繧ｭ繝｣繝・す繝･蛻ｶ蠕｡
   Cache-Control: public, max-age=31536000, immutable
 
-# 静的アセット用の追加キャッシュ設定
-/assets/*
+# 髱咏噪繧｢繧ｻ繝・ヨ逕ｨ縺ｮ霑ｽ蜉繧ｭ繝｣繝・す繝･險ｭ螳・/assets/*
   Cache-Control: public, max-age=31536000, immutable
 
-# HTMLファイル用のキャッシュ設定
-/*.html
+# HTML繝輔ぃ繧､繝ｫ逕ｨ縺ｮ繧ｭ繝｣繝・す繝･險ｭ螳・/*.html
   Cache-Control: public, max-age=0, must-revalidate
 
-# APIエンドポイント用設定（もしある場合）
-/api/*
+# API繧ｨ繝ｳ繝峨・繧､繝ｳ繝育畑險ｭ螳夲ｼ医ｂ縺励≠繧句ｴ蜷茨ｼ・/api/*
   Cache-Control: no-store, no-cache, must-revalidate
   Content-Security-Policy: default-src 'none'
