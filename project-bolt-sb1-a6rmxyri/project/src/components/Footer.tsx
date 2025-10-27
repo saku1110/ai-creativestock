@@ -10,6 +10,7 @@ const Footer: React.FC<FooterProps> = ({ onPageChange }) => {
     // SPA内遷移に切り替え（スクロール位置の維持/最下部開始の回避）
     if (onPageChange) {
       e.preventDefault();
+      try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch {}
       onPageChange(page);
     }
   };
