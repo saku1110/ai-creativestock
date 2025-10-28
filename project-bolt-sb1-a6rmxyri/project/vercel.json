@@ -39,7 +39,7 @@
       "dest": "/index.html"
     }
   ],
-  ],
+ 
   "functions": {
     "api/stripe-webhook.ts": {
       "maxDuration": 10
