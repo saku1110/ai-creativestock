@@ -26,3 +26,5 @@ coverage/
 
 # Dev server PID
 dev-server.pid
+
+.vercel

@@ -1,11 +1,12 @@
 import { loadStripe, Stripe } from '@stripe/stripe-js';
 
-// Stripe公開可能キー
+// Stripe公開可能キー（未設定でもアプリを落とさない）
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-
-// 開発環境ではStripeキーが無くても動作するようにする
-if (!stripePublishableKey && import.meta.env.PROD) {
-  throw new Error('Stripe公開可能キーが設定されていません。.envファイルを確認してください。');
+const STRIPE_ENABLED = Boolean(stripePublishableKey);
+if (!STRIPE_ENABLED && import.meta.env.PROD) {
+  // 本番でもキー未設定なら致命的エラーにせず警告に留める（UI側でハンドリング）
+  // eslint-disable-next-line no-console
+  console.warn('Stripe公開可能キーが未設定のため、決済機能は無効化されています。');
 }
 
 // Stripeインスタンス
@@ -13,7 +14,7 @@ let stripePromise: Promise<Stripe | null>;
 
 export const getStripe = () => {
   if (!stripePromise) {
-    stripePromise = loadStripe(stripePublishableKey);
+    stripePromise = STRIPE_ENABLED ? loadStripe(stripePublishableKey) : Promise.resolve(null);
   }
   return stripePromise;
 };
@@ -124,6 +125,10 @@ export class StripePaymentService {
       }
 
       const priceId = billing === 'yearly' ? plan.yearlyStripePriceId : plan.monthlyStripePriceId;
+
+      if (!STRIPE_ENABLED) {
+        return { error: '現在、決済機能は一時的に無効化されています。後ほどお試しください。' };
+      }
 
       // Vercel Functions経由でStripe APIを呼び出し
       const response = await fetch(`${window.location.origin}/api/stripe-checkout`, {
