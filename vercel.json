@@ -6,8 +6,10 @@
   "buildCommand": "npm --prefix project-bolt-sb1-a6rmxyri/project run build && rm -rf public && mkdir -p public && cp -R project-bolt-sb1-a6rmxyri/project/dist/. public/ && cp -R project-bolt-sb1-a6rmxyri/project/static-pages/. public/",
   "outputDirectory": "public",
 
-  "rewrites": [
-    { "source": "/((?!api).*)", "destination": "/index.html" }
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "handle": "filesystem" },
+    { "src": "/.*", "dest": "/index.html" }
   ],
   "headers": [
     {
