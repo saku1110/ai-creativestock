@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Mail, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Mail } from 'lucide-react';
 
 interface ContactProps {
   onPageChange: (page: string) => void;
@@ -78,7 +78,7 @@ export default function Contact({ onPageChange }: ContactProps) {
             からお気軽にお問い合わせください。
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+          <div className="mb-12">
             <div className="bg-gray-900 rounded-xl p-6">
               <div className="flex items-center gap-3 mb-3">
                 <Mail className="w-6 h-6 text-pink-400" />
@@ -86,16 +86,6 @@ export default function Contact({ onPageChange }: ContactProps) {
               </div>
               <p className="text-gray-300 text-sm">
                 2営業日以内に担当よりご返信いたします。
-              </p>
-            </div>
-
-            <div className="bg-gray-900 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <MessageSquare className="w-6 h-6 text-pink-400" />
-                <h2 className="text-xl font-semibold">その他の連絡方法</h2>
-              </div>
-              <p className="text-gray-300 text-sm">
-                緊急のご用件は件名の先頭に【至急】とご記載ください。
               </p>
             </div>
           </div>

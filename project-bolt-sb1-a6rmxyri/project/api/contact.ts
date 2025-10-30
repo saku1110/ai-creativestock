@@ -37,9 +37,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    return res.status(200).json({ ok: true });
+    // Email delivery: try Resend first, then SMTP
+    const toEmail = process.env.CONTACT_TO_EMAIL || process.env.SUPPORT_EMAIL;
+    const fromSystemEmail = process.env.CONTACT_FROM_EMAIL || process.env.SYSTEM_FROM_EMAIL;
+
+    const emailSubject = `[お問い合わせ] ${subject}`;
+    const emailText = [
+      '以下の内容でお問い合わせを受け付けました。',
+      '',
+      `名前: ${name}`,
+      `メール: ${from_email}`,
+      `件名: ${subject}`,
+      '---',
+      message,
+    ].join('\n');
+
+    if (!toEmail) {
+      return res.status(500).json({ error: 'CONTACT_TO_EMAIL (または SUPPORT_EMAIL) が未設定です。' });
+    }
+
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const { Resend } = await import('resend');
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: fromSystemEmail || 'no-reply@ai-creative-stock.com',
+          to: [toEmail],
+          subject: emailSubject,
+          text: emailText,
+          reply_to: from_email,
+        } as any);
+        return res.status(200).json({ ok: true, provider: 'resend' });
+      } catch (e: any) {
+        // fallback to SMTP
+      }
+    }
+
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const smtpSecure = (process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;
+
+    if (smtpHost && smtpUser && smtpPass) {
+      try {
+        const { default: nodemailer } = (await import('nodemailer')) as any;
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort || (smtpSecure ? 465 : 587),
+          secure: smtpSecure,
+          auth: { user: smtpUser, pass: smtpPass },
+        } as any);
+
+        await transporter.sendMail({
+          from: fromSystemEmail || smtpUser,
+          to: toEmail,
+          subject: emailSubject,
+          text: emailText,
+          replyTo: from_email,
+        } as any);
+        return res.status(200).json({ ok: true, provider: 'smtp' });
+      } catch (e: any) {
+        return res.status(500).json({ error: `メール送信に失敗しました: ${e?.message || 'unknown error'}` });
+      }
+    }
+
+    return res.status(500).json({ error: 'メール送信の設定がありません。RESEND_API_KEY または SMTP_* と CONTACT_TO_EMAIL を設定してください。' });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || 'unknown error' });
   }
 }
-

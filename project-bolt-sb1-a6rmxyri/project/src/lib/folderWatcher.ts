@@ -318,7 +318,20 @@ export class FolderWatcher {
       
       // タグの生成
       const classificationForTags = item.classification ?? VideoProcessor.classifyFilename(item.fileName, item.filePath);
-      const tags = await VideoProcessor.generateTags(item.metadata, classificationForTags);
+      const [tw, th] = (item.metadata?.resolution || '0x0').split('x').map((n) => Number(n));
+      const ratio = th ? (tw / th) : 0;
+      const ratioTag = !ratio ? undefined
+        : Math.abs(ratio - 9 / 16) < 0.1 ? '9:16'
+        : Math.abs(ratio - 16 / 9) < 0.1 ? '16:9'
+        : Math.abs(ratio - 1) < 0.1 ? '1:1'
+        : undefined;
+      const tags = Array.from(new Set([
+        classificationForTags.category,
+        tw >= 3840 ? '4K' : tw >= 1920 ? 'Full HD' : tw >= 1280 ? 'HD' : undefined,
+        ratioTag,
+        `${item.metadata?.duration ?? 0}s`,
+        ...(classificationForTags.keywords || []).filter((kw) => kw.length > 3).slice(0, 5),
+      ].filter(Boolean) as string[]));
 
       // Supabaseにアップロード
       if (this.config.autoUpload) {

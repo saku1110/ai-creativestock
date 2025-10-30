@@ -113,7 +113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const thumbnailPath = await generateThumbnail(videoFile.filepath);
     
     // Generate simple tags
-    const tags = generateTags(metadata, classification);
+	    const tags = generateTagsFixed(metadata, classification);
 
     // Read files as buffers
     const videoBuffer = await fs.readFile(videoFile.filepath);
@@ -293,3 +293,19 @@ export const config = {
     bodyParser: false,
   },
 };
+
+// Safe replacement for the broken generateTags (mojibake fix)
+function generateTagsFixed(meta: VideoMetadata, classification: { category: string }): string[] {
+  const tags: string[] = [];
+  tags.push(String(classification.category));
+  const [w, h] = meta.resolution.split('x').map(Number);
+  if (w >= 3840) tags.push('4K');
+  else if (w >= 1920) tags.push('Full HD');
+  else if (w >= 1280) tags.push('HD');
+  const ratio = w / h;
+  if (Math.abs(ratio - 9 / 16) < 0.1) tags.push('9:16');
+  else if (Math.abs(ratio - 16 / 9) < 0.1) tags.push('16:9');
+  else if (Math.abs(ratio - 1) < 0.1) tags.push('1:1');
+  tags.push(`${meta.duration}s`);
+  return Array.from(new Set(tags));
+}
