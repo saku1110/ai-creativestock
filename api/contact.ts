@@ -89,13 +89,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           auth: { user: smtpUser, pass: smtpPass },
         } as any);
 
-        await transporter.sendMail({
-          from: fromSystemEmail || smtpUser,
-          to: toEmail,
-          subject: emailSubject,
-          text: emailText,
-          replyTo: from_email,
-        } as any);
+        // First attempt: respect CONTACT_FROM_EMAIL if provided
+        try {
+          await transporter.sendMail({
+            from: fromSystemEmail || smtpUser,
+            to: toEmail,
+            subject: emailSubject,
+            text: emailText,
+            replyTo: from_email,
+          } as any);
+        } catch (firstErr: any) {
+          // Fallback attempt: force from=smtpUser (some providers require this)
+          await transporter.sendMail({
+            from: smtpUser,
+            to: toEmail,
+            subject: emailSubject,
+            text: emailText,
+            replyTo: from_email,
+          } as any);
+        }
 
         return res.status(200).json({ ok: true, provider: 'smtp' });
       } catch (e: any) {

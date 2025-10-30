@@ -89,13 +89,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           auth: { user: smtpUser, pass: smtpPass },
         } as any);
 
-        await transporter.sendMail({
-          from: fromSystemEmail || smtpUser,
-          to: toEmail,
-          subject: emailSubject,
-          text: emailText,
-          replyTo: from_email,
-        } as any);
+        try {
+          await transporter.sendMail({
+            from: fromSystemEmail || smtpUser,
+            to: toEmail,
+            subject: emailSubject,
+            text: emailText,
+            replyTo: from_email,
+          } as any);
+        } catch (firstErr: any) {
+          await transporter.sendMail({
+            from: smtpUser,
+            to: toEmail,
+            subject: emailSubject,
+            text: emailText,
+            replyTo: from_email,
+          } as any);
+        }
         return res.status(200).json({ ok: true, provider: 'smtp' });
       } catch (e: any) {
         return res.status(500).json({ error: `メール送信に失敗しました: ${e?.message || 'unknown error'}` });

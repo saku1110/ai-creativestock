@@ -45,14 +45,24 @@ export default function Contact({ onPageChange }: ContactProps) {
           message: formData.message,
         }),
       });
-      if (!resp.ok) throw new Error('Contact API returned non-2xx');
+      if (!resp.ok) {
+        // Try to show server error for quicker troubleshooting
+        let serverMsg = '';
+        try {
+          const data = await resp.json();
+          serverMsg = data?.error || JSON.stringify(data);
+        } catch {
+          try { serverMsg = await resp.text(); } catch {}
+        }
+        throw new Error(`Contact API returned ${resp.status} ${resp.statusText}${serverMsg ? `: ${serverMsg}` : ''}`);
+      }
 
       // 成功時
       alert('お問い合わせを送信しました。担当よりご連絡いたします。');
       setFormData({ name: '', email: '', subject: '', message: '' });
-    } catch (err) {
+    } catch (err: any) {
       console.error('contact submit error:', err);
-      alert('送信に失敗しました。時間をおいて再度お試しください。');
+      alert(`送信に失敗しました。${err?.message ? `\n詳細: ${err.message}` : ''}`);
     } finally {
       setSubmitting(false);
     }
