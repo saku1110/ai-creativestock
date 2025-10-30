@@ -42,11 +42,11 @@
  
   "functions": {
     "api/stripe-webhook.ts": {
-      "runtime": "nodejs22.x",
+      "runtime": "nodejs20.x",
       "maxDuration": 10
     },
     "api/contact.ts": {
-      "runtime": "nodejs22.x",
+      "runtime": "nodejs20.x",
       "regions": ["hnd1"],
       "maxDuration": 10
     }
