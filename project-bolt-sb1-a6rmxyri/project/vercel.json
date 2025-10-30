@@ -1,43 +1,12 @@
 {
-  "buildCommand": "ROLLUP_DISABLE_NATIVE=1 npm run build",
-  "outputDirectory": "dist",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
   "framework": "vite",
   "installCommand": "npm install",
-  "devCommand": "npm run dev",
-  "ignoreCommand": "exit 1",
-  
+  "buildCommand": "ROLLUP_DISABLE_NATIVE=1 npm run build",
+  "outputDirectory": "dist",
   "routes": [
-    {
-      "src": "/contact",
-      "dest": "/index.html"
-    },
-    {
-      "src": "/terms",
-      "dest": "/index.html"
-    },
-    {
-      "src": "/privacy",
-      "dest": "/index.html"
-    },
-    {
-      "src": "/refund",
-      "dest": "/index.html"
-    },
-    {
-      "src": "/commercial",
-      "dest": "/index.html"
-    },
-    {
-      "src": "/pricing",
-      "dest": "/index.html"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ],
- 
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
 }
