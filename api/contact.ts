@@ -97,15 +97,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             subject: emailSubject,
             text: emailText,
             replyTo: from_email,
+            envelope: { from: smtpUser, to: toEmail },
           } as any);
         } catch (firstErr: any) {
-          // Fallback attempt: force from=smtpUser (some providers require this)
+          // Fallback attempt: force From header to smtpUser as well
           await transporter.sendMail({
             from: smtpUser,
             to: toEmail,
             subject: emailSubject,
             text: emailText,
             replyTo: from_email,
+            envelope: { from: smtpUser, to: toEmail },
           } as any);
         }
 

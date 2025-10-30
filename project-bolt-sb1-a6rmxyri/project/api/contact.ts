@@ -96,6 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             subject: emailSubject,
             text: emailText,
             replyTo: from_email,
+            envelope: { from: smtpUser, to: toEmail },
           } as any);
         } catch (firstErr: any) {
           await transporter.sendMail({
@@ -104,6 +105,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             subject: emailSubject,
             text: emailText,
             replyTo: from_email,
+            envelope: { from: smtpUser, to: toEmail },
           } as any);
         }
         return res.status(200).json({ ok: true, provider: 'smtp' });
