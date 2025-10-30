@@ -1,6 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('[contact] start', {
+    region: process.env.VERCEL_REGION,
+    hasSMTP: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+    hasTo: Boolean(process.env.CONTACT_TO_EMAIL || process.env.SUPPORT_EMAIL),
+  });
   // CORS headers for all responses
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -53,6 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ].join('\n');
 
     if (!toEmail) {
+      console.error('[contact] missing CONTACT_TO_EMAIL');
       return res.status(500).json({ error: 'CONTACT_TO_EMAIL (または SUPPORT_EMAIL) が未設定です。' });
     }
 
@@ -67,8 +73,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           text: emailText,
           reply_to: from_email,
         } as any);
+        console.log('[contact] sent via Resend');
         return res.status(200).json({ ok: true, provider: 'resend' });
       } catch (e: any) {
+        console.warn('[contact] Resend failed, fallback to SMTP', e?.message);
         // fallback to SMTP
       }
     }
@@ -108,14 +116,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             envelope: { from: smtpUser, to: toEmail },
           } as any);
         }
+        console.log('[contact] sent via SMTP');
         return res.status(200).json({ ok: true, provider: 'smtp' });
       } catch (e: any) {
+        console.error('[contact] SMTP error', e);
         return res.status(500).json({ error: `メール送信に失敗しました: ${e?.message || 'unknown error'}` });
       }
     }
 
+    console.error('[contact] no email provider configured');
     return res.status(500).json({ error: 'メール送信の設定がありません。RESEND_API_KEY または SMTP_* と CONTACT_TO_EMAIL を設定してください。' });
   } catch (e: any) {
+    console.error('[contact] unhandled error', e);
     return res.status(500).json({ error: e?.message || 'unknown error' });
   }
 }

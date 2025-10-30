@@ -35,7 +35,6 @@
     }
   ],
   "functions": {
-    "api/stripe-webhook.ts": { "maxDuration": 10 },
-    "api/contact.ts": { "regions": ["hnd1"], "maxDuration": 10 }
+    "api/stripe-webhook.ts": { "maxDuration": 10 }
   }
 }
