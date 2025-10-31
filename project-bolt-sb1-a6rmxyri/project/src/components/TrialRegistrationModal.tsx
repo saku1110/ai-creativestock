@@ -203,6 +203,42 @@ const NewRegistrationModal: React.FC<NewRegistrationModalProps> = ({
     }).format(price);
   };
 
+  // 登録完了後のログイン処理（コンポーネント内に配置して state を参照できるようにする）
+  const handleLoginAfterRegistration = async () => {
+    try {
+      if (formData.selectedPlan === 'trial') {
+        // スタータープランの場合は即座にログイン状態にする
+        const mockUserData = {
+          id: 'trial_user_' + Date.now(),
+          email: formData.email || 'trial@example.com',
+          user_metadata: {
+            name: formData.name || '新規ユーザー',
+            full_name: formData.name || '新規ユーザー'
+          },
+          subscription: {
+            plan: 'trial',
+            status: 'trial',
+            trial_end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            trial_downloads_used: 0,
+            trial_downloads_limit: 3
+          }
+        };
+        onRegistrationSuccess(mockUserData);
+      } else {
+        // 有料プランの場合は実際の登録データを使用
+        onRegistrationSuccess({
+          email: formData.email,
+          name: formData.name,
+          selectedPlan: formData.selectedPlan
+        });
+      }
+      onClose();
+    } catch (error) {
+      console.error('ログイン処理エラー:', error);
+      setErrors({ general: 'ログイン処理でエラーが発生しました' });
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -627,41 +663,5 @@ const NewRegistrationModal: React.FC<NewRegistrationModalProps> = ({
     </div>
   );
 };
-
-  // 登録完了後のログイン処理
-  const handleLoginAfterRegistration = async () => {
-    try {
-      if (formData.selectedPlan === 'trial') {
-        // スタータープランの場合は即座にログイン状態にする
-        const mockUserData = {
-          id: 'trial_user_' + Date.now(),
-          email: formData.email || 'trial@example.com',
-          user_metadata: {
-            name: formData.name || '新規ユーザー',
-            full_name: formData.name || '新規ユーザー'
-          },
-          subscription: {
-            plan: 'trial',
-            status: 'trial',
-            trial_end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            trial_downloads_used: 0,
-            trial_downloads_limit: 3
-          }
-        };
-        onRegistrationSuccess(mockUserData);
-      } else {
-        // 有料プランの場合は実際の登録データを使用
-        onRegistrationSuccess({
-          email: formData.email,
-          name: formData.name,
-          selectedPlan: formData.selectedPlan
-        });
-      }
-      onClose();
-    } catch (error) {
-      console.error('ログイン処理エラー:', error);
-      setErrors({ general: 'ログイン処理でエラーが発生しました' });
-    }
-  };
 
 export default NewRegistrationModal;
