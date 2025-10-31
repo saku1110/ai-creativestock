@@ -80,7 +80,7 @@ function App() {
 
     // ユーザーの認証プロバイダーをチェック
     const authProvider = user.app_metadata?.provider;
-    const validProviders = ['google', 'apple'];
+    const validProviders = ['google'];
     
     console.log('Auth provider check:', { 
       provider: authProvider, 
@@ -213,7 +213,7 @@ function App() {
             // 無効な認証プロバイダーの場合はログアウト
             await auth.signOut();
             setCurrentPage('landing');
-            handleApiError(new Error('許可された認証方法ではありません。GoogleまたはApple IDでログインしてください。'), '認証エラー');
+            handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
           }
         } else {
           // 未ログイン: パスが公開ページなら維持、そうでなければLPへ
@@ -289,7 +289,7 @@ function App() {
               // 無効な認証プロバイダーの場合はログアウト
               await auth.signOut();
               setCurrentPage('landing');
-              handleApiError(new Error('許可された認証方法ではありません。GoogleまたはApple IDでログインしてください。'), '認証エラー');
+              handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
             }
           } else {
             setUserData(null);
@@ -414,7 +414,7 @@ function App() {
       }
     } else {
       setCurrentPage('landing');
-      handleApiError(new Error('許可された認証方法ではありません。GoogleまたはApple IDでログインしてください。'), '認証エラー');
+      handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
     }
     
     // 開発環境では localStorage に保存
@@ -436,7 +436,7 @@ function App() {
       setCurrentPage('pricing'); // 新規ユーザーは料金プランページに誘導
     } else {
       setCurrentPage('landing');
-      handleApiError(new Error('許可された認証方法ではありません。GoogleまたはApple IDでログインしてください。'), '認証エラー');
+      handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
     }
     
     // 開発環境では localStorage に保存
@@ -588,7 +588,7 @@ function App() {
             </div>
             <h2 className="text-2xl font-bold mb-4">アクセスが制限されています</h2>
             <p className="text-gray-400 mb-6 leading-relaxed">
-              AI Creative Stockへのアクセスには、GoogleまたはApple IDでのログインが必要です。
+              AI Creative Stockへのアクセスには、Googleでのログインが必要です。
             </p>
             <button 
               onClick={handleLogout}

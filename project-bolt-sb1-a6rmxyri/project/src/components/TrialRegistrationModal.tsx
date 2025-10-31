@@ -107,34 +107,7 @@ const NewRegistrationModal: React.FC<NewRegistrationModalProps> = ({
     }
   };
 
-  // Apple認証での登録
-  const handleAppleRegistration = async () => {
-    try {
-      setIsLoading(true);
-      console.log('新規登録用Apple認証を開始');
-      
-      // Apple認証の実装（現在は開発環境用）
-      if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-        console.log('開発環境: Apple認証をスキップして料金プランページへ');
-        // 開発環境では直接料金プランページに遷移
-        onAuthSuccess({ provider: 'apple' });
-      } else {
-        const { error } = await auth.signUpWithApple(); // 新規登録用関数を使用
-        if (error) {
-          setErrors({ general: 'Apple認証に失敗しました: ' + error.message });
-          console.error('Apple認証エラー:', error);
-        } else {
-          console.log('Apple認証リダイレクト開始（mode=registration）');
-          // リダイレクトが開始されるため、以降の処理は実行されない
-        }
-      }
-    } catch (error) {
-      console.error('Apple認証例外:', error);
-      setErrors({ general: 'Apple認証でエラーが発生しました' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Apple認証は廃止しました
 
   const handleStep1Submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,9 +238,7 @@ const NewRegistrationModal: React.FC<NewRegistrationModalProps> = ({
 
               {/* ソーシャルログイン登録 */}
               <div className="space-y-4 mb-6">
-                <p className="text-center text-gray-400 text-sm">
-                  GoogleまたはApple IDでかんたん登録
-                </p>
+                <p className="text-center text-gray-400 text-sm">Googleでかんたん登録</p>
                 
                 {/* Googleログインボタン */}
                 <button
@@ -284,17 +255,7 @@ const NewRegistrationModal: React.FC<NewRegistrationModalProps> = ({
                   <span>Googleで新規登録</span>
                 </button>
 
-                {/* Apple IDログインボタン */}
-                <button
-                  type="button"
-                  onClick={handleAppleRegistration}
-                  className="w-full flex items-center justify-center space-x-3 glass-effect border border-white/20 text-white hover:text-white px-6 py-4 rounded-xl font-semibold transition-all duration-300 hover:bg-white/5"
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-                  </svg>
-                  <span>Apple IDで新規登録</span>
-                </button>
+                {/* Apple IDログインボタンは削除しました */}
               </div>
 
               <div className="text-center">

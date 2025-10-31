@@ -151,43 +151,6 @@ export const auth = {
     return { data, error }
   },
 
-  // Apple認証（既存ユーザーログイン用）
-  signInWithApple: async () => {
-    if (isSampleMode) {
-      currentUser = {
-        id: 'dev_apple_123456',
-        email: 'user@privaterelay.appleid.com',
-        app_metadata: { provider: 'apple' },
-        user_metadata: { full_name: '開発ユーザー(Apple)' }
-      }
-      notifyAuth('SIGNED_IN')
-      return { data: { user: currentUser }, error: null }
-    }
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'apple',
-      options: { redirectTo: `${window.location.origin}/auth/callback?mode=login` }
-    })
-    return { data, error }
-  },
-
-  // Apple認証（新規ユーザー登録用）
-  signUpWithApple: async () => {
-    if (isSampleMode) {
-      currentUser = {
-        id: 'dev_apple_new_987654',
-        email: 'new.user@privaterelay.appleid.com',
-        app_metadata: { provider: 'apple' },
-        user_metadata: { full_name: '開発ユーザー(Apple新規)' }
-      }
-      notifyAuth('SIGNED_IN')
-      return { data: { user: currentUser }, error: null }
-    }
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'apple',
-      options: { redirectTo: `${window.location.origin}/auth/callback?mode=registration` }
-    })
-    return { data, error }
-  },
 
   // メール認証
   signInWithEmail: async (email: string, password: string) => {
