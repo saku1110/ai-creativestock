@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Creative Stock - クリエイティブ動画素材</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      (function(){
+        const origFetch = window.fetch;
+        if (typeof origFetch === 'function') {
+          window.fetch = async function(input, init) {
+            try {
+              const url = typeof input === 'string' ? input : (input && input.url);
+              const method = (init && init.method ? String(init.method) : 'GET').toUpperCase();
+              if (url && url.indexOf('/auth/v1/signup') !== -1 && method === 'POST' && init && init.body) {
+                let textBody = null;
+                if (typeof init.body === 'string') {
+                  textBody = init.body;
+                } else if (init.body instanceof URLSearchParams) {
+                  textBody = init.body.toString();
+                }
+                if (textBody && textBody.trim().charAt(0) === '{') {
+                  try {
+                    const json = JSON.parse(textBody);
+                    const redirect = window.location.origin + '/auth/callback?mode=registration';
+                    if (!json.options || !json.options.emailRedirectTo) {
+                      json.options = Object.assign({}, json.options || {}, { emailRedirectTo: redirect });
+                      const newInit = Object.assign({}, init, { body: JSON.stringify(json) });
+                      return origFetch(input, newInit);
+                    }
+                  } catch (e) {
+                    // fall through to original fetch on parse errors
+                  }
+                }
+              }
+            } catch (e) {
+              // ignore and fall back
+            }
+            return origFetch(input, init);
+          };
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-jkoLynVU.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor/react-vendor-YmKVTMpv.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor/ui-vendor-CGXSiUO_.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor/supabase-vendor-Dse76AOL.js">
+    <link rel="modulepreload" crossorigin href="/assets/dashboard-_tHgGd_T.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor/stripe-vendor-C8r34K29.js">
+    <link rel="modulepreload" crossorigin href="/assets/admin-iukSLO9C.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-Buh6RXa2.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
