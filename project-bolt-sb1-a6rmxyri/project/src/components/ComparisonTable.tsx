@@ -6,7 +6,7 @@ const ComparisonTable: React.FC = () => {
     {
       feature: '制作コスト',
       realLife: '1本1万円〜10万円',
-      ai: '月額14,800円~',
+      ai: '月額9,800円~',
       aiWin: true
     },
     {

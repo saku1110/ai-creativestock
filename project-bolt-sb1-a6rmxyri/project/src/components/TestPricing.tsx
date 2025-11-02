@@ -4,9 +4,10 @@ import { Check } from 'lucide-react';
 interface TestPricingProps {
   onDashboardNavigate: () => void;
   onPurchaseRequest?: () => void;
+  onContactRequest?: () => void;
 }
 
-const TestPricing: React.FC<TestPricingProps> = ({ onDashboardNavigate, onPurchaseRequest }) => {
+const TestPricing: React.FC<TestPricingProps> = ({ onDashboardNavigate, onPurchaseRequest, onContactRequest }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
 
   const plans = [
@@ -71,9 +72,7 @@ const TestPricing: React.FC<TestPricingProps> = ({ onDashboardNavigate, onPurcha
         '完全オーダーメイド制作',
         '希望業種に特化した動画制作',
         '個別納品対応',
-        '専属プロジェクトマネージャー',
         'カスタムフォーマット対応',
-        '横長動画にも対応',
         '24時間専用サポート',
         '無制限動画リクエスト',
         '商用利用可能'
@@ -221,7 +220,7 @@ const TestPricing: React.FC<TestPricingProps> = ({ onDashboardNavigate, onPurcha
               {/* CTAボタン */}
               <div>
                 <button
-                  onClick={plan.isCustom ? () => window.open('mailto:support@ai-creativestock.com?subject=エンタープライズプランお問い合わせ', '_blank') : (billingCycle === 'yearly' ? onPurchaseRequest : onDashboardNavigate)}
+                  onClick={plan.isCustom ? onContactRequest : (billingCycle === 'yearly' ? onPurchaseRequest : onDashboardNavigate)}
                   className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 ${
                     plan.isCustom
                       ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white hover:scale-105 shadow-lg hover:shadow-orange-500/25'

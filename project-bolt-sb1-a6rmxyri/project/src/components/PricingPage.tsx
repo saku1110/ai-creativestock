@@ -77,9 +77,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onPageChange, isNewUser = fal
         '完全オーダーメイド制作',
         '希望業種に特化した動画制作',
         '個別納品対応',
-        '専属プロジェクトマネージャー',
         'カスタムフォーマット対応',
-        '横長動画にも対応',
         '24時間専用サポート',
         '無制限動画リクエスト',
         '商用利用可能'
@@ -127,9 +125,11 @@ const PricingPage: React.FC<PricingPageProps> = ({ onPageChange, isNewUser = fal
   }, [isNewUser]);
 
   const handleSubscribe = async (planId: string, isCustom?: boolean) => {
-    // エンタープライズプランの場合はメール送信
+    // エンタープライズプランの場合はお問い合わせページへ遷移
     if (isCustom) {
-      window.open('mailto:support@ai-creativestock.com?subject=エンタープライズプランお問い合わせ', '_blank');
+      if (onPageChange) {
+        onPageChange('contact');
+      }
       return;
     }
 

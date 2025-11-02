@@ -506,7 +506,7 @@ function App() {
             <ComparisonTable />
             <EfficiencyStats />
             <VideoGallery onTrialRequest={handleRegistrationRequest} />
-            <TestPricing onDashboardNavigate={handleRegistrationRequest} onPurchaseRequest={handlePurchaseRequest} />
+            <TestPricing onDashboardNavigate={handleRegistrationRequest} onPurchaseRequest={handlePurchaseRequest} onContactRequest={handleContactRequest} />
             <CustomerReviews />
             <VideoRequestSection onTrialRequest={handleRegistrationRequest} />
             <TestFAQ />
