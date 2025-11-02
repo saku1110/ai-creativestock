@@ -313,19 +313,11 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
   useEffect(() => {
     (async () => {
       try {
-        const [imgs, vids] = await Promise.all([
-          fetchSupabaseImages({ bucket: 'images', prefix: 'lp', limit: 500, expires: 3600 }),
-          fetchSupabaseVideos({ bucket: 'videos', prefix: 'lp-grid', limit: 500, expires: 3600 })
-        ]);
-
-        if ((imgs?.length || 0) === 0 || (vids?.length || 0) === 0) return;
-
-        const imgMap = new Map<string, string>();
-        imgs.forEach(i => imgMap.set(stem(i.path), i.url));
+        const vids = await fetchSupabaseVideos({ bucket: 'local-content', prefix: 'lp-grid', limit: 500, expires: 3600 });
+        if (!vids || vids.length === 0) return;
 
         const assets: VideoAsset[] = vids.map((v, idx) => {
           const s = stem(v.path);
-          const thumb = imgMap.get(s) || imgMap.get(s.replace(/_thumb$/, '')) || imgMap.get(s + '_thumb') || imgs[0]?.url || '';
           const title = s.replace(/[-_]+/g, ' ').replace(/\s{2,}/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
           return {
             id: `sb-${idx}-${v.path}`,
@@ -336,7 +328,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
             duration: 8,
             resolution: '9:16 4K',
             price: 1980,
-            thumbnailUrl: thumb,
+            thumbnailUrl: '',
             videoUrl: v.url,
             createdAt: new Date().toISOString().slice(0,10),
             downloads: 0,

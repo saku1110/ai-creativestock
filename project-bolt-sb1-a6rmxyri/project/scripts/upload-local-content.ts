@@ -65,13 +65,29 @@ const walk = async (root: string): Promise<string[]> => {
   return files;
 };
 
+const sanitizeBasename = (name: string): string => {
+  const idx = name.lastIndexOf('.');
+  const base = idx >= 0 ? name.slice(0, idx) : name;
+  const ext = idx >= 0 ? name.slice(idx) : '';
+  let safe = base
+    .normalize('NFKD')
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '');
+  if (!safe) safe = `file-${Date.now()}`;
+  if (safe.length > 120) safe = safe.slice(0, 120);
+  return `${safe}${ext}`;
+};
+
 const main = async () => {
   loadEnv();
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'local-content';
-  const prefix = process.env.SUPABASE_STORAGE_PREFIX || 'local-content';
+  const rawPrefix = process.env.SUPABASE_STORAGE_PREFIX;
+  // Normalize default: when bucket=local-content and prefix is unset or 'local-content', do not nest under 'local-content/local-content/...'
+  const prefix = (!rawPrefix || (rawPrefix === 'local-content' && bucket === 'local-content')) ? '' : rawPrefix;
 
   if (!supabaseUrl || !serviceRoleKey) {
     console.error('❌ SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in the environment.');
@@ -96,39 +112,36 @@ const main = async () => {
     return;
   }
 
-  console.log(`📦 Found ${filtered.length} media files. Uploading to bucket "${bucket}" (prefix="${prefix}").`);
+  const argConcurrency = Number((process.argv.find(a => a === '--concurrency') ? process.argv[process.argv.indexOf('--concurrency') + 1] : '') || '') || 0;
+  const envConcurrency = Number(process.env.UPLOAD_CONCURRENCY || '') || 0;
+  const concurrency = Math.max(1, argConcurrency || envConcurrency || 6);
+
+  console.log(`📦 Found ${filtered.length} media files. Uploading to bucket "${bucket}" (prefix="${prefix || '(root)'}") with concurrency=${concurrency}.`);
 
   const manifest: Record<string, ManifestEntry> = {};
   let success = 0;
   let failed = 0;
 
-  for (const absolute of filtered) {
+  let index = 0;
+  const lock = new Intl.DateTimeFormat(); // cheap object to prevent tree-shake; not used
+
+  const uploadOne = async (absolute: string) => {
     const relative = path.relative(localRoot, absolute).replace(/\\/g, '/');
-    const storagePath = `${prefix}/${relative}`;
+    const relDir = relative.includes('/') ? relative.split('/').slice(0, -1).join('/') : '';
+    const relBase = relative.split('/').pop() || relative;
+    const safeBase = sanitizeBasename(relBase);
+    const storagePath = `${prefix}/${relDir ? relDir + '/' : ''}${safeBase}`;
     const ext = path.extname(absolute);
     const mimeType = getMimeType(ext);
-
     try {
       const buffer = await readFileBuffer(absolute);
-
       const { error: uploadError } = await supabase.storage
         .from(bucket)
-        .upload(storagePath, buffer, {
-          upsert: true,
-          contentType: mimeType
-        });
+        .upload(storagePath, buffer, { upsert: true, contentType: mimeType });
+      if (uploadError) throw uploadError;
 
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data: publicData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(storagePath);
-
-      if (!publicData?.publicUrl) {
-        throw new Error('Public URL could not be resolved. Ensure the bucket is public.');
-      }
+      const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+      if (!publicData?.publicUrl) throw new Error('Public URL could not be resolved. Ensure the bucket is public.');
 
       success++;
       manifest[relative] = {
@@ -138,13 +151,22 @@ const main = async () => {
         size: buffer.byteLength,
         mimeType
       };
-
-      console.log(`✅ Uploaded ${relative} -> ${publicData.publicUrl}`);
+      console.log(`✅ Uploaded ${relative}`);
     } catch (error) {
       failed++;
       console.error(`❌ Failed to upload ${relative}:`, error instanceof Error ? error.message : error);
     }
-  }
+  };
+
+  const runners = Array.from({ length: Math.min(concurrency, filtered.length) }, async () => {
+    while (true) {
+      const i = index++;
+      if (i >= filtered.length) break;
+      await uploadOne(filtered[i]);
+    }
+  });
+
+  await Promise.all(runners);
 
   if (success === 0) {
     console.warn('⚠️  No files were uploaded successfully. Manifest will not be updated.');

@@ -113,7 +113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const thumbnailPath = await generateThumbnail(videoFile.filepath);
     
     // Generate simple tags
-	    const tags = generateTagsFixed(metadata, classification);
+    const tags = generateTags(metadata, classification);
 
     // Read files as buffers
     const videoBuffer = await fs.readFile(videoFile.filepath);
@@ -121,9 +121,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Upload video to Supabase Storage (Admin client)
     const videoFileName = `${Date.now()}_${safeName(videoFile.originalFilename || 'upload.mp4')}`;
+    const categoryFolder = classification.category;
     const { data: videoData, error: videoError } = await supabaseAdmin.storage
       .from('video-assets')
-      .upload(`videos/${videoFileName}`, videoBuffer, {
+      .upload(`videos/${categoryFolder}/${videoFileName}`, videoBuffer, {
         contentType: 'video/mp4',
       });
 
@@ -135,7 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const thumbnailFileName = `${Date.now()}_thumbnail.jpg`;
     const { data: thumbnailData, error: thumbnailError } = await supabaseAdmin.storage
       .from('video-assets')
-      .upload(`thumbnails/${thumbnailFileName}`, thumbnailBuffer, {
+      .upload(`thumbnails/${categoryFolder}/${thumbnailFileName}`, thumbnailBuffer, {
         contentType: 'image/jpeg',
       });
 
@@ -146,11 +147,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Get public URLs
     const { data: { publicUrl: videoUrl } } = supabaseAdmin.storage
       .from('video-assets')
-      .getPublicUrl(`videos/${videoFileName}`);
+      .getPublicUrl(`videos/${categoryFolder}/${videoFileName}`);
 
     const { data: { publicUrl: thumbnailUrl } } = supabaseAdmin.storage
       .from('video-assets')
-      .getPublicUrl(`thumbnails/${thumbnailFileName}`);
+      .getPublicUrl(`thumbnails/${categoryFolder}/${thumbnailFileName}`);
 
     // Save to database
     const title = fields.title?.[0] || 
@@ -293,19 +294,3 @@ export const config = {
     bodyParser: false,
   },
 };
-
-// Safe replacement for the broken generateTags (mojibake fix)
-function generateTagsFixed(meta: VideoMetadata, classification: { category: string }): string[] {
-  const tags: string[] = [];
-  tags.push(String(classification.category));
-  const [w, h] = meta.resolution.split('x').map(Number);
-  if (w >= 3840) tags.push('4K');
-  else if (w >= 1920) tags.push('Full HD');
-  else if (w >= 1280) tags.push('HD');
-  const ratio = w / h;
-  if (Math.abs(ratio - 9 / 16) < 0.1) tags.push('9:16');
-  else if (Math.abs(ratio - 16 / 9) < 0.1) tags.push('16:9');
-  else if (Math.abs(ratio - 1) < 0.1) tags.push('1:1');
-  tags.push(`${meta.duration}s`);
-  return Array.from(new Set(tags));
-}
