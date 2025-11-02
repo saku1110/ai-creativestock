@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { localLpGridVideos } from '../local-content';
 
 interface VideoGalleryProps {
@@ -42,6 +42,19 @@ const GALLERY_VIDEOS: GalleryVideo[] = LOCAL_GALLERY_VIDEOS.length > 0
 
 const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
+  const refs = useRef<Record<string, HTMLVideoElement | null>>({});
+
+  const play = (id: string) => {
+    const el = refs.current[id];
+    if (!el) return;
+    try { el.play(); } catch {}
+  };
+
+  const stop = (id: string) => {
+    const el = refs.current[id];
+    if (!el) return;
+    try { el.pause(); el.currentTime = 0; } catch {}
+  };
 
   return (
     <section className="py-20 bg-gradient-to-b from-black to-gray-900">
@@ -52,47 +65,20 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
           {GALLERY_VIDEOS.map((video) => (
             <div
               key={video.id}
-              className="group cursor-pointer"
-              onMouseEnter={() => setHoveredVideo(video.id)}
-              onMouseLeave={() => setHoveredVideo(null)}
+              className="cursor-pointer"
+              onMouseEnter={() => { setHoveredVideo(video.id); play(video.id); }}
+              onMouseLeave={() => { setHoveredVideo(null); stop(video.id); }}
+              onTouchStart={() => { if (hoveredVideo === video.id) { stop(video.id); setHoveredVideo(null); } else { setHoveredVideo(video.id); play(video.id); } }}
             >
-              <div className="relative aspect-[9/16] bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden border border-gray-700 hover:border-cyan-400 transition-all duration-300 shadow-2xl hover:shadow-cyan-500/25 hover:scale-105">
-
-                {/* ビデオサムネイル */}
+              <div className="relative aspect-[9/16] bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden border border-gray-700 transition-all duration-300 shadow-2xl">
                 <video
+                  ref={(el) => { refs.current[video.id] = el; }}
                   src={video.src}
                   className="w-full h-full object-cover"
                   muted
                   playsInline
                   preload="metadata"
-                  loop
-                  autoPlay={hoveredVideo === video.id}
                 />
-
-                {/* オーバーレイ */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <div className="absolute bottom-3 left-3 right-3">
-                    <h4 className="text-white font-semibold text-xs sm:text-sm mb-1">
-                      {video.title}
-                    </h4>
-                    <div className="flex items-center justify-between text-xs text-gray-300">
-                      <span>9:16</span>
-                      <span>AI生成</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* プレイボタン */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <button
-                    className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-full p-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform hover:scale-110"
-                  >
-                    <div className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center">
-                      <div className="w-0 h-0 border-l-[6px] border-l-white border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent ml-1"></div>
-                    </div>
-                  </button>
-                </div>
-
               </div>
             </div>
           ))}
