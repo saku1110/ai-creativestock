@@ -38,7 +38,7 @@ export default function RefundPolicy({ onPageChange }: RefundPolicyProps) {
             <h2 className="text-2xl font-semibold mb-4">返金不可の場合</h2>
             <ul className="list-disc list-inside text-gray-300 space-y-2 ml-4">
               <li>ユーザー都合によるキャンセル</li>
-              <li>無料トライアル終了後の自動課金</li>
+              <li>サービス利用開始後のキャンセル</li>
               <li>更新日を過ぎた後の解約</li>
             </ul>
           </section>

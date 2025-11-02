@@ -25,7 +25,6 @@ import AdminUpload from './components/AdminUpload';
 import AdminStagingReview from './components/AdminStagingReview';
 import AutoUpload from './components/AutoUpload';
 import AuthModal from './components/AuthModal';
-import NewRegistrationModal from './components/TrialRegistrationModal';
 import ContactModal from './components/ContactModal';
 import PricingPage from './components/PricingPage';
 import PaymentSuccess from './components/PaymentSuccess';
@@ -62,7 +61,6 @@ function App() {
   const [currentPage, setCurrentPage] = useState(initialVariant);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [userData, setUserData] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -371,18 +369,14 @@ function App() {
     setShowAuthModal(true);
   };
 
-  const handleTrialRequest = () => {
-    isNewUserRegistrationRef.current = true; // refを先に設定
-    setIsNewUserRegistration(true); // 新規ユーザー登録なのでフラグをtrueに
-    console.log('handleTrialRequest: 新規ユーザーフラグを設定 - ref:', isNewUserRegistrationRef.current);
-    setShowRegistrationModal(true);
-  };
-
   const handleRegistrationRequest = () => {
-    isNewUserRegistrationRef.current = true; // refを先に設定
-    setIsNewUserRegistration(true); // 新規ユーザー登録なのでフラグをtrueに 
-    console.log('handleRegistrationRequest: 新規ユーザーフラグを設定 - ref:', isNewUserRegistrationRef.current);
-    setShowRegistrationModal(true);
+    // ログインしていない場合は認証モーダルを表示
+    if (!isLoggedIn) {
+      setShowAuthModal(true);
+      return;
+    }
+    // ログイン済みの場合は料金ページへ
+    setCurrentPage('pricing');
   };
 
   const handleContactRequest = () => {
@@ -393,11 +387,13 @@ function App() {
   };
 
   const handlePurchaseRequest = () => {
-    isNewUserRegistrationRef.current = true; // refを先に設定
-    setIsNewUserRegistration(true); // 新規ユーザー登録なのでフラグをtrueに
-    console.log('handlePurchaseRequest: 新規ユーザーフラグを設定 - ref:', isNewUserRegistrationRef.current);
-    // 新規登録モーダルを表示
-    setShowRegistrationModal(true);
+    // ログインしていない場合は認証モーダルを表示
+    if (!isLoggedIn) {
+      setShowAuthModal(true);
+      return;
+    }
+    // ログイン済みの場合は料金ページへ
+    setCurrentPage('pricing');
   };
 
   const handleAuthSuccess = (user: User) => {
@@ -424,63 +420,6 @@ function App() {
     }
   };
 
-  // 新規ユーザー認証成功時（料金プランページへ誘導）
-  const handleNewUserAuthSuccess = (user: User) => {
-    const validProvider = checkAuthProvider(user);
-    setIsValidAuthProvider(validProvider);
-    setUserData(user);
-    setIsLoggedIn(true);
-    setShowAuthModal(false);
-    
-    if (validProvider) {
-      setCurrentPage('pricing'); // 新規ユーザーは料金プランページに誘導
-    } else {
-      setCurrentPage('landing');
-      handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
-    }
-    
-    // 開発環境では localStorage に保存
-    if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-      localStorage.setItem('dev_user', JSON.stringify(user));
-      localStorage.setItem('dev_logged_in', 'true');
-    }
-  };
-
-  const handleRegistrationSuccess = (user: User) => {
-    const validProvider = checkAuthProvider(user);
-    setIsValidAuthProvider(validProvider);
-    setUserData(user);
-    setIsLoggedIn(true);
-    setShowRegistrationModal(false);
-
-    if (validProvider) {
-      // Only redirect to dashboard if not on a public page
-      if (!PUBLIC_PAGES.includes(currentPage)) {
-        setCurrentPage('dashboard');
-      }
-    } else {
-      setCurrentPage('landing');
-      handleApiError(new Error('許可された認証方法ではありません。GoogleまたはApple IDでログインしてください。'), '認証エラー');
-    }
-    
-    // 開発環境では localStorage に保存
-    if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-      localStorage.setItem('dev_user', JSON.stringify(user));
-      localStorage.setItem('dev_logged_in', 'true');
-    }
-  };
-
-  // 認証成功後に料金プランページに誘導（NewRegistrationModal用）
-  const handleAuthSuccessForPricing = (authData: any) => {
-    console.log('handleAuthSuccessForPricing実行:', authData);
-    console.log('現在のisNewUserRegistrationフラグ:', isNewUserRegistration);
-    setIsNewUserRegistration(true); // 新規ユーザー登録フラグを設定
-    console.log('フラグをtrueに設定完了');
-    setCurrentPage('pricing'); // 直接料金プランページに遷移
-    console.log('料金プランページに遷移');
-    setShowRegistrationModal(false); // モーダルを閉じる
-    console.log('モーダルを閉じる');
-  };
 
 
   const handleLogout = async () => {
@@ -567,7 +506,7 @@ function App() {
             <ComparisonTable />
             <EfficiencyStats />
             <VideoGallery onTrialRequest={handleRegistrationRequest} />
-            <TestPricing onTrialRequest={handleRegistrationRequest} onPurchaseRequest={handlePurchaseRequest} />
+            <TestPricing onDashboardNavigate={handleRegistrationRequest} onPurchaseRequest={handlePurchaseRequest} />
             <CustomerReviews />
             <VideoRequestSection onTrialRequest={handleRegistrationRequest} />
             <TestFAQ />
@@ -677,12 +616,11 @@ function App() {
               <>
                 {/* ヘッダーは黒背景を維持 */}
                 <div className="bg-black text-white">
-                  <Header 
+                  <Header
                     currentPage={currentPage}
                     onPageChange={handlePageChange}
                     isLoggedIn={isLoggedIn}
                     onAuthRequest={handleAuthRequest}
-                    onTrialRequest={handleRegistrationRequest}
                     onLogout={handleLogout}
                     userData={userData}
                   />
@@ -712,14 +650,7 @@ function App() {
               onClose={() => setShowAuthModal(false)}
               onAuthSuccess={handleAuthSuccess}
             />
-            
-            <NewRegistrationModal
-              isOpen={showRegistrationModal}
-              onClose={() => setShowRegistrationModal(false)}
-              onRegistrationSuccess={handleRegistrationSuccess}
-              onAuthSuccess={handleAuthSuccessForPricing}
-            />
-            
+
             <ContactModal
               isOpen={showContactModal}
               onClose={() => setShowContactModal(false)}

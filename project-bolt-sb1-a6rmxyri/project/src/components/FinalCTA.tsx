@@ -9,13 +9,13 @@ interface FinalCTAProps {
 const FinalCTA: React.FC<FinalCTAProps> = ({ onTrialRequest, onContactRequest, onPurchaseRequest }) => {
   const benefits = [
     {
-      text: "初回7日間のスターター期間"
-    },
-    {
       text: "クレジットカード安心決済"
     },
     {
       text: "いつでもキャンセル可能"
+    },
+    {
+      text: "商用利用可能"
     }
   ];
 
@@ -56,20 +56,20 @@ const FinalCTA: React.FC<FinalCTAProps> = ({ onTrialRequest, onContactRequest, o
           {/* CTAボタン */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
             <button
-              onClick={onTrialRequest}
+              onClick={onPurchaseRequest || onTrialRequest}
               className="group bg-gradient-to-r from-cyan-500 to-purple-600 text-white px-10 py-5 rounded-2xl font-black text-xl transition-all duration-300 hover:scale-105 shadow-2xl hover:shadow-cyan-500/25 relative overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <span className="relative z-10">
-                AI動画素材一覧を見る
+                今すぐ始める
               </span>
             </button>
-            
+
             <button
-              onClick={onPurchaseRequest || onTrialRequest}
+              onClick={onTrialRequest}
               className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-10 py-5 rounded-2xl font-black text-xl transition-all duration-300 hover:scale-105 shadow-2xl hover:shadow-green-500/25"
             >
-              今すぐ購入で競合をリード
+              AI動画素材を見る
             </button>
           </div>
           

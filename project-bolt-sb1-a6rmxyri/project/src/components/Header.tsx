@@ -11,19 +11,17 @@ interface HeaderProps {
   onPageChange: (page: string) => void;
   isLoggedIn: boolean;
   onAuthRequest: () => void;
-  onTrialRequest: () => void;
   onLogout: () => void;
   userData?: SupabaseUser;
 }
 
-const Header: React.FC<HeaderProps> = ({ 
-  currentPage, 
-  onPageChange, 
-  isLoggedIn, 
-  onAuthRequest, 
-  onTrialRequest,
-  onLogout, 
-  userData 
+const Header: React.FC<HeaderProps> = ({
+  currentPage,
+  onPageChange,
+  isLoggedIn,
+  onAuthRequest,
+  onLogout,
+  userData
 }) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -269,17 +267,11 @@ const Header: React.FC<HeaderProps> = ({
               </>
             ) : (
               <>
-              <button 
+              <button
                 onClick={onAuthRequest}
-                className="text-gray-300 hover:text-white transition-colors font-medium px-3 sm:px-4 py-2 rounded-xl text-sm sm:text-base"
-              >
-                ログイン
-              </button>
-              <button 
-                onClick={onTrialRequest}
                 className="cyber-button text-white px-3 sm:px-6 py-2 sm:py-3 rounded-xl font-bold transition-all duration-300 shadow-2xl hover:shadow-cyan-500/25 text-sm sm:text-base"
               >
-                新規登録
+                ログイン / 新規登録
               </button>
               </>
             )}
