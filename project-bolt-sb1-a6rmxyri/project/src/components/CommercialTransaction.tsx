@@ -30,17 +30,21 @@ export default function CommercialTransaction({ onPageChange }: CommercialTransa
 
               <div>
                 <h2 className="text-xl font-semibold mb-2 text-pink-400">運営統括責任者</h2>
-                <p className="text-gray-300">AI CreativeStock 運営事務局 代表</p>
+                <p className="text-gray-300">桜谷俊輝</p>
               </div>
 
               <div>
                 <h2 className="text-xl font-semibold mb-2 text-pink-400">所在地</h2>
-                <p className="text-gray-300">請求があったら遅滞なく開示いたします。</p>
+                <p className="text-gray-300">〒150-0013 東京都渋谷区恵比寿2-14-6-505</p>
               </div>
 
               <div>
                 <h2 className="text-xl font-semibold mb-2 text-pink-400">お問い合わせ</h2>
-                <p className="text-gray-300">本サービス内のお問い合わせフォームよりご連絡ください。</p>
+                <p className="text-gray-300">
+                  メールアドレス: support@ai-creativestock.com<br />
+                  電話番号: 090-7584-0954<br />
+                  ※お問い合わせフォームもご利用いただけます。
+                </p>
               </div>
 
               <div>
