@@ -37,7 +37,7 @@ const SimpleVideoCard: React.FC<Props> = ({ video }) => {
 
   return (
     <div
-      className="glass-dark rounded-2xl sm:rounded-3xl shadow-2xl transition-all duration-500 overflow-hidden border border-white/10 hover-lift group"
+      className="glass-dark rounded-2xl sm:rounded-3xl shadow-2xl transition-all duration-500 overflow-hidden border border-white/10 hover-lift"
       onMouseEnter={start}
       onMouseLeave={stop}
       onClick={toggle}
@@ -47,7 +47,7 @@ const SimpleVideoCard: React.FC<Props> = ({ video }) => {
         {/* fallback thumbnail */}
         <img
           src={video.thumbnailUrl}
-          alt={video.title}
+          alt=""
           className="w-full h-full object-cover"
           onContextMenu={(e) => { e.preventDefault(); return false; }}
           onDragStart={(e) => { e.preventDefault(); return false; }}
@@ -72,4 +72,3 @@ const SimpleVideoCard: React.FC<Props> = ({ video }) => {
 };
 
 export default SimpleVideoCard;
-
