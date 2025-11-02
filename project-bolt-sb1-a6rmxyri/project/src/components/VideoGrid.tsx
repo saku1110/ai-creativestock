@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Filter, Grid, List, SlidersHorizontal, Search, Cpu, Zap } from 'lucide-react';
-import VideoCard from './VideoCard';
+import SimpleVideoCard from './SimpleVideoCard';
 import { VideoAsset } from '../types';
 import { fetchSupabaseImages, fetchSupabaseVideos, stem } from '../lib/media';
 
@@ -15,17 +15,15 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
   const [sortBy, setSortBy] = useState('popular');
   const [remoteVideos, setRemoteVideos] = useState<VideoAsset[] | null>(null);
   
-  // デモ用：未加入ユーザーとして設定（実際のアプリでは認証状態から取得）
-  const isSubscribed = false;
+  // チE��用�E�未加入ユーザーとして設定（実際のアプリでは認証状態から取得！E  const isSubscribed = false;
 
-  // サンプルデータ（9:16の8秒動画のみ - 16本に拡張）
-  const localVideos: VideoAsset[] = [
+  // サンプルチE�Eタ�E�E:16の8秒動画のみ - 16本に拡張�E�E  const localVideos: VideoAsset[] = [
     {
       id: '1',
-      title: '実写級美容クリニック向けTikTok動画',
-      description: '実写級の美しさでCVRを最大化する美容業界向けTikTok動画広告。プロ品質の映像美で高い訴求力。',
+      title: '実�E級美容クリニック向けTikTok動画',
+      description: '実�E級�E美しさでCVRを最大化する美容業界向けTikTok動画庁E��。�Eロ品質の映像美で高い訴求力、E,
       category: '美容',
-      tags: ['美容', 'TikTok広告', '実写級', 'CVR最適化'],
+      tags: ['美容', 'TikTok庁E��', '実�E紁E, 'CVR最適匁E],
       duration: 8,
       resolution: '9:16 4K',
       price: 2980,
@@ -40,10 +38,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '2',
-      title: '実写級ダイエット成功Instagram動画',
-      description: '実写級の美しさでダイエット成功を表現したInstagram動画広告。リアルな変化で高いCVRを実現。',
-      category: 'ダイエット・フィットネス',
-      tags: ['ダイエット', 'Instagram広告', '実写級', 'ビフォーアフター'],
+      title: '実�E級ダイエチE��成功Instagram動画',
+      description: '実�E級�E美しさでダイエチE��成功を表現したInstagram動画庁E��。リアルな変化で高いCVRを実現、E,
+      category: 'ダイエチE��・フィチE��ネス',
+      tags: ['ダイエチE��', 'Instagram庁E��', '実�E紁E, 'ビフォーアフター'],
       duration: 8,
       resolution: '9:16 4K',
       price: 1980,
@@ -58,10 +56,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '3',
-      title: '実写級ヘアケアYouTube Shorts動画',
-      description: '実写級の映像美でヘアケア効果を表現したYouTube Shorts動画広告。美しい髪の変化をリアルに再現。',
+      title: '実�E級�EアケアYouTube Shorts動画',
+      description: '実�E級�E映像美でヘアケア効果を表現したYouTube Shorts動画庁E��。美しぁE��の変化をリアルに再現、E,
       category: 'ヘアケア・美髪',
-      tags: ['ヘアケア', 'YouTube広告', '実写級', '美髪'],
+      tags: ['ヘアケア', 'YouTube庁E��', '実�E紁E, '美髪'],
       duration: 8,
       resolution: '9:16 4K',
       price: 1580,
@@ -76,10 +74,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '4',
-      title: '実写級ビジネス成功Facebook動画',
-      description: '実写級の映像でビジネス成功を表現したFacebook動画広告。プロフェッショナルな映像美で信頼性向上。',
+      title: '実�E級ビジネス成功Facebook動画',
+      description: '実�E級�E映像でビジネス成功を表現したFacebook動画庁E��。�EロフェチE��ョナルな映像美で信頼性向上、E,
       category: 'ビジネス・副業',
-      tags: ['ビジネス', 'Facebook広告', '実写級', 'B2B'],
+      tags: ['ビジネス', 'Facebook庁E��', '実�E紁E, 'B2B'],
       duration: 8,
       resolution: '9:16 4K',
       price: 3980,
@@ -94,10 +92,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '5',
-      title: '実写級暮らし改善LINE動画',
-      description: '実写級の映像美でライフスタイル改善を表現したLINE動画広告。日常の美しさをリアルに再現。',
+      title: '実�E級暮らし改善LINE動画',
+      description: '実�E級�E映像美でライフスタイル改喁E��表現したLINE動画庁E��。日常の美しさをリアルに再現、E,
       category: 'ライフスタイル',
-      tags: ['ライフスタイル', 'LINE広告', '実写級', '暮らし'],
+      tags: ['ライフスタイル', 'LINE庁E��', '実�E紁E, '暮らし'],
       duration: 8,
       resolution: '9:16 4K',
       price: 4980,
@@ -112,10 +110,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '6',
-      title: '実写級美容サロンTwitter動画',
-      description: '実写級の映像美で美容サロンの魅力を表現したTwitter動画広告。プロ品質の映像で差別化を実現。',
+      title: '実�E級美容サロンTwitter動画',
+      description: '実�E級�E映像美で美容サロンの魁E��を表現したTwitter動画庁E��。�Eロ品質の映像で差別化を実現、E,
       category: '美容・コスメ',
-      tags: ['美容サロン', 'Twitter広告', '実写級', 'サロン集客'],
+      tags: ['美容サロン', 'Twitter庁E��', '実�E紁E, 'サロン雁E��'],
       duration: 8,
       resolution: '9:16 4K',
       price: 2480,
@@ -130,10 +128,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '7',
-      title: '実写級健康食品TikTok動画',
-      description: '実写級の映像で健康食品の効果を表現したTikTok動画広告。リアルな訴求力で高CVR。',
+      title: '実�E級健康食品TikTok動画',
+      description: '実�E級�E映像で健康食品の効果を表現したTikTok動画庁E��。リアルな訴求力で高CVR、E,
       category: '健康・サプリ',
-      tags: ['健康食品', 'TikTok広告', '実写級', 'サプリメント'],
+      tags: ['健康食品', 'TikTok庁E��', '実�E紁E, 'サプリメンチE],
       duration: 8,
       resolution: '9:16 4K',
       price: 2280,
@@ -148,10 +146,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '8',
-      title: '実写級ファッションInstagram動画',
-      description: '実写級の映像美でファッションアイテムを表現したInstagram動画広告。スタイリッシュな映像美。',
-      category: 'ファッション',
-      tags: ['ファッション', 'Instagram広告', '実写級', 'アパレル'],
+      title: '実�E級ファチE��ョンInstagram動画',
+      description: '実�E級�E映像美でファチE��ョンアイチE��を表現したInstagram動画庁E��。スタイリチE��ュな映像美、E,
+      category: 'ファチE��ョン',
+      tags: ['ファチE��ョン', 'Instagram庁E��', '実�E紁E, 'アパレル'],
       duration: 8,
       resolution: '9:16 4K',
       price: 1880,
@@ -166,10 +164,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '9',
-      title: '実写級不動産YouTube Shorts動画',
-      description: '実写級の映像で不動産物件を表現したYouTube Shorts動画広告。魅力的な物件紹介。',
+      title: '実�E級不動産YouTube Shorts動画',
+      description: '実�E級�E映像で不動産物件を表現したYouTube Shorts動画庁E��。魁E��皁E��物件紹介、E,
       category: '不動産',
-      tags: ['不動産', 'YouTube広告', '実写級', '物件紹介'],
+      tags: ['不動産', 'YouTube庁E��', '実�E紁E, '物件紹仁E],
       duration: 8,
       resolution: '9:16 4K',
       price: 3280,
@@ -184,10 +182,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '10',
-      title: '実写級教育サービスFacebook動画',
-      description: '実写級の映像で教育サービスを表現したFacebook動画広告。信頼性の高い映像美。',
+      title: '実�E級教育サービスFacebook動画',
+      description: '実�E級�E映像で教育サービスを表現したFacebook動画庁E��。信頼性の高い映像美、E,
       category: '教育',
-      tags: ['教育', 'Facebook広告', '実写級', 'オンライン学習'],
+      tags: ['教育', 'Facebook庁E��', '実�E紁E, 'オンライン学翁E],
       duration: 8,
       resolution: '9:16 4K',
       price: 2680,
@@ -202,10 +200,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '11',
-      title: '実写級飲食店LINE動画',
-      description: '実写級の映像美で飲食店の魅力を表現したLINE動画広告。食欲をそそる映像美。',
-      category: '飲食',
-      tags: ['飲食店', 'LINE広告', '実写級', 'グルメ'],
+      title: '実�E級飲食店LINE動画',
+      description: '実�E級�E映像美で飲食店�E魁E��を表現したLINE動画庁E��。食欲をそそる映像美、E,
+      category: '飲飁E,
+      tags: ['飲食庁E, 'LINE庁E��', '実�E紁E, 'グルメ'],
       duration: 8,
       resolution: '9:16 4K',
       price: 1780,
@@ -220,10 +218,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '12',
-      title: '実写級旅行Twitter動画',
-      description: '実写級の映像で旅行先の魅力を表現したTwitter動画広告。美しい景色をリアルに再現。',
-      category: '旅行',
-      tags: ['旅行', 'Twitter広告', '実写級', '観光'],
+      title: '実�E級旅行Twitter動画',
+      description: '実�E級�E映像で旁E���Eの魁E��を表現したTwitter動画庁E��。美しぁE��色をリアルに再現、E,
+      category: '旁E��E,
+      tags: ['旁E��E, 'Twitter庁E��', '実�E紁E, '観允E],
       duration: 8,
       resolution: '9:16 4K',
       price: 2180,
@@ -238,10 +236,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '13',
-      title: '実写級金融サービスTikTok動画',
-      description: '実写級の映像で金融サービスを表現したTikTok動画広告。信頼性と安心感を演出。',
+      title: '実�E級��融サービスTikTok動画',
+      description: '実�E級�E映像で金融サービスを表現したTikTok動画庁E��。信頼性と安忁E��を演�E、E,
       category: '金融',
-      tags: ['金融', 'TikTok広告', '実写級', '投資'],
+      tags: ['金融', 'TikTok庁E��', '実�E紁E, '投賁E],
       duration: 8,
       resolution: '9:16 4K',
       price: 3480,
@@ -256,10 +254,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '14',
-      title: '実写級ペット用品Instagram動画',
-      description: '実写級の映像でペット用品を表現したInstagram動画広告。かわいさと品質を両立。',
-      category: 'ペット',
-      tags: ['ペット', 'Instagram広告', '実写級', 'ペット用品'],
+      title: '実�E級�EチE��用品Instagram動画',
+      description: '実�E級�E映像でペット用品を表現したInstagram動画庁E��。かわいさと品質を両立、E,
+      category: 'ペッチE,
+      tags: ['ペッチE, 'Instagram庁E��', '実�E紁E, 'ペット用品E],
       duration: 8,
       resolution: '9:16 4K',
       price: 1680,
@@ -274,10 +272,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '15',
-      title: '実写級車YouTube Shorts動画',
-      description: '実写級の映像で車の魅力を表現したYouTube Shorts動画広告。高級感と性能を訴求。',
-      category: '自動車',
-      tags: ['自動車', 'YouTube広告', '実写級', '車'],
+      title: '実�E級車YouTube Shorts動画',
+      description: '実�E級�E映像で車�E魁E��を表現したYouTube Shorts動画庁E��。高級感と性能を訴求、E,
+      category: '自動軁E,
+      tags: ['自動軁E, 'YouTube庁E��', '実�E紁E, '軁E],
       duration: 8,
       resolution: '9:16 4K',
       price: 3880,
@@ -292,10 +290,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
     },
     {
       id: '16',
-      title: '実写級アプリFacebook動画',
-      description: '実写級の映像でアプリの使いやすさを表現したFacebook動画広告。魅力的なUI/UX訴求。',
+      title: '実�E級アプリFacebook動画',
+      description: '実�E級�E映像でアプリの使ぁE��すさを表現したFacebook動画庁E��。魁E��皁E��UI/UX訴求、E,
       category: 'アプリ',
-      tags: ['アプリ', 'Facebook広告', '実写級', 'UI/UX'],
+      tags: ['アプリ', 'Facebook庁E��', '実�E紁E, 'UI/UX'],
       duration: 8,
       resolution: '9:16 4K',
       price: 2880,
@@ -322,8 +320,8 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
           return {
             id: `sb-${idx}-${v.path}`,
             title: title || 'Clip',
-            description: 'Supabaseから読み込んだ動画素材です',
-            category: 'リモート',
+            description: 'Supabaseから読み込んだ動画素材でぁE,
+            category: 'リモーチE,
             tags: ['remote', 'supabase'],
             duration: 8,
             resolution: '9:16 4K',
@@ -351,18 +349,18 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
   const categories = [
     'all',
     '美容',
-    'ダイエット・フィットネス',
+    'ダイエチE��・フィチE��ネス',
     'ヘアケア・美髪', 
     'ビジネス・副業',
     'ライフスタイル'
   ];
 
   const sortOptions = [
-    { value: 'popular', label: '人気順' },
-    { value: 'newest', label: '新着順' },
-    { value: 'price-low', label: '価格の安い順' },
-    { value: 'price-high', label: '価格の高い順' },
-    { value: 'rating', label: '評価の高い順' }
+    { value: 'popular', label: '人気頁E },
+    { value: 'newest', label: '新着頁E },
+    { value: 'price-low', label: '価格の安い頁E },
+    { value: 'price-high', label: '価格の高い頁E },
+    { value: 'rating', label: '評価の高い頁E }
   ];
 
   const filteredVideos = selectedCategory === 'all' 
@@ -376,14 +374,13 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-12 sm:mb-16">
           <div className="mb-8 lg:mb-0">
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-4 sm:mb-6">
-             <span className="gradient-text">高品質</span>SNS動画広告素材
-            </h2>
-           <p className="text-lg sm:text-xl text-gray-400">CVRを最大化するSNS動画広告専用コレクション</p>
+             <span className="gradient-text">高品質</span>SNS動画庁E��素杁E            </h2>
+           <p className="text-lg sm:text-xl text-gray-400">CVRを最大化するSNS動画庁E��専用コレクション</p>
           </div>
           
           {isLoggedIn && (
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
-            {/* 表示切り替え */}
+            {/* 表示刁E��替ぁE*/}
             <div className="flex items-center space-x-2 glass-effect rounded-2xl p-2 border border-white/10">
               <button
                 onClick={() => setViewMode('grid')}
@@ -399,7 +396,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
               </button>
             </div>
             
-            {/* ソート */}
+            {/* ソーチE*/}
             <select 
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -422,7 +419,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
           )}
         </div>
         
-        {/* カテゴリーフィルター */}
+        {/* カチE��リーフィルター */}
         {isLoggedIn && (
           <div className="flex flex-wrap gap-3 sm:gap-4 mb-12 sm:mb-16">
           {categories.map((category) => (
@@ -441,11 +438,11 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
           </div>
         )}
         
-        {/* 検索結果情報 */}
+        {/* 検索結果惁E�� */}
         {isLoggedIn && (
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 sm:mb-12 space-y-4 sm:space-y-0">
           <p className="text-gray-400 text-base sm:text-lg">
-            <span className="font-bold text-cyan-400 text-xl sm:text-2xl">{filteredVideos.length}</span>件の高品質SNS動画広告素材が見つかりました
+            <span className="font-bold text-cyan-400 text-xl sm:text-2xl">{filteredVideos.length}</span>件の高品質SNS動画庁E��素材が見つかりました
           </p>
           <div className="flex items-center space-x-2 text-cyan-400">
             <Cpu className="w-5 h-5 animate-pulse" />
@@ -454,7 +451,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
           </div>
         )}
         
-        {/* 動画グリッド */}
+        {/* 動画グリチE�� */}
         {isLoggedIn ? (
           <div className={`grid gap-6 sm:gap-8 lg:gap-10 ${
             viewMode === 'grid'
@@ -462,12 +459,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
               : 'grid-cols-1'
           }`}>
           {filteredVideos.map((video) => (
-            <VideoCard
-              key={video.id}
-              video={video}
-              isSubscribed={isSubscribed}
-              onAuthRequest={onAuthRequest}
-            />
+            <SimpleVideoCard key={video.id} video={video} />
           ))}
           </div>
         ) : (
@@ -477,7 +469,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
             </div>
             <h3 className="text-2xl font-bold text-white mb-4">高品質動画素材をご覧ください</h3>
             <p className="text-gray-400 mb-8 max-w-md mx-auto">
-              ログインして1000点以上の実写級SNS動画広告素材をご利用ください
+              ログインして1000点以上�E実�E級SNS動画庁E��素材をご利用ください
             </p>
             <button 
               onClick={onAuthRequest}
@@ -494,7 +486,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
           <button className="cyber-button text-white px-8 sm:px-12 lg:px-16 py-4 sm:py-5 lg:py-6 rounded-2xl font-black transition-all duration-300 shadow-2xl hover:shadow-cyan-500/25 transform hover:-translate-y-2 text-base sm:text-lg w-full sm:w-auto">
             <div className="flex items-center justify-center space-x-2 sm:space-x-3">
               <Zap className="w-5 sm:w-6 h-5 sm:h-6" />
-              <span>さらに動画広告素材を読み込む</span>
+              <span>さらに動画庁E��素材を読み込む</span>
             </div>
           </button>
           </div>
@@ -505,3 +497,4 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
 };
 
 export default VideoGrid;
+
