@@ -378,7 +378,10 @@ const PricingSection: React.FC<PricingSectionProps> = ({ onAuthRequest, onContac
                 よくある質問
               </button>
               <span className="text-gray-600 hidden sm:inline">|</span>
-              <button className="text-orange-400 hover:text-white font-bold transition-colors text-base sm:text-lg">
+              <button
+                onClick={onContactRequest}
+                className="text-orange-400 hover:text-white font-bold transition-colors text-base sm:text-lg"
+              >
                 オーダーメイドについて
               </button>
             </div>
