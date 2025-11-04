@@ -61,7 +61,8 @@ async function processDir(dir: string, wmPath: string, opacity: number) {
         ffmpeg()
           .input(input)
           .input(wmResized)
-          .complexFilter(`[1:v]format=rgba,colorchannelmixer=aa=${opacity}[wm];[0:v][wm]overlay=0:0[out]`)
+          // 保持されたアルファを利用して合成。overlay の format=auto と alpha で透過を適用
+          .complexFilter(`[1:v]format=rgba[wm];[0:v][wm]overlay=0:0:format=auto:alpha=${opacity}[out]`)
           .outputOptions([
             '-map','[out]','-map','0:a?',
             '-c:v','libx264','-crf','22','-preset','veryfast','-pix_fmt','yuv420p','-movflags','+faststart',
