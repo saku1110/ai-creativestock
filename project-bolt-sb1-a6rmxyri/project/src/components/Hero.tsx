@@ -386,7 +386,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
 
   return (
     <section className="relative py-16 sm:py-24 lg:py-32 overflow-hidden">
-      {/* 背景エフェクチE*/}
+      {/* 背景エフェクト */}
       <div className="absolute inset-0">
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-500/10 to-purple-600/10"></div>
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
@@ -399,15 +399,17 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight">
-            実�E級�E
-            <span className="bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent"> AI動画素杁E</span>
+            実写級の
+            <span className="bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent"> AI動画素材</span>
             で<br />
-            マ�EケチE��ングめE            <span className="bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent"> 加送E</span>
+            マーケティングを
+            <span className="bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent"> 加速</span>
           </h1>
 
           <p className="text-xl sm:text-2xl text-gray-300 max-w-4xl mx-auto mb-8 leading-relaxed">
-            月顁E,800冁E��実�E級�E高品質AI動画素材が手に入めE            <br className="hidden sm:block" />
-            モチE��撮影不要�E即ダウンロード�E啁E��利用OK
+            月額9,800円で実写級の高品質AI動画素材が手に入る
+            <br className="hidden sm:block" />
+            モデル撮影不要・即ダウンロード・商用利用OK
           </p>
 
           <div className="relative overflow-hidden py-8 mb-8">
