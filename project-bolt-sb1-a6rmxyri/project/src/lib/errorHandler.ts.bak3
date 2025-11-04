@@ -57,7 +57,14 @@ export class AppError extends Error {
   }
 }
 
-// エラーハンドラーの設宁Etype ErrorHandlerConfig = any;
+// エラーハンドラーの設宁Einterface ErrorHandlerConfig {
+  enableConsoleLogging: boolean;
+  enableAuditLogging: boolean;
+  enableUserNotification: boolean;
+  enableRetry: boolean;
+  maxRetryAttempts: number;
+  sentryDsn?: string;
+}
 
 export class ErrorHandler {
   private static instance: ErrorHandler;
