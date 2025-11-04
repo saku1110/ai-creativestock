@@ -19,7 +19,8 @@
     "upload:bulk": "node scripts/bulk-upload.js",
     "watch:categories": "tsx scripts/watch-category-folders.ts",
     "upload:local-content": "tsx scripts/upload-local-content.ts",
-    "watermark:apply": "tsx src/tools/watermark-apply.ts"
+    "watermark:apply": "tsx src/tools/watermark-apply.ts",
+    "watermark:lp": "tsx scripts/apply-lp-watermark.ts"
   },
   "dependencies": {
     "@stripe/stripe-js": "^7.4.0",
