@@ -1,0 +1,278 @@
+    // 繝悶Λ繧ｦ繧ｶ迺ｰ蠅・〒縺ｯ菴ｿ逕ｨ荳榊庄
+    if (typeof window !== 'undefined') {
+      return {
+        success: false,
+        processed: 0,
+        failed: 0,
+        results: []
+      };
+    }
+
+    try {
+      // 蜈･蜉帙ョ繧｣繝ｬ繧ｯ繝医Μ縺ｮ蜍慕判繝輔ぃ繧､繝ｫ繧貞叙蠕・      const files = await fs.readdir(inputDirectory);
+      const videoFiles = files.filter(file => 
+        /\.(mp4|avi|mov|mkv|wmv|flv|webm)$/i.test(file)
+      );
+
+      if (videoFiles.length === 0) {
+        throw new Error('蜃ｦ逅・ｯｾ雎｡縺ｮ蜍慕判繝輔ぃ繧､繝ｫ縺瑚ｦ九▽縺九ｊ縺ｾ縺帙ｓ');
+      }
+
+      // 蜃ｺ蜉帙ョ繧｣繝ｬ繧ｯ繝医Μ繧剃ｽ懈・
+      await fs.mkdir(outputDirectory, { recursive: true });
+
+      const results: Array<{ filename: string; result: ProcessingResult }> = [];
+      let processed = 0;
+      let failed = 0;
+
+      for (let i = 0; i < videoFiles.length; i++) {
+        const filename = videoFiles[i];
+        const inputPath = path.join(inputDirectory, filename);
+        const outputPath = path.join(outputDirectory, `watermarked_${filename}`);
+
+        onProgress?.(i + 1, videoFiles.length, filename);
+
+        const result = await this.addTextWatermark(inputPath, outputPath, config);
+        results.push({ filename, result });
+
+        if (result.success) {
+          processed++;
+        } else {
+          failed++;
+        }
+      }
+
+      return {
+        success: true,
+        processed,
+        failed,
+        results
+      };
+    } catch (error) {
+      console.error('繝舌ャ繝∝・逅・お繝ｩ繝ｼ:', error);
+      return {
+        success: false,
+        processed: 0,
+        failed: 0,
+        results: []
+      };
+    }
+  }
+
+  /**
+   * FFmpeg繧ｳ繝槭Φ繝峨ｒ螳溯｡・   */
+  private static runFFmpeg(args: string[]): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const ffmpeg = spawn('ffmpeg', args);
+
+      let errorOutput = '';
+
+      ffmpeg.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      ffmpeg.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`FFmpeg failed with code ${code}: ${errorOutput}`));
+        }
+      });
+
+      ffmpeg.on('error', (error) => {
+        reject(new Error(`FFmpeg spawn error: ${error.message}`));
+      });
+    });
+  }
+
+  /**
+   * 譁懊ａ繝代ち繝ｼ繝ｳ繧ｦ繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ繝輔ぅ繝ｫ繧ｿ繝ｼ繧剃ｽ懈・
+   */
+  private static createDiagonalPatternFilter(config: WatermarkConfig): string {
+    const spacing = config.spacing || 200;
+    const angle = config.angle || -30;
+    
+    // 蜍慕判蜈ｨ菴薙ｒ隕・≧繧医≧縺ｫ隍・焚縺ｮ繧ｦ繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ繧呈万繧√↓驟咲ｽｮ
+    const filters: string[] = [];
+    
+    // 逕ｻ髱｢蜈ｨ菴薙ｒ遒ｺ螳溘↓繧ｫ繝舌・縺吶ｋ縺溘ａ縲√ｈ繧雁ｺ・＞遽・峇縺ｫ驟咲ｽｮ
+    // 4K蜍慕判縺ｧ繧ょｯｾ蠢懊〒縺阪ｋ繧医≧縲∝香蛻・↑謨ｰ縺ｮ繧ｦ繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ繧帝・鄂ｮ
+    for (let row = -5; row <= 15; row++) {
+      for (let col = -5; col <= 20; col++) {
+        const baseX = col * spacing;
+        const baseY = row * spacing;
+        
+        // 譁懊ａ縺ｮ驟咲ｽｮ險育ｮ暦ｼ亥推陦後ｒ縺壹ｉ縺呻ｼ・        const offsetX = row * (spacing * 0.5);
+        
+        const filter = [
+          `drawtext=text='${config.text}'`,
+          `fontsize=${config.fontSize}`,
+          `fontcolor=${config.color}@${config.opacity}`,
+          `x=${baseX + offsetX}`,
+          `y=${baseY}`,
+          config.fontFile ? `fontfile='${config.fontFile}'` : '',
+          'enable=\'between(t,0,99999)\''
+        ].filter(Boolean).join(':');
+        
+        filters.push(filter);
+      }
+    }
+    
+    // 隍・焚縺ｮdrawtext繝輔ぅ繝ｫ繧ｿ繝ｼ繧偵メ繧ｧ繝ｼ繝ｳ謗･邯・    return filters.join(',');
+  }
+
+  /**
+   * 繝・く繧ｹ繝医え繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ縺ｮ菴咲ｽｮ繧定ｨ育ｮ・   */
+  private static getTextPosition(position: WatermarkConfig['position']): { x: string; y: string } {
+    switch (position) {
+      case 'top-left':
+        return { x: '10', y: '10' };
+      case 'top-right':
+        return { x: 'w-tw-10', y: '10' };
+      case 'bottom-left':
+        return { x: '10', y: 'h-th-10' };
+      case 'bottom-right':
+        return { x: 'w-tw-10', y: 'h-th-10' };
+      case 'center':
+        return { x: '(w-tw)/2', y: '(h-th)/2' };
+      case 'diagonal-pattern':
+        return { x: '0', y: '0' }; // 繝代ち繝ｼ繝ｳ縺ｧ縺ｯ菴ｿ逕ｨ縺励↑縺・      default:
+        return { x: 'w-tw-10', y: 'h-th-10' };
+    }
+  }
+
+  /**
+   * 逕ｻ蜒上え繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ縺ｮ菴咲ｽｮ繧定ｨ育ｮ・   */
+  private static getImagePosition(position: WatermarkConfig['position']): { x: string; y: string } {
+    switch (position) {
+      case 'top-left':
+        return { x: '10', y: '10' };
+      case 'top-right':
+        return { x: 'main_w-overlay_w-10', y: '10' };
+      case 'bottom-left':
+        return { x: '10', y: 'main_h-overlay_h-10' };
+      case 'bottom-right':
+        return { x: 'main_w-overlay_w-10', y: 'main_h-overlay_h-10' };
+      case 'center':
+        return { x: '(main_w-overlay_w)/2', y: '(main_h-overlay_h)/2' };
+      default:
+        return { x: 'main_w-overlay_w-10', y: 'main_h-overlay_h-10' };
+    }
+  }
+
+  /**
+   * FFmpeg縺悟茜逕ｨ蜿ｯ閭ｽ縺九メ繧ｧ繝・け
+   */
+  static async checkFFmpegAvailability(): Promise<boolean> {
+    try {
+      await this.runFFmpeg(['-version']);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * 蜍慕判縺ｮ諠・ｱ繧貞叙蠕・   */
+  static async getVideoInfo(videoPath: string): Promise<{
+    duration: number;
+    width: number;
+    height: number;
+    format: string;
+  } | null> {
+    try {
+      return new Promise((resolve, reject) => {
+        const ffprobe = spawn('ffprobe', [
+          '-v', 'quiet',
+          '-print_format', 'json',
+          '-show_format',
+          '-show_streams',
+          videoPath
+        ]);
+
+        let output = '';
+
+        ffprobe.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+
+        ffprobe.on('close', (code) => {
+          if (code === 0) {
+            try {
+              const info = JSON.parse(output);
+              const videoStream = info.streams.find((s: any) => s.codec_type === 'video');
+              
+              resolve({
+                duration: parseFloat(info.format.duration),
+                width: videoStream.width,
+                height: videoStream.height,
+                format: info.format.format_name
+              });
+            } catch (parseError) {
+              reject(parseError);
+            }
+          } else {
+            reject(new Error(`ffprobe failed with code ${code}`));
+          }
+        });
+      });
+    } catch (error) {
+      console.error('蜍慕判諠・ｱ蜿門ｾ励お繝ｩ繝ｼ:', error);
+      return null;
+    }
+  }
+}
+
+/**
+ * 繝励Μ繧ｻ繝・ヨ繧ｦ繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ險ｭ螳・ */
+export const WatermarkPresets = {
+  // 譁懊ａ繝代ち繝ｼ繝ｳ・医ョ繝輔か繝ｫ繝医・謗ｨ螂ｨ・・  diagonalPattern: {
+    text: 'AI Creative Stock',
+    position: 'diagonal-pattern' as const,
+    opacity: 0.25,
+    fontSize: 36,
+    color: 'white',
+    spacing: 180,
+    angle: -30
+  },
+  
+  // 霆ｽ縺・ヱ繧ｿ繝ｼ繝ｳ・育岼遶九■縺ｫ縺上＞・・  lightPattern: {
+    text: 'AI Creative Stock',
+    position: 'diagonal-pattern' as const,
+    opacity: 0.15,
+    fontSize: 28,
+    color: 'white',
+    spacing: 220,
+    angle: -25
+  },
+  
+  // 蟇・寔繝代ち繝ｼ繝ｳ・域怙繧ょｼｷ縺・ｿ晁ｭｷ・・  densePattern: {
+    text: 'AI Creative Stock',
+    position: 'diagonal-pattern' as const,
+    opacity: 0.35,
+    fontSize: 32,
+    color: 'white',
+    spacing: 120,
+    angle: -35
+  },
+  
+  // 雜・ｯ・寔繝代ち繝ｼ繝ｳ・域怙蠑ｷ縺ｮ菫晁ｭｷ・・  ultraDensePattern: {
+    text: 'AI Creative Stock',
+    position: 'diagonal-pattern' as const,
+    opacity: 0.4,
+    fontSize: 40,
+    color: 'white',
+    spacing: 100,
+    angle: -30
+  },
+  
+  // 蜊倅ｸ・亥ｾ捺擂繝ｻ髱樊耳螂ｨ・・  single: {
+    text: 'AI Creative Stock',
+    position: 'bottom-right' as const,
+    opacity: 0.7,
+    fontSize: 24,
+    color: 'white'
+  }
+};
+
+export default VideoWatermarkProcessor;

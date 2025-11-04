@@ -1,0 +1,10 @@
+    const { outVideo, thumbOut } = await processVideo(opts)
+    console.log(`笨・蜃ｺ蜉・ ${outVideo}`)
+    if (thumbOut) console.log(`名・・繧ｵ繝繝・ ${thumbOut}`)
+  }
+}
+
+// 螳溯｡・main().catch(err => {
+  console.error('繧ｨ繝ｩ繝ｼ:', err?.message || err)
+  process.exit(1)
+})
