@@ -34,11 +34,37 @@ const formatTitle = (baseName: string): string => {
     .join(' ');
 };
 
+const normalizeStem = (s: string): string => {
+  try {
+    return s
+      .normalize('NFKD')
+      .toLowerCase()
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  } catch {
+    return s.toLowerCase().replace(/\.[^/.]+$/, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  }
+};
+
 const buildVideoList = (entries: Record<string, string>, prefix: string): LocalVideoItem[] => {
-  return Object.entries(entries)
+  const presentKeys = new Set<string>();
+  const list: LocalVideoItem[] = Object.entries(entries)
     .map(([key, url]) => {
       const manifestKey = key.replace(/^\.\//, '');
-      const remoteEntry = remoteManifest[manifestKey];
+      presentKeys.add(manifestKey);
+      let remoteEntry = remoteManifest[manifestKey as keyof typeof remoteManifest];
+      if (!remoteEntry) {
+        // Fallback: match by normalized stem within same folder prefix
+        const thisName = manifestKey.split('/').pop() || manifestKey;
+        const thisStem = normalizeStem(thisName);
+        const altKey = Object.keys(remoteManifest).find(k => {
+          if (!k.startsWith(prefix + '/')) return false;
+          const otherName = k.split('/').pop() || k;
+          return normalizeStem(otherName) === thisStem;
+        });
+        if (altKey) remoteEntry = remoteManifest[altKey as keyof typeof remoteManifest];
+      }
       const { fileName, baseName } = sanitizeName(key);
       const slug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
       const title = formatTitle(baseName);
@@ -50,6 +76,27 @@ const buildVideoList = (entries: Record<string, string>, prefix: string): LocalV
       } satisfies LocalVideoItem;
     })
     .sort((a, b) => a.fileName.localeCompare(b.fileName));
+
+  // Also include remote-only items (present in manifest but not on local disk)
+  const missingRemote = Object.keys(remoteManifest).filter((k) => k.startsWith(prefix + '/'));
+  const existingNames = new Set(list.map((i) => i.fileName));
+  for (const k of missingRemote) {
+    if (presentKeys.has(k)) continue;
+    const r = remoteManifest[k as keyof typeof remoteManifest];
+    if (!r?.url) continue;
+    const { fileName, baseName } = sanitizeName(k);
+    if (existingNames.has(fileName)) continue;
+    const slug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    list.push({
+      id: `${prefix}-${slug || baseName}`,
+      title: formatTitle(baseName),
+      url: r.url,
+      fileName
+    });
+  }
+
+  list.sort((a, b) => a.fileName.localeCompare(b.fileName));
+  return list;
 };
 
 const heroVideoModules = import.meta.glob('./hero/*.{mp4,MP4,webm,WEBM}', {
@@ -57,6 +104,12 @@ const heroVideoModules = import.meta.glob('./hero/*.{mp4,MP4,webm,WEBM}', {
   import: 'default',
   query: '?url'
 }) as Record<string, string>;
+
+// Use only finalized watermarked outputs to avoid locking or oversized test files.
+// Specifically pick files suffixed with -wm-alpha200.* (current production setting).
+const heroWatermarkedModules = Object.fromEntries(
+  Object.entries(heroVideoModules).filter(([key]) => key.includes('-wm-alpha200.'))
+);
 
 const lpGridVideoModules = import.meta.glob('./lp-grid/*.{mp4,MP4,webm,WEBM}', {
   eager: true,
@@ -70,7 +123,7 @@ const dashboardVideoModules = import.meta.glob('./dashboard/**/*.{mp4,MP4,webm,W
   query: '?url'
 }) as Record<string, string>;
 
-export const localHeroVideos: LocalVideoItem[] = buildVideoList(heroVideoModules, 'hero');
+export const localHeroVideos: LocalVideoItem[] = buildVideoList(heroWatermarkedModules, 'hero');
 
 export const localLpGridVideos: LocalVideoItem[] = buildVideoList(lpGridVideoModules, 'lp-grid');
 

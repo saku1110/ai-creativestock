@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { localLpGridVideos } from '../local-content';
+import { fetchSupabaseVideos, stem } from '../lib/media';
 
 interface VideoGalleryProps {
   onTrialRequest: () => void;
@@ -36,18 +37,43 @@ const LOCAL_GALLERY_VIDEOS: GalleryVideo[] = localLpGridVideos.map(video => ({
   src: video.url
 }));
 
-const GALLERY_VIDEOS: GalleryVideo[] = LOCAL_GALLERY_VIDEOS.length > 0
-  ? LOCAL_GALLERY_VIDEOS.slice(0, 16)
-  : FALLBACK_GALLERY_VIDEOS;
-
 const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
+  const [remoteVideos, setRemoteVideos] = useState<GalleryVideo[] | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const vids = await fetchSupabaseVideos({ bucket: 'local-content', prefix: 'lp-grid', limit: 200, expires: 3600 });
+        if (!vids || vids.length === 0) return;
+        const items: GalleryVideo[] = vids.map((v, idx) => ({
+          id: `sb-${idx}-${v.path}`,
+          title: stem(v.path).replace(/[-_]+/g, ' ').replace(/\s{2,}/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          src: v.url
+        }));
+        setRemoteVideos(items);
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  const GALLERY_VIDEOS: GalleryVideo[] = useMemo(() => {
+    const base = remoteVideos && remoteVideos.length > 0
+      ? remoteVideos
+      : (LOCAL_GALLERY_VIDEOS.length > 0 ? LOCAL_GALLERY_VIDEOS : FALLBACK_GALLERY_VIDEOS);
+    return base.slice(0, 16);
+  }, [remoteVideos]);
+
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const refs = useRef<Record<string, HTMLVideoElement | null>>({});
 
   const play = (id: string) => {
     const el = refs.current[id];
     if (!el) return;
-    { const p = el.play(); if (p && typeof (p as Promise<void>).catch === 'function') { (p as Promise<void>).catch(() => {}); } }
+    const p = el.play();
+    if (p && typeof (p as Promise<void>).catch === 'function') {
+      (p as Promise<void>).catch(() => {});
+    }
   };
 
   const stop = (id: string) => {
@@ -59,8 +85,6 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
   return (
     <section className="py-20 bg-gradient-to-b from-black to-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-        {/* 蜍慕判繧ｮ繝｣繝ｩ繝ｪ繝ｼ繧ｰ繝ｪ繝・ラ・・C: 4ﾃ・縲√Ξ繧ｹ繝昴Φ繧ｷ繝・ 2ﾃ・・・*/}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 mb-12">
           {GALLERY_VIDEOS.map((video) => (
             <div
@@ -84,9 +108,8 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
           ))}
         </div>
 
-        {/* CTA */}
         <div className="text-center mt-16">
-          <button 
+          <button
             onClick={onTrialRequest}
             className="bg-gradient-to-r from-cyan-500 to-purple-600 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all duration-300 hover:scale-105 shadow-2xl hover:shadow-cyan-500/25"
           >
@@ -102,3 +125,4 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
 };
 
 export default VideoGallery;
+

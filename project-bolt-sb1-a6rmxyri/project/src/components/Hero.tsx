@@ -99,6 +99,8 @@ const HeroVideoCard: React.FC<HeroVideoCardProps> = ({ video, register, onReady 
           className="w-full h-full object-cover" crossOrigin="anonymous"
           muted
           playsInline autoPlay onError={() => onReady(video.src)}
+          onLoadedMetadata={() => onReady(video.src)}
+          onCanPlay={() => onReady(video.src)}
           preload="metadata"
           loop
         />
@@ -180,6 +182,13 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
     loadedVideosRef.current.clear();
     isReadyRef.current = false;
     setIsReady(false);
+    // Fallback: if not all videos report ready within a short window, start anyway
+    const timeout = window.setTimeout(() => {
+      if (!isReadyRef.current) {
+        setIsReady(true);
+      }
+    }, 4000);
+    return () => window.clearTimeout(timeout);
   }, [videos, uniqueVideoCount]);
 
   useEffect(() => {
@@ -333,4 +342,3 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
 };
 
 export default Hero;
-

@@ -108,7 +108,7 @@ const main = async () => {
   const filtered = absoluteFiles.filter((full) => SUPPORTED_EXTENSIONS.has(path.extname(full).toLowerCase()));
 
   if (filtered.length === 0) {
-    console.log('â„¹EE No supported video files found under src/local-content.');
+    console.log('â„¹ï¿½Eï¿½E No supported video files found under src/local-content.');
     return;
   }
 
@@ -169,7 +169,7 @@ const main = async () => {
   await Promise.all(runners);
 
   if (success === 0) {
-    console.warn('âš EE No files were uploaded successfully. Manifest will not be updated.');
+    console.warn('âš ï¿½Eï¿½E No files were uploaded successfully. Manifest will not be updated.');
     process.exit(failed > 0 ? 1 : 0);
   }
 
