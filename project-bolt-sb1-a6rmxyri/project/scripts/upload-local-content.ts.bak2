@@ -130,7 +130,7 @@ const main = async () => {
     const relDir = relative.includes('/') ? relative.split('/').slice(0, -1).join('/') : '';
     const relBase = relative.split('/').pop() || relative;
     const safeBase = sanitizeBasename(relBase);
-    const storagePath = [prefix, relDir, safeBase].filter(Boolean).join('/' );
+    const storagePath = `${prefix}/${relDir ? relDir + '/' : ''}${safeBase}`;
     const ext = path.extname(absolute);
     const mimeType = getMimeType(ext);
     try {
