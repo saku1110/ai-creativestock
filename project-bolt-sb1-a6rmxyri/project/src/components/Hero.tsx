@@ -58,7 +58,7 @@ const HeroVideoCard: React.FC<HeroVideoCardProps> = ({ video, register, onReady 
 
     const primeFrame = () => {
       try {
-        el.currentTime = Math.min(el.duration || 0.01, 0.01);
+        const sampleTime = Math.min(el.duration || 0.3, 0.3);\n        el.currentTime = sampleTime;
       } catch {
         // ignore seek errors
       } finally {
@@ -330,7 +330,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
       if (!el) return;
 
       if (!isReadyRef.current) {
-        // Ready状態が変わったときのみリセット
+        // Ready状態が変わったとき�EみリセチE��
         if (wasReady) {
           lastTimestamp = null;
           wasReady = false;
@@ -339,7 +339,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
         return;
       }
 
-      // Ready状態になった直後のタイムスタンプをリセット
+      // Ready状態になった直後�EタイムスタンプをリセチE��
       if (!wasReady) {
         lastTimestamp = null;
         wasReady = true;
@@ -359,7 +359,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
         const delta = timestamp - lastTimestamp;
         lastTimestamp = timestamp;
 
-        // deltaが異常に大きい場合（タブ切り替えなど）はスキップ
+        // deltaが異常に大きい場合（タブ�Eり替えなど�E��EスキチE�E
         if (delta < 100) {
           el.scrollLeft += speedPerMsRef.current * delta;
           if (el.scrollLeft >= maxShift) {
@@ -403,7 +403,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
 
   return (
     <section className="relative py-16 sm:py-24 lg:py-32 overflow-hidden">
-      {/* 背景エフェクト */}
+      {/* 背景エフェクチE*/}
       <div className="absolute inset-0">
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-500/10 to-purple-600/10"></div>
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
@@ -416,17 +416,15 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight">
-            実写級の
-            <span className="bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent"> AI動画素材</span>
+            実�E級�E
+            <span className="bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent"> AI動画素杁E/span>
             で<br />
-            マーケティングを
-            <span className="bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent"> 加速</span>
+            マ�EケチE��ングめE            <span className="bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent"> 加送E/span>
           </h1>
 
           <p className="text-xl sm:text-2xl text-gray-300 max-w-4xl mx-auto mb-8 leading-relaxed">
-            月額6,800円で実写級の高品質AI動画素材が手に入る
-            <br className="hidden sm:block" />
-            モデル・撮影不要。即ダウンロードで商用利用OK
+            月顁E,800冁E��実�E級�E高品質AI動画素材が手に入めE            <br className="hidden sm:block" />
+            モチE��・撮影不要。即ダウンロードで啁E��利用OK
           </p>
 
           <div className="relative overflow-hidden py-8 mb-8">
@@ -475,4 +473,5 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
 };
 
 export default Hero;
+
 
