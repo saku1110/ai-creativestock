@@ -11,7 +11,24 @@ type GalleryVideo = {
   src: string;
 };
 
-const FALLBACK_GALLERY_VIDEOS: GalleryVideo[] = [\n  { id: 'sample-1', title: 'Sample 1', src: '/videos/sample1.mp4' },\n  { id: 'sample-2', title: 'Sample 2', src: '/videos/sample2.mp4' },\n  { id: 'sample-3', title: 'Sample 3', src: '/videos/sample3.mp4' },\n  { id: 'sample-4', title: 'Sample 4', src: '/videos/sample4.mp4' },\n  { id: 'sample-5', title: 'Sample 5', src: '/videos/sample5.mp4' },\n  { id: 'sample-6', title: 'Sample 6', src: '/videos/sample1.mp4' },\n  { id: 'sample-7', title: 'Sample 7', src: '/videos/sample2.mp4' },\n  { id: 'sample-8', title: 'Sample 8', src: '/videos/sample3.mp4' },\n  { id: 'sample-9', title: 'Sample 9', src: '/videos/sample4.mp4' },\n  { id: 'sample-10', title: 'Sample 10', src: '/videos/sample5.mp4' },\n  { id: 'sample-11', title: 'Sample 11', src: '/videos/sample1.mp4' },\n  { id: 'sample-12', title: 'Sample 12', src: '/videos/sample2.mp4' },\n  { id: 'sample-13', title: 'Sample 13', src: '/videos/sample3.mp4' },\n  { id: 'sample-14', title: 'Sample 14', src: '/videos/sample4.mp4' },\n  { id: 'sample-15', title: 'Sample 15', src: '/videos/sample5.mp4' },\n  { id: 'sample-16', title: 'Sample 16', src: '/videos/sample1.mp4' }\n];
+const FALLBACK_GALLERY_VIDEOS: GalleryVideo[] = [
+  { id: 'sample-1', title: '鄒主ｮｹ豸ｲ邏ｹ莉・, src: '/videos/sample1.mp4' },
+  { id: 'sample-2', title: '豢鈴｡斐ヵ繧ｩ繝ｼ繝', src: '/videos/sample2.mp4' },
+  { id: 'sample-3', title: '繝医Ξ繝ｼ繝九Φ繧ｰ', src: '/videos/sample3.mp4' },
+  { id: 'sample-4', title: '繝繧､繧ｨ繝・ヨ', src: '/videos/sample4.mp4' },
+  { id: 'sample-5', title: '莨∵･ｭ邏ｹ莉・, src: '/videos/sample5.mp4' },
+  { id: 'sample-6', title: '繝倥い繧ｱ繧｢', src: '/videos/sample1.mp4' },
+  { id: 'sample-7', title: '繝｡繧､繧ｯ繧｢繝・・', src: '/videos/sample2.mp4' },
+  { id: 'sample-8', title: '繝輔ぃ繝・す繝ｧ繝ｳ', src: '/videos/sample3.mp4' },
+  { id: 'sample-9', title: '繧ｵ繝励Μ繝｡繝ｳ繝・, src: '/videos/sample4.mp4' },
+  { id: 'sample-10', title: '荳榊虚逕｣', src: '/videos/sample5.mp4' },
+  { id: 'sample-11', title: '謨呵ご', src: '/videos/sample1.mp4' },
+  { id: 'sample-12', title: '繧ｰ繝ｫ繝｡', src: '/videos/sample2.mp4' },
+  { id: 'sample-13', title: '譌・｡・, src: '/videos/sample3.mp4' },
+  { id: 'sample-14', title: '驥題檮', src: '/videos/sample4.mp4' },
+  { id: 'sample-15', title: '繝壹ャ繝・, src: '/videos/sample5.mp4' },
+  { id: 'sample-16', title: '繧｢繝励Μ', src: '/videos/sample1.mp4' }
+];
 
 const LOCAL_GALLERY_VIDEOS: GalleryVideo[] = localLpGridVideos.map(video => ({
   id: video.id,

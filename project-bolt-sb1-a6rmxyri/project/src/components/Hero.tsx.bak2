@@ -13,7 +13,13 @@ type HeroVideoItem = {
   src: string;
 };
 
-const FALLBACK_HERO_VIDEOS: HeroVideoItem[] = [\n  { id: 'sample-1', title: 'Sample 1', src: '/videos/sample1.mp4' },\n  { id: 'sample-2', title: 'Sample 2', src: '/videos/sample2.mp4' },\n  { id: 'sample-3', title: 'Sample 3', src: '/videos/sample3.mp4' },\n  { id: 'sample-4', title: 'Sample 4', src: '/videos/sample4.mp4' },\n  { id: 'sample-5', title: 'Sample 5', src: '/videos/sample5.mp4' }\n];
+const FALLBACK_HERO_VIDEOS: HeroVideoItem[] = [
+  { id: 'sample-1', title: '美容液紹仁E, src: '/videos/sample1.mp4' },
+  { id: 'sample-2', title: '洗顔フォーム', src: '/videos/sample2.mp4' },
+  { id: 'sample-3', title: 'トレーニング', src: '/videos/sample3.mp4' },
+  { id: 'sample-4', title: 'ダイエチE��', src: '/videos/sample4.mp4' },
+  { id: 'sample-5', title: '企業紹仁E, src: '/videos/sample5.mp4' }
+];
 
 const LOCAL_HERO_VIDEOS: HeroVideoItem[] = localHeroVideos.length > 0
   ? localHeroVideos.map(video => ({ id: video.id, title: video.title, src: video.url }))
