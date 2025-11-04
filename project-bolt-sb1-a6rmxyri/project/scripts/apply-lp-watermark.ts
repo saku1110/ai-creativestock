@@ -55,12 +55,7 @@ async function processDir(dir: string, wmPath: string, opacity: number) {
       const tmpDir = path.join(process.cwd(), 'temp', 'wm');
       await fs.mkdir(tmpDir, { recursive: true });
       const wmResized = path.join(tmpDir, `lpwm_${width}x${height}.png`);
-      const th = Math.max(0, Math.min(1, Number(process.env.WATERMARK_ALPHA_THRESHOLD || '0.3')));
-      const th255 = Math.round(th * 255);
-      // 透過が弱い背景を完全にカットするため、アルファにしきい値を適用
-      const baseBuf = await sharp(wmPath).resize(width, height, { fit: 'cover' }).png().toBuffer();
-      const alphaBuf = await sharp(baseBuf).extractChannel('alpha').threshold(th255).toBuffer();
-      await sharp(baseBuf).removeAlpha().joinChannel(alphaBuf).png().toFile(wmResized);
+      await sharp(wmPath).resize(width, height, { fit: 'cover' }).png().toFile(wmResized);
 
       await new Promise<void>((resolve, reject) => {
         ffmpeg()

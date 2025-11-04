@@ -58,7 +58,8 @@ const HeroVideoCard: React.FC<HeroVideoCardProps> = ({ video, register, onReady 
 
     const primeFrame = () => {
       try {
-        const sampleTime = Math.min(el.duration || 0.3, 0.3);\n        el.currentTime = sampleTime;
+        const sampleTime = Math.min(el.duration || 0.3, 0.3);
+        el.currentTime = sampleTime;
       } catch {
         // ignore seek errors
       } finally {
@@ -330,7 +331,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
       if (!el) return;
 
       if (!isReadyRef.current) {
-        // Ready状態が変わったとき�EみリセチE��
+        // Ready状態が変わったとき�EみリセチE��
         if (wasReady) {
           lastTimestamp = null;
           wasReady = false;
@@ -339,7 +340,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
         return;
       }
 
-      // Ready状態になった直後�EタイムスタンプをリセチE��
+      // Ready状態になった直後�EタイムスタンプをリセチE��
       if (!wasReady) {
         lastTimestamp = null;
         wasReady = true;
@@ -359,7 +360,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
         const delta = timestamp - lastTimestamp;
         lastTimestamp = timestamp;
 
-        // deltaが異常に大きい場合（タブ�Eり替えなど�E��EスキチE�E
+        // deltaが異常に大きい場合（タブ�Eり替えなど�E��EスキチE�E
         if (delta < 100) {
           el.scrollLeft += speedPerMsRef.current * delta;
           if (el.scrollLeft >= maxShift) {
@@ -416,15 +417,15 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight">
-            実�E級�E
+            実�E級�E
             <span className="bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent"> AI動画素杁E/span>
             で<br />
-            マ�EケチE��ングめE            <span className="bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent"> 加送E/span>
+            マ�EケチE��ングめE            <span className="bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent"> 加送E/span>
           </h1>
 
           <p className="text-xl sm:text-2xl text-gray-300 max-w-4xl mx-auto mb-8 leading-relaxed">
-            月顁E,800冁E��実�E級�E高品質AI動画素材が手に入めE            <br className="hidden sm:block" />
-            モチE��・撮影不要。即ダウンロードで啁E��利用OK
+            月顁E,800冁E��実�E級�E高品質AI動画素材が手に入めE            <br className="hidden sm:block" />
+            モチE��・撮影不要。即ダウンロードで啁E��利用OK
           </p>
 
           <div className="relative overflow-hidden py-8 mb-8">
