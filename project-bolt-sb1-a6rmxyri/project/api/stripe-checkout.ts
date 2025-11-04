@@ -49,6 +49,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
       customer: customerId,
+      // Enable Stripe Link in Checkout
+      payment_method_types: ['link', 'card'],
       success_url: successUrl || `${req.headers.origin}/payment/success`,
       cancel_url: cancelUrl || `${req.headers.origin}/payment/cancel`,
       metadata: {
@@ -74,4 +76,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: err?.message || 'Internal error' })
   }
 }
-

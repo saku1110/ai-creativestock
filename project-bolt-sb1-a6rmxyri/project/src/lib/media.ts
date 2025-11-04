@@ -11,10 +11,10 @@ export async function fetchSupabaseVideos(params: {
   if (params.prefix) q.set('prefix', params.prefix);
   if (params.limit) q.set('limit', String(params.limit));
   if (params.expires) q.set('expires', String(params.expires));
-  const res = await fetch(`/api/list-videos?${q.toString()}`, { cache: 'no-store' });
+  try { const res = await fetch(`/api/list-videos?${q.toString()}`, { cache: 'no-store' });
   if (!res.ok) return [];
   const data = await res.json();
-  return (data.items || []) as SignedVideoItem[];
+  return (data.items || []) as SignedVideoItem[]; } catch { return []; }
 }
 
 export type SignedImageItem = { path: string; url: string };
@@ -30,10 +30,10 @@ export async function fetchSupabaseImages(params: {
   if (params.prefix) q.set('prefix', params.prefix);
   if (params.limit) q.set('limit', String(params.limit));
   if (params.expires) q.set('expires', String(params.expires));
-  const res = await fetch(`/api/list-images?${q.toString()}`, { cache: 'no-store' });
+  try { const res = await fetch(`/api/list-images?${q.toString()}`, { cache: 'no-store' });
   if (!res.ok) return [];
   const data = await res.json();
-  return (data.items || []) as SignedImageItem[];
+  return (data.items || []) as SignedImageItem[]; } catch { return []; }
 }
 
 export function stem(path: string): string {

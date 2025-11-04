@@ -1,0 +1,227 @@
+            this.config.watermarkPreset
+          );
+          if (watermarkResult.success && watermarkResult.outputPath) {
+            processedVideoPath = watermarkResult.outputPath;
+            console.log(`Watermark added successfully: ${this.config.watermarkPreset} pattern`);
+          } else {
+            console.warn(`Failed to add watermark: ${watermarkResult.error}`);
+          }
+        }
+      }
+
+      // 繝｡繧ｿ繝・・繧ｿ縺ｮ謚ｽ蜃ｺ
+      console.log('Extracting metadata...');
+      item.metadata = await VideoProcessor.extractMetadata(processedVideoPath);
+      this.onProgressCallback?.(item);
+
+      // 繝輔ぃ繧､繝ｫ蜷阪°繧峨き繝・ざ繝ｪ繧貞・陦梧耳螳・
+      const filenameClassification = VideoProcessor.classifyFilename(item.fileName, item.filePath);
+      item.classification = filenameClassification;
+      this.onProgressCallback?.(item);
+
+      // 繧ｫ繝・ざ繝ｪ縺ｮ閾ｪ蜍募・鬘・
+      console.log('Classifying video...');
+      item.classification = await VideoProcessor.classifyVideo(processedVideoPath);
+      this.onProgressCallback?.(item);
+
+      if (item.categoryOverride) {
+        const previousClassification = item.classification;
+        const keywords = new Set<string>(previousClassification?.keywords ?? []);
+        keywords.add(item.categoryOverride);
+        const beautySubCategory = item.categoryOverride === 'beauty'
+          ? previousClassification?.beautySubCategory
+          : undefined;
+        item.classification = {
+          category: item.categoryOverride,
+          confidence: 1,
+          keywords: Array.from(keywords).slice(0, 10),
+          source: 'manual',
+          beautySubCategory
+        };
+        this.onProgressCallback?.(item);
+      }
+
+      // 繧ｵ繝繝阪う繝ｫ縺ｮ逕滓・
+      console.log('Generating thumbnail...');
+      let thumbnailPath = await VideoProcessor.generateThumbnail(processedVideoPath);
+
+      // 逕ｻ蜒上え繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ謖・ｮ壽凾縺ｯ繧ｵ繝繝阪↓繧ゅΟ繧ｴ蜷域・・医ヵ繝ｫ繝輔Ξ繝ｼ繝・・
+      const imgWmForThumb = this.config.watermarkImagePath || process.env.WATERMARK_IMAGE_PATH;
+      if (this.config.addWatermark && imgWmForThumb) {
+        try {
+          const meta = await sharp(thumbnailPath).metadata();
+          const wmBuf = await sharp(imgWmForThumb)
+            .resize(meta.width || 720, meta.height || 1280, { fit: 'cover' })
+            .toBuffer();
+          const thumbOut = thumbnailPath.replace(/\.jpg$/i, '_wm.jpg');
+          await sharp(thumbnailPath)
+            .composite([{ input: wmBuf, gravity: 'northwest', blend: 'over', opacity: this.config.watermarkImageOpacity ?? 0.85 }])
+            .jpeg({ quality: 90 })
+            .toFile(thumbOut);
+          // 繧ゅ→縺ｮ繧ｵ繝繝阪う繝ｫ縺ｯ蜑企勁縺励∽ｻ･蠕後・繧ｦ繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ貂医∩繧剃ｽｿ逕ｨ
+          await fs.unlink(thumbnailPath).catch(() => {});
+          thumbnailPath = thumbOut;
+        } catch (e) {
+          console.warn('Failed to apply watermark to thumbnail:', (e as Error).message);
+        }
+      }
+      
+      // 繧ｿ繧ｰ縺ｮ逕滓・
+      const classificationForTags = item.classification ?? VideoProcessor.classifyFilename(item.fileName, item.filePath);
+      const [tw, th] = (item.metadata?.resolution || '0x0').split('x').map((n) => Number(n));
+      const ratio = th ? (tw / th) : 0;
+      const ratioTag = !ratio ? undefined
+        : Math.abs(ratio - 9 / 16) < 0.1 ? '9:16'
+        : Math.abs(ratio - 16 / 9) < 0.1 ? '16:9'
+        : Math.abs(ratio - 1) < 0.1 ? '1:1'
+        : undefined;
+      const tags = Array.from(new Set([
+        classificationForTags.category,
+        tw >= 3840 ? '4K' : tw >= 1920 ? 'Full HD' : tw >= 1280 ? 'HD' : undefined,
+        ratioTag,
+        `${item.metadata?.duration ?? 0}s`,
+        ...(classificationForTags.keywords || []).filter((kw) => kw.length > 3).slice(0, 5),
+      ].filter(Boolean) as string[]));
+
+      // Supabase縺ｫ繧｢繝・・繝ｭ繝ｼ繝・
+      if (this.config.autoUpload) {
+        console.log('Uploading to Supabase...');
+        await this.uploadToSupabase(item, thumbnailPath, tags, processedVideoPath);
+      }
+
+      // 謌仙粥縺励◆繝輔ぃ繧､繝ｫ繧貞・逅・ｸ医∩繝輔か繝ｫ繝縺ｫ遘ｻ蜍・
+      const destPath = path.join(this.config.processedFolder, item.fileName);
+      
+      if (this.config.deleteAfterUpload) {
+        await fs.unlink(item.filePath);
+      } else {
+        await fs.rename(item.filePath, destPath);
+      }
+
+      // 繧ｵ繝繝阪う繝ｫ繝輔ぃ繧､繝ｫ繧貞炎髯､
+      await fs.unlink(thumbnailPath).catch(() => {})
+      
+      // 繧ｦ繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ莉倥″荳譎ゅヵ繧｡繧､繝ｫ繧貞炎髯､
+      if (processedVideoPath !== item.filePath) {
+        await fs.unlink(processedVideoPath).catch(() => {});
+      }
+
+      item.status = 'completed';
+      this.onCompleteCallback?.(item);
+      
+      console.log(`Completed: ${item.fileName}`);
+      
+      // 繧ｭ繝･繝ｼ縺九ｉ蜑企勁
+      this.uploadQueue.delete(item.filePath);
+
+    } catch (error) {
+      item.status = 'failed';
+      item.error = error instanceof Error ? error.message : 'Unknown error';
+      
+      console.error(`Failed to process ${item.fileName}:`, error);
+      
+      // 螟ｱ謨励＠縺溘ヵ繧｡繧､繝ｫ繧貞､ｱ謨励ヵ繧ｩ繝ｫ繝縺ｫ遘ｻ蜍・
+      try {
+        const destPath = path.join(this.config.failedFolder, item.fileName);
+        await fs.rename(item.filePath, destPath);
+      } catch (moveError) {
+        console.error('Failed to move file to failed folder:', moveError);
+      }
+
+      this.onErrorCallback?.(error as Error, item);
+      
+      // 繧ｭ繝･繝ｼ縺九ｉ蜑企勁
+      this.uploadQueue.delete(item.filePath);
+    }
+  }
+
+  // Supabase縺ｫ繧｢繝・・繝ｭ繝ｼ繝・
+  private async uploadToSupabase(
+    item: UploadQueueItem,
+    thumbnailPath: string,
+    tags: string[],
+    videoPath: string = item.filePath
+  ): Promise<void> {
+    if (!item.metadata || !item.classification) {
+      throw new Error('Missing metadata or classification');
+    }
+
+    // 蜍慕判繝輔ぃ繧､繝ｫ繧定ｪｭ縺ｿ霎ｼ縺ｿ・医え繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ莉倥″縺ｮ繝代せ繧剃ｽｿ逕ｨ・・
+    const videoBuffer = await fs.readFile(videoPath);
+    const videoFile = new File([videoBuffer], item.fileName, { type: 'video/mp4' });
+    const category = item.categoryOverride ?? item.classification?.category ?? 'lifestyle';
+
+    if (item.categoryOverride && (!item.classification || item.classification.category !== item.categoryOverride)) {
+      item.classification = {
+        category,
+        confidence: 1,
+        keywords: item.classification?.keywords ?? [],
+        source: 'manual'
+      };
+    }
+
+    // 繧ｵ繝繝阪う繝ｫ繝輔ぃ繧､繝ｫ繧定ｪｭ縺ｿ霎ｼ縺ｿ
+    const thumbnailBuffer = await fs.readFile(thumbnailPath);
+    const thumbnailFile = new File([thumbnailBuffer], `${path.basename(item.fileName, '.mp4')}.jpg`, { type: 'image/jpeg' });
+
+    // Supabase縺ｫ蜍慕判繧偵い繝・・繝ｭ繝ｼ繝・
+    const { data: videoData, error: videoError } = await database.uploadVideo(videoFile, category);
+    if (videoError) throw videoError;
+
+    // Supabase縺ｫ繧ｵ繝繝阪う繝ｫ繧偵い繝・・繝ｭ繝ｼ繝・
+    const { data: thumbnailData, error: thumbnailError } = await database.uploadThumbnail(thumbnailFile, category);
+    if (thumbnailError) throw thumbnailError;
+
+    // 蜍慕判繧｢繧ｻ繝・ヨ諠・ｱ繧剃ｿ晏ｭ・
+    const title = path.basename(item.fileName, '.mp4')
+      .replace(/[-_]/g, ' ')
+      .replace(/\b\w/g, l => l.toUpperCase());
+
+    const { error: saveError } = await database.createVideoAsset({
+      title,
+      description: `Category: ${category}, Confidence: ${((item.classification?.confidence ?? 0) * 100).toFixed(1)}%`,
+      category,
+      tags,
+      duration: item.metadata.duration,
+      resolution: item.metadata.resolution,
+      file_url: videoData.publicUrl,
+      thumbnail_url: thumbnailData.publicUrl,
+      is_featured: false,
+      beauty_sub_category: category === 'beauty'
+        ? item.classification?.beautySubCategory ?? null
+        : null
+    });
+
+    if (saveError) throw saveError;
+  }
+
+  // 謇句虚縺ｧ繝輔ぃ繧､繝ｫ繧貞・逅・
+  async processFile(filePath: string): Promise<void> {
+    const fileName = path.basename(filePath);
+    const item: UploadQueueItem = {
+      filePath,
+      fileName,
+      status: 'pending',
+      timestamp: new Date()
+    };
+
+    await this.processFile(item);
+  }
+
+  // 繧ｭ繝･繝ｼ縺ｮ迥ｶ諷九ｒ蜿門ｾ・
+  getQueueStatus(): UploadQueueItem[] {
+    return Array.from(this.uploadQueue.values());
+  }
+
+  // 迚ｹ螳壹・繝輔ぃ繧､繝ｫ縺ｮ迥ｶ諷九ｒ蜿門ｾ・
+  getFileStatus(filePath: string): UploadQueueItem | undefined {
+    return this.uploadQueue.get(filePath);
+  }
+
+  // 繧ｭ繝･繝ｼ繧偵け繝ｪ繧｢
+  clearQueue(): void {
+    this.uploadQueue.clear();
+  }
+}
+
+export default FolderWatcher;

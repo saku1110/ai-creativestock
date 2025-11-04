@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
-import { VideoWatermarkProcessor } from '../../project-bolt-sb1-a6rmxyri/project/src/lib/videoWatermark';
+import { spawn } from 'node:child_process';
 
 type Options = {
   bucket: string;
@@ -13,8 +13,10 @@ type Options = {
   image: string;
   opacity: number;
   concurrency: number;
-  overwrite: boolean; // overwrite in place; otherwise write with -wm suffix
+  overwrite: boolean;
   dryRun: boolean;
+  compat: boolean;
+  crf?: number;
 };
 
 function parseArgs(argv: string[]): Options {
@@ -26,6 +28,8 @@ function parseArgs(argv: string[]): Options {
     concurrency: Number(process.env.WATERMARK_CONCURRENCY || '4') || 4,
     overwrite: true,
     dryRun: false,
+    compat: true,
+    crf: Number(process.env.WATERMARK_CRF || '22') || 22,
   };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
@@ -39,6 +43,9 @@ function parseArgs(argv: string[]): Options {
       case '--no-overwrite': opts.overwrite = false; break;
       case '--dry':
       case '--dry-run': opts.dryRun = true; break;
+      case '--compat': opts.compat = true; break;
+      case '--no-compat': opts.compat = false; break;
+      case '--crf': opts.crf = Math.max(16, Math.min(30, Number(v || opts.crf))); i++; break;
       default: break;
     }
   }
@@ -51,8 +58,10 @@ async function listVideos(client: any, bucket: string, prefix: string): Promise<
   const { data, error } = await client.storage.from(bucket).list(prefix, { limit: 1000, sortBy: { column: 'name', order: 'asc' } } as any);
   if (error) throw new Error(error.message);
   for (const f of data || []) {
-    if ((f as any).name && ((f as any).metadata?.mimetype?.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)$/i.test((f as any).name))) {
-      out.push(prefix ? `${prefix.replace(/\/$/, '')}/${(f as any).name}` : (f as any).name);
+    const name = (f as any).name as string | undefined;
+    if (!name) continue;
+    if (/\.(mp4|mov|webm|avi|mkv)$/i.test(name)) {
+      out.push(prefix ? `${prefix.replace(/\/$/, '')}/${name}` : name);
     }
   }
   return out;
@@ -69,20 +78,58 @@ async function downloadToTemp(client: any, bucket: string, key: string): Promise
   return tmp;
 }
 
+function contentTypeForExt(ext: string): string {
+  const e = ext.toLowerCase();
+  if (e === '.mp4') return 'video/mp4';
+  if (e === '.mov') return 'video/quicktime';
+  if (e === '.webm') return 'video/webm';
+  if (e === '.avi') return 'video/x-msvideo';
+  if (e === '.mkv') return 'video/x-matroska';
+  return 'application/octet-stream';
+}
+
 async function processOne(client: any, opts: Options, key: string): Promise<{ ok: boolean; target: string; error?: string }> {
   try {
     const src = await downloadToTemp(client, opts.bucket, key);
     const out = path.join(os.tmpdir(), `wmo-${Date.now()}-${Math.random().toString(36).slice(2)}${path.extname(key)}`);
-    const res = await VideoWatermarkProcessor.addFullFrameImageWatermark(src, out, opts.image, opts.opacity);
-    if (!res.success || !res.outputPath) throw new Error(res.error || 'wm failed');
+    // Try to resolve ffmpeg-static from project submodule if available
+    let ffmpegBin: string | undefined;
+    try {
+      ffmpegBin = (await import('../../project-bolt-sb1-a6rmxyri/project/node_modules/ffmpeg-static')).default as unknown as string;
+    } catch {
+      // fallback to system ffmpeg
+      ffmpegBin = 'ffmpeg';
+    }
+    const filter = `[1:v][0:v]scale2ref=w=iw:h=ih[wm][vid];` +
+                   `[vid][wm]overlay=0:0:format=auto:alpha=${opts.opacity}[ov];` +
+                   `[ov]scale=trunc(iw/2)*2:trunc(ih/2)*2[out]`;
+    const args: string[] = ['-i', src, '-i', opts.image, '-filter_complex', filter];
+    if (opts.compat) {
+      args.push(
+        '-map','[out]','-map','0:a?',
+        '-c:v','libx264','-crf', String(opts.crf ?? 22),
+        '-preset','veryfast','-pix_fmt','yuv420p','-movflags','+faststart',
+        '-c:a','aac','-b:a','128k'
+      );
+    } else {
+      args.push('-map','[out]','-codec:a','copy');
+    }
+    args.push('-y', out);
+    await new Promise<void>((resolve, reject) => {
+      const p = spawn(ffmpegBin!, args, { stdio: 'ignore' });
+      p.on('error', reject);
+      p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited with code ${code}`))));
+    });
     const target = opts.overwrite ? key : key.replace(/\.[^.]+$/, (m) => `-wm${m}`);
     if (!opts.dryRun) {
-      const buf = await fs.readFile(res.outputPath);
-      const { error: upErr } = await client.storage.from(opts.bucket).upload(target, buf as any, { upsert: true, contentType: 'video/mp4' } as any);
+      const buf = await fs.readFile(out);
+      const { error: upErr } = await client.storage
+        .from(opts.bucket)
+        .upload(target, buf as any, { upsert: true, contentType: contentTypeForExt(path.extname(key)) } as any);
       if (upErr) throw new Error(upErr.message);
     }
     await fs.unlink(src).catch(() => {});
-    await fs.unlink(res.outputPath!).catch(() => {});
+    await fs.unlink(out).catch(() => {});
     return { ok: true, target };
   } catch (e: any) {
     return { ok: false, target: key, error: e?.message || String(e) };
@@ -126,4 +173,6 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   // eslint-disable-next-line @typescript-eslint/no-floating-promises
   main();
 }
+
+
 

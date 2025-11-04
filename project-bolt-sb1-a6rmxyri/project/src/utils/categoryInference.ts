@@ -1,5 +1,5 @@
 export type BeautySubCategory = 'skincare' | 'haircare' | 'oralcare';
-export type VideoCategory = 'beauty' | 'fitness' | 'haircare' | 'business' | 'lifestyle';
+export type VideoCategory = 'beauty' | 'diet' | 'business' | 'lifestyle' | 'romance' | 'pet';
 export type CategorySource = 'filename' | 'model' | 'manual';
 
 export interface CategoryClassification {
@@ -10,7 +10,7 @@ export interface CategoryClassification {
   beautySubCategory?: BeautySubCategory;
 }
 
-export const VIDEO_CATEGORIES: VideoCategory[] = ['beauty', 'fitness', 'haircare', 'business', 'lifestyle'];
+export const VIDEO_CATEGORIES: VideoCategory[] = ['beauty', 'diet', 'business', 'lifestyle', 'romance', 'pet'];
 
 const BEAUTY_SUBCATEGORY_HINTS: Record<BeautySubCategory, string[]> = {
   skincare: ['skincare', 'skin', 'cream', 'serum', 'lotion', 'toner', 'mask', 'facewash', 'cleansing', '美容液', 'スキンケア', '化粧水', '乳液', '美容クリーム'],
@@ -24,7 +24,7 @@ const BEAUTY_SUBCATEGORY_LABELS: Record<BeautySubCategory, string> = {
   oralcare: 'オーラルケア'
 };
 
-const CATEGORY_HINTS: Record<VideoCategory, string[]> = {
+const CATEGORY_HINTS: Partial<Record<VideoCategory, string[]>> = {
   beauty: ['beauty', 'cosme', 'cosmetic', 'makeup', 'skincare', 'esthetic', 'salon', 'nail', 'spa', '美', '美容', 'コスメ', 'メイク', 'スキンケア'],
   fitness: ['fitness', 'workout', 'gym', 'training', 'exercise', 'athlete', 'yoga', 'muscle', 'run', 'fit', 'スポーツ', '筋トレ', 'フィットネス', 'ワークアウト', 'ヨガ'],
   haircare: ['hair', 'haircare', 'haircut', 'salon', 'barber', 'styling', 'shampoo', 'conditioner', 'ヘア', '美容室', 'サロン', 'カット', '理容'],
@@ -167,7 +167,7 @@ export const inferCategoryFromFilename = (
       matched.add(category);
     }
 
-    for (const hint of CATEGORY_HINTS[category]) {
+    for (const hint of (CATEGORY_HINTS[category] ?? [])) {
       const normalizedHint = sanitizeToken(hint.toLowerCase());
       if (!normalizedHint) continue;
 

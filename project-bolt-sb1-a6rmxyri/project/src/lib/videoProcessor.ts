@@ -34,11 +34,12 @@ export interface VideoMetadata {
 
 // キーワードからカテゴリへのマッピング
 const categoryKeywords: Record<VideoCategory, string[]> = {
-  beauty: ['cosmetics', 'makeup', 'lipstick', 'face', 'skin', 'beauty', 'foundation', 'mascara', 'eyeshadow', 'perfume', 'nail', 'polish', 'serum', 'cream', 'tooth', 'dental', 'oral', 'whitening', 'shampoo', 'conditioner'],
-  fitness: ['gym', 'exercise', 'workout', 'sport', 'fitness', 'muscle', 'running', 'yoga', 'dumbbell', 'bicycle', 'athletic', 'training'],
-  haircare: ['hair', 'salon', 'hairstyle', 'barber', 'shampoo', 'conditioner', 'haircut', 'hairdresser', 'wig', 'brush', 'comb'],
+  beauty: ['cosmetics', 'makeup', 'lipstick', 'face', 'skin', 'beauty', 'foundation', 'mascara', 'eyeshadow', 'perfume', 'nail', 'polish', 'serum', 'cream', 'tooth', 'dental', 'oral', 'whitening', 'shampoo', 'conditioner', 'skincare', 'haircare', 'oralcare'],
+  diet: ['diet', 'weight', 'weightloss', 'slim', 'nutrition', 'salad', 'scale', 'calorie', 'measuring', 'meal', 'healthy', 'yoga', 'pilates'],
   business: ['office', 'business', 'suit', 'computer', 'laptop', 'desk', 'meeting', 'conference', 'presentation', 'document', 'corporate', 'professional'],
-  lifestyle: ['home', 'living', 'kitchen', 'bedroom', 'furniture', 'decoration', 'plant', 'coffee', 'food', 'travel', 'leisure', 'relaxation']
+  lifestyle: ['home', 'living', 'kitchen', 'bedroom', 'furniture', 'decoration', 'plant', 'coffee', 'food', 'travel', 'leisure', 'relaxation'],
+  romance: ['couple', 'kiss', 'love', 'dating', 'wedding', 'bride', 'groom', 'bouquet', 'romantic', 'valentine'],
+  pet: ['pet', 'dog', 'cat', 'animal', 'puppy', 'kitten', 'leash', 'pet food', 'aquarium', 'hamster']
 };
 
 const beautySubCategoryTagMap: Record<BeautySubCategory, { tag: string; label: string }> = {
@@ -58,6 +59,49 @@ export class VideoProcessor {
       this.modelInstance = await mobilenet.load();
     }
     return this.modelInstance;
+  }
+
+  // 単一画像から年齢/性別/トピックの簡易推定（ハッシュタグ素材）
+  static async analyzeImageForHashtags(imagePath: string): Promise<{ gender: 'male' | 'female' | 'unknown'; age: 'child' | 'teen' | 'adult'; topics: string[] }>{
+    const preds = await this.classifyImage(imagePath);
+    // ヒューリスティックなキーワード辞書
+    const femaleHints = ['lipstick','mascara','eyeshadow','gown','bikini','brassiere','maillot','miniskirt','skirt','nail','polish','handbag','purse','high heel','dress'];
+    const maleHints = ['tie','suit','beard','mustache','barber','barbershop','trench coat'];
+    const childHints = ['boy','girl','baby','infant','toddler'];
+    const teenHints = ['student','school uniform'];
+
+    let femaleScore = 0, maleScore = 0, childScore = 0, teenScore = 0;
+    const topicBag: Array<{ token: string; score: number }> = [];
+
+    for (const p of preds.slice(0, 5)) {
+      const label = p.className.toLowerCase();
+      const words = label.split(/[\s,]+/).filter(Boolean);
+      for (const w of words) {
+        if (femaleHints.some(h => w.includes(h) || h.includes(w))) femaleScore += p.probability;
+        if (maleHints.some(h => w.includes(h) || h.includes(w))) maleScore += p.probability;
+        if (childHints.some(h => w.includes(h) || h.includes(w))) childScore += p.probability;
+        if (teenHints.some(h => w.includes(h) || h.includes(w))) teenScore += p.probability;
+
+        const token = w.replace(/[^a-z0-9]/g, '');
+        if (token && token.length >= 3) topicBag.push({ token, score: p.probability });
+      }
+    }
+
+    const gender: 'male' | 'female' | 'unknown' = (femaleScore > maleScore && femaleScore >= 0.25)
+      ? 'female'
+      : (maleScore > femaleScore && maleScore >= 0.25)
+        ? 'male'
+        : 'unknown';
+
+    let age: 'child' | 'teen' | 'adult' = 'adult';
+    if (childScore >= 0.25) age = 'child';
+    else if (teenScore >= 0.25) age = 'teen';
+
+    // トピック上位を抽出
+    topicBag.sort((a,b) => b.score - a.score);
+    const topics = Array.from(new Set(topicBag.map(t => t.token))).slice(0, 5);
+
+    return { gender, age, topics };
   }
 
   // 動画からメタデータを抽出
@@ -208,14 +252,10 @@ export class VideoProcessor {
 
     try {
       // 複数のフレームを抽出
-      const framePaths = await this.extractFrames(videoPath, 3);
+      const thumbPath = await this.generateThumbnail(videoPath);
       
       // 各フレームを分析
-      const allPredictions: { className: string; probability: number }[] = [];
-      for (const framePath of framePaths) {
-        const predictions = await this.classifyImage(framePath);
-        allPredictions.push(...predictions);
-      }
+      const predictions: { className: string; probability: number }[] = await this.classifyImage(thumbPath);
 
       // キーワードを収集
       const detectedKeywords = new Set<string>();
@@ -262,12 +302,10 @@ export class VideoProcessor {
       }
 
       // フレーム画像を削除
-      for (const framePath of framePaths) {
-        await fs.unlink(framePath).catch(() => {});
-      }
+      await fs.unlink(thumbPath).catch(() => {});
 
-      const confidence = allPredictions.length > 0
-        ? Math.min(bestScore / allPredictions.length, 1)
+      const confidence = predictions.length > 0
+        ? Math.min(bestScore / predictions.length, 1)
         : 0;
 
       const modelClassification: CategoryClassification = {

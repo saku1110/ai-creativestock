@@ -112,9 +112,9 @@ export class StripePaymentService {
     cancelUrl: string = `${window.location.origin}/payment/cancel`
   ): Promise<{ sessionId?: string; error?: string }> {
     try {
-      // 開発環境では常にモック処理
-      if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-        console.log('Mock Stripe checkout session');
+      // Use mock only when Stripe is not configured
+      if (!STRIPE_ENABLED) {
+        console.log('Stripe not configured, using mock checkout session');
         await new Promise(resolve => setTimeout(resolve, 1000));
         return { sessionId: 'mock_session_' + Date.now() };
       }
@@ -162,10 +162,10 @@ export class StripePaymentService {
   // チェックアウトページにリダイレクト
   async redirectToCheckout(sessionId: string): Promise<{ error?: string }> {
     try {
-      // 開発環境では実際のリダイレクトを行わない
-      if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-        console.log('Mock Stripe redirect, sessionId:', sessionId);
-        return {}; // エラーなし
+      // Use mock redirect only when Stripe is not configured
+      if (!STRIPE_ENABLED) {
+        console.log('Stripe not configured, mock redirect. sessionId:', sessionId);
+        return {};
       }
 
       const stripe = await this.stripe;

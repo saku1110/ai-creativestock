@@ -16,6 +16,7 @@ interface UploadQueueItem {
   classification?: CategoryClassification;
   timestamp: Date;
   categoryOverride?: VideoCategory;
+  extraTags?: string[];
 }
 
 // フォルダ監視設定
@@ -32,6 +33,9 @@ export interface WatcherConfig {
   watermarkImageOpacity?: number; // 0-1 デフォルト0.85
   categoryFromSubfolder?: boolean;
   categoryFolderMap?: Record<string, VideoCategory>;
+  // 人手ハッシュタグ付与を効率化する追加オプション
+  hashtagFromSubfolders?: boolean; // サブフォルダ名の #タグ を拾う（デフォルト有効）
+  tagsManifest?: string; // watchFolder 直下の CSV パス（例: tags.csv）
 }
 
 // デフォルト設定
@@ -46,6 +50,8 @@ const DEFAULT_CONFIG: WatcherConfig = {
   watermarkImagePath: undefined,
   watermarkImageOpacity: 0.85,
   categoryFromSubfolder: false,
+  hashtagFromSubfolders: true,
+  tagsManifest: undefined,
   categoryFolderMap: {
     beauty: 'beauty',
     fitness: 'fitness',
@@ -70,6 +76,7 @@ export class FolderWatcher {
   private onProgressCallback?: (item: UploadQueueItem) => void;
   private onErrorCallback?: (error: Error, item: UploadQueueItem) => void;
   private onCompleteCallback?: (item: UploadQueueItem) => void;
+  private tagRules: Array<{ pattern: string; tags: string[] }> = [];
 
   constructor(config: Partial<WatcherConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -95,6 +102,92 @@ export class FolderWatcher {
     }
   }
 
+  // 簡易 CSV マニフェストを読み込み（filename/pattern,tags）
+  private async loadTagsManifest(): Promise<void> {
+    this.tagRules = [];
+    const manifest = this.config.tagsManifest || path.join(this.config.watchFolder, 'tags.csv');
+    try {
+      const buf = await fs.readFile(manifest, 'utf8');
+      const lines = buf.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      for (const line of lines) {
+        if (line.startsWith('#')) continue;
+        const [patternRaw, tagsRaw] = line.split(',');
+        if (!patternRaw || !tagsRaw) continue;
+        const pattern = patternRaw.trim();
+        const tags = tagsRaw.split(/[;\s]+/).map(t => t.trim()).filter(Boolean);
+        if (pattern && tags.length) {
+          this.tagRules.push({ pattern, tags });
+        }
+      }
+    } catch {
+      // manifest が無ければ無視
+    }
+  }
+
+  private matchPattern(pattern: string, fileName: string): boolean {
+    // '*' ワイルドカードのみ対応の簡易実装
+    const esc = pattern.replace(/[-/\\^$+?.()|[\]{}]/g, '\\$&');
+    const re = new RegExp('^' + esc.replace(/\*/g, '.*') + '$', 'i');
+    return re.test(fileName);
+  }
+
+  private deriveTagsFromManifest(fileName: string): string[] {
+    const out = new Set<string>();
+    for (const rule of this.tagRules) {
+      if (this.matchPattern(rule.pattern, fileName)) {
+        rule.tags.forEach(t => out.add(t.startsWith('#') ? t : `#${t}`));
+      }
+    }
+    return Array.from(out);
+  }
+
+  private deriveTagsFromFilename(fileName: string): string[] {
+    // 拡張子除去
+    const base = fileName.replace(/\.[^.]+$/, '');
+    const tags = new Set<string>();
+    // 1) # or ＃ で始まる連続トークンを抽出（日本語含む）
+    const reHash = /[#＃]([\p{L}\p{N}_\-]+)/gu;
+    let m: RegExpExecArray | null;
+    while ((m = reHash.exec(base)) !== null) {
+      const t = m[1]?.trim();
+      if (t) tags.add(`#${t}`);
+    }
+    // 2) 角括弧/丸括弧/波括弧内のタグ候補を分割抽出
+    const reBrackets = /[\[\(\{]([^\]\)\}]*)[\]\)\}]/g;
+    let mb: RegExpExecArray | null;
+    while ((mb = reBrackets.exec(base)) !== null) {
+      const inner = mb[1] || '';
+      inner.split(/[ ,;／、・\|]+/).forEach(tok => {
+        const t = tok.trim();
+        if (!t) return;
+        // 既に # が付いていなければ付与
+        const norm = t.startsWith('#') || t.startsWith('＃') ? t.replace(/^＃/,'#') : `#${t}`;
+        tags.add(norm);
+      });
+    }
+    return Array.from(tags);
+  }
+
+  private deriveHashtagsFromSubfolders(filePath: string): string[] {
+    if (!this.config.hashtagFromSubfolders) return [];
+    const rel = path.relative(this.config.watchFolder, filePath);
+    if (!rel || rel.startsWith('..')) return [];
+    const segments = rel.split(path.sep).filter(Boolean);
+    // 0: category フォルダ、1..: タグ用フォルダを想定
+    const tags = new Set<string>();
+    for (let i = 1; i < segments.length - 0; i++) {
+      const seg = segments[i];
+      // 半角空白/カンマ/セミコロン区切りで複数タグOK
+      const tokens = seg.split(/[ ,;]+/).map(s => s.trim()).filter(Boolean);
+      tokens.forEach(tok => {
+        if (!tok) return;
+        const t = tok.startsWith('#') ? tok : `#${tok}`;
+        tags.add(t);
+      });
+    }
+    return Array.from(tags);
+  }
+
   // イベントハンドラの設定
   onProgress(callback: (item: UploadQueueItem) => void): void {
     this.onProgressCallback = callback;
@@ -111,6 +204,7 @@ export class FolderWatcher {
   // 監視を開始
   async start(): Promise<void> {
     await this.ensureFolders();
+    await this.loadTagsManifest();
 
     this.watcher = chokidar.watch(this.config.watchFolder, {
       persistent: true,
@@ -154,6 +248,11 @@ export class FolderWatcher {
     }
 
     const categoryOverride = this.deriveCategoryFromFolder(filePath);
+    const extraTags = [
+      ...this.deriveHashtagsFromSubfolders(filePath),
+      ...this.deriveTagsFromManifest(path.basename(filePath)),
+      ...this.deriveTagsFromFilename(path.basename(filePath))
+    ];
 
     // キューに追加
     const queueItem: UploadQueueItem = {
@@ -161,7 +260,8 @@ export class FolderWatcher {
       fileName,
       status: 'pending',
       timestamp: new Date(),
-      categoryOverride
+      categoryOverride,
+      extraTags: extraTags.length ? Array.from(new Set(extraTags)) : undefined
     };
 
     this.uploadQueue.set(filePath, queueItem);
@@ -270,9 +370,11 @@ export class FolderWatcher {
       this.onProgressCallback?.(item);
 
       // カテゴリの自動分類
-      console.log('Classifying video...');
-      item.classification = await VideoProcessor.classifyVideo(processedVideoPath);
-      this.onProgressCallback?.(item);
+      if (!item.categoryOverride) {
+        console.log('Classifying video...');
+        item.classification = await VideoProcessor.classifyVideo(processedVideoPath);
+        this.onProgressCallback?.(item);
+      }
 
       if (item.categoryOverride) {
         const previousClassification = item.classification;
@@ -294,6 +396,16 @@ export class FolderWatcher {
       // サムネイルの生成
       console.log('Generating thumbnail...');
       let thumbnailPath = await VideoProcessor.generateThumbnail(processedVideoPath);
+      // Predict demographics/summary hashtags from the raw thumbnail (pre-watermark)
+      let _demoHash: { gender?: string; age?: string; topics?: string[] } | null = null;
+      try {
+        const demo = await VideoProcessor.analyzeImageForHashtags(thumbnailPath);
+        _demoHash = {
+          gender: demo.gender === 'female' ? '#女性' : demo.gender === 'male' ? '#男性' : undefined,
+          age: demo.age === 'child' ? '#子ども' : demo.age === 'teen' ? '#ティーン' : '#大人',
+          topics: demo.topics.slice(0, 3).map(t => `#${t}`)
+        };
+      } catch {}
 
       // 画像ウォーターマーク指定時はサムネにもロゴ合成（フルフレーム）
       const imgWmForThumb = this.config.watermarkImagePath || process.env.WATERMARK_IMAGE_PATH;
@@ -325,11 +437,22 @@ export class FolderWatcher {
         : Math.abs(ratio - 16 / 9) < 0.1 ? '16:9'
         : Math.abs(ratio - 1) < 0.1 ? '1:1'
         : undefined;
+      const beautyHash = (classificationForTags.category === 'beauty' && item.classification?.beautySubCategory)
+        ? (item.classification.beautySubCategory === 'skincare' ? '#スキンケア'
+          : item.classification.beautySubCategory === 'haircare' ? '#ヘアケア'
+          : '#オーラルケア')
+        : undefined;
+
       const tags = Array.from(new Set([
         classificationForTags.category,
         tw >= 3840 ? '4K' : tw >= 1920 ? 'Full HD' : tw >= 1280 ? 'HD' : undefined,
         ratioTag,
         `${item.metadata?.duration ?? 0}s`,
+        _demoHash?.gender,
+        _demoHash?.age,
+        beautyHash,
+        ...(_demoHash?.topics ?? []).slice(0,3),
+        ...(item.extraTags ?? []),
         ...(classificationForTags.keywords || []).filter((kw) => kw.length > 3).slice(0, 5),
       ].filter(Boolean) as string[]));
 

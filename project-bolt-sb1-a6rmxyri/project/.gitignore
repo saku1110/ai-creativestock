@@ -100,3 +100,5 @@ supabase/.branches/
 
 # Stripe
 stripe-config.json
+
+.vercel

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Play, Heart, Download, Clock, Star, Eye, Zap, Lock, AlertTriangle } from 'lucide-react';
 import { VideoAsset } from '../types';
 import VideoPreviewModal from './VideoPreviewModal';
@@ -6,17 +6,15 @@ import { useDownloadLimits } from '../lib/downloadLimits';
 import { useUser } from '../hooks/useUser';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
 
-interface VideoCardProps {
-  video: VideoAsset;
-  isSubscribed?: boolean; // 料金プランに加入しているかどうか
-  onAuthRequest?: () => void;
-}
+interface VideoCardProps {  minimal?: boolean; // LP�O���b�h�p�̊ȈՕ\��\n}
 
-const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAuthRequest }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAuthRequest, minimal = false }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isInlinePlaying, setIsInlinePlaying] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   
   const { user } = useUser();
   const { usage, executeDownload, checkDownload, warningMessage } = useDownloadLimits(user?.id || '');
@@ -45,7 +43,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
     }
 
     if (!isSubscribed) {
-      alert('ダウンロードにはサブスクリプション登録が必要です');
+      alert('ダウンロードにはサブスクリプション登録が忁E��でぁE);
       return;
     }
 
@@ -55,15 +53,14 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
       const result = await executeDownload(video.id);
       
       if (result.success && result.downloadUrl) {
-        // ダウンロードURLを使用してファイルをダウンロード
-        const link = document.createElement('a');
+        // ダウンロードURLを使用してファイルをダウンローチE        const link = document.createElement('a');
         link.href = result.downloadUrl;
         link.download = getNextDownloadFilename(result.downloadUrl);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         
-        // 成功メッセージを表示
+        // 成功メチE��ージを表示
         alert('ダウンロードが開始されました');
       } else {
         alert(result.error || 'ダウンロードに失敗しました');
@@ -77,22 +74,58 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   };
 
   const getDownloadButtonState = () => {
-    if (!user) return { disabled: true, text: 'ログイン必要', color: 'bg-gray-600' };
+    if (!user) return { disabled: true, text: 'ログイン忁E��E, color: 'bg-gray-600' };
     if (!isSubscribed) return { disabled: true, text: '要サブスクリプション', color: 'bg-gray-600' };
     if (isDownloading) return { disabled: true, text: 'ダウンロード中...', color: 'bg-blue-600' };
-    if (usage?.isLimitExceeded) return { disabled: true, text: '制限到達', color: 'bg-red-600' };
+    if (usage?.isLimitExceeded) return { disabled: true, text: '制限到遁E, color: 'bg-red-600' };
     
-    return { disabled: false, text: 'ダウンロード', color: 'bg-green-600 hover:bg-green-700' };
+    return { disabled: false, text: 'ダウンローチE, color: 'bg-green-600 hover:bg-green-700' };
   };
 
   const downloadButtonState = getDownloadButtonState();
+
+  const startInline = async () => {
+    const el = videoRef.current;
+    if (!el || !video.videoUrl) return;
+    try {
+      await el.play();
+      setIsInlinePlaying(true);
+    } catch {
+      // ignore autoplay errors
+    }
+  };
+
+  const stopInline = () => {
+    const el = videoRef.current;
+    if (!el) return;
+    try {
+      el.pause();
+      el.currentTime = 0;
+    } catch {}
+    setIsInlinePlaying(false);
+  };
+
+  const handleHoverEnter = () => {
+    setIsHovered(true);
+    startInline();
+  };
+
+  const handleHoverLeave = () => {
+    setIsHovered(false);
+    stopInline();
+  };
+
+  const handleTapToggle = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    if (isInlinePlaying) stopInline(); else void startInline();
+  };
 
   return (
     <>
       <div 
         className="glass-dark rounded-2xl sm:rounded-3xl shadow-2xl hover:shadow-cyan-500/20 transition-all duration-500 overflow-hidden border border-white/10 hover-lift group neon-border"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onMouseEnter={handleHoverEnter}
+        onMouseLeave={handleHoverLeave}
       >
         <div className="relative aspect-[9/16] bg-gradient-to-br from-gray-900 to-black overflow-hidden">
           <img 
@@ -118,7 +151,21 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
             }}
           />
 
-          {/* プレイボタンオーバーレイ */}
+          {video.videoUrl && (
+            <video
+              ref={videoRef}
+              src={video.videoUrl}
+              muted
+              playsInline
+              preload="metadata"
+              onClick={handleTapToggle}
+              onTouchStart={handleTapToggle}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${isInlinePlaying ? 'opacity-100' : 'opacity-0'}`}
+              onContextMenu={(e) => { e.preventDefault(); return false; }}
+            />
+          )}
+
+          {/* プレイボタンオーバ�Eレイ */}
           <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-center justify-center transition-opacity duration-300 ${
             isHovered ? 'opacity-100' : 'opacity-0'
           }`}>
@@ -170,7 +217,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
         <div className="p-3 sm:p-4 lg:p-6">
           <p className="text-gray-400 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2 leading-relaxed">{video.description}</p>
           
-          {/* メタ情報 */}
+          {/* メタ惁E�� */}
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <span className="glass-effect text-cyan-400 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-bold border border-cyan-400/30">
               {video.category}
@@ -192,7 +239,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
             </div>
           </div>
           
-          {/* ダウンロード制限警告 */}
+          {/* ダウンロード制限警呁E*/}
           {warningMessage && isSubscribed && (
             <div className="mb-3 p-2 bg-yellow-900/30 border border-yellow-500/30 rounded-lg">
               <div className="flex items-center space-x-2">
@@ -206,7 +253,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
           {usage && isSubscribed && (
             <div className="mb-3 p-2 bg-gray-800/50 border border-gray-600/30 rounded-lg">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-400">月間ダウンロード</span>
+                <span className="text-xs text-gray-400">月間ダウンローチE/span>
                 <span className="text-xs text-white font-bold">
                   {usage.currentUsage}/{usage.monthlyLimit}
                 </span>
@@ -224,7 +271,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
                 />
               </div>
               <div className="text-xs text-gray-400 mt-1">
-                リセット: {usage.resetDate.toLocaleDateString()}
+                リセチE��: {usage.resetDate.toLocaleDateString()}
               </div>
             </div>
           )}
@@ -287,3 +334,5 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
 };
 
 export default VideoCard;
+
+

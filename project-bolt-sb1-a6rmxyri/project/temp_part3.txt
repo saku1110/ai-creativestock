@@ -1,0 +1,238 @@
+      for (const [category, score] of Object.entries(categoryScores)) {
+        if (score > bestScore) {
+          bestScore = score;
+          bestCategory = category as VideoCategory;
+        }
+      }
+
+      // 繝・ヵ繧ｩ繝ｫ繝医き繝・ざ繝ｪ縺ｨ縺励※ lifestyle 繧剃ｽｿ逕ｨ
+      if (bestScore === 0) {
+        bestCategory = 'lifestyle';
+        bestScore = 0.5;
+      }
+
+      // 繝輔Ξ繝ｼ繝逕ｻ蜒上ｒ蜑企勁
+      for (const framePath of framePaths) {
+        await fs.unlink(framePath).catch(() => {});
+      }
+
+      const confidence = allPredictions.length > 0
+        ? Math.min(bestScore / allPredictions.length, 1)
+        : 0;
+
+      const modelClassification: CategoryClassification = {
+        category: bestCategory,
+        confidence,
+        keywords: Array.from(detectedKeywords).slice(0, 10),
+        source: 'model'
+      };
+
+      const mergedKeywords = new Set<string>([
+        ...modelClassification.keywords,
+        ...filenameGuess.keywords
+      ]);
+
+      let resolvedBeautySubCategory: BeautySubCategory | undefined = filenameGuess.beautySubCategory;
+
+      if (bestCategory === 'beauty' || filenameGuess.category === 'beauty') {
+        const fileNameTokens = path.basename(videoPath)
+          .toLowerCase()
+          .replace(/\.[^.]+$/, '')
+          .split(/[\s_\-]+/)
+          .filter(Boolean);
+
+        const beautyResult = resolveBeautySubCategory({
+          tokens: fileNameTokens,
+          keywords: Array.from(new Set<string>([
+            ...mergedKeywords,
+            ...Array.from(detectedKeywords)
+          ]))
+        });
+
+        if (beautyResult.subCategory) {
+          resolvedBeautySubCategory = beautyResult.subCategory;
+          beautyResult.matched.forEach(value => mergedKeywords.add(value));
+        }
+
+        if (resolvedBeautySubCategory) {
+          mergedKeywords.add(resolvedBeautySubCategory);
+        }
+      }
+
+      if (filenameGuess.confidence >= 0.6 && filenameGuess.category !== modelClassification.category) {
+        return {
+          ...filenameGuess,
+          confidence: Math.max(filenameGuess.confidence, modelClassification.confidence),
+          keywords: Array.from(mergedKeywords).slice(0, 10),
+          source: 'filename',
+          beautySubCategory: filenameGuess.category === 'beauty'
+            ? resolvedBeautySubCategory ?? filenameGuess.beautySubCategory
+            : undefined
+        };
+      }
+
+      return {
+        ...modelClassification,
+        keywords: Array.from(mergedKeywords).slice(0, 10),
+        beautySubCategory: modelClassification.category === 'beauty'
+          ? resolvedBeautySubCategory
+          : undefined
+      };
+
+    } catch (error) {
+      console.error('Video classification error:', error);
+      // 繧ｨ繝ｩ繝ｼ譎ゅ・繝輔ぃ繧､繝ｫ蜷阪・繝ｼ繧ｹ縺ｮ謗ｨ螳壹ｒ菴ｿ逕ｨ
+      return filenameGuess;
+    }
+  }
+
+  // 蜍慕判繝輔ぃ繧､繝ｫ縺ｮ讀懆ｨｼ
+  static async validateVideo(videoPath: string): Promise<{ valid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+    
+    try {
+      const metadata = await this.extractMetadata(videoPath);
+      
+      // 繝輔ぃ繧､繝ｫ蠖｢蠑上メ繧ｧ繝・け
+      const allowedFormats = ['mp4', 'mov', 'avi', 'webm'];
+      const format = metadata.format.toLowerCase();
+      if (!allowedFormats.some(f => format.includes(f))) {
+        errors.push(`Unsupported format: ${format}. Allowed formats: ${allowedFormats.join(', ')}`);
+      }
+      
+      // 蜍慕判縺ｮ髟ｷ縺輔メ繧ｧ繝・け・・0遘抵ｼ・
+      if (metadata.duration < 9 || metadata.duration > 11) {
+        errors.push(`Video duration must be 10 seconds (current: ${metadata.duration}s)`);
+      }
+      
+      // 繝輔ぃ繧､繝ｫ繧ｵ繧､繧ｺ繝√ぉ繝・け・・00MB莉･荳具ｼ・
+      const maxSize = 100 * 1024 * 1024; // 100MB
+      if (metadata.size > maxSize) {
+        errors.push(`File size exceeds 100MB limit (current: ${(metadata.size / 1024 / 1024).toFixed(2)}MB)`);
+      }
+      
+      // 隗｣蜒丞ｺｦ繝√ぉ繝・け
+      const [width, height] = metadata.resolution.split('x').map(Number);
+      if (width < 720 || height < 720) {
+        errors.push(`Resolution too low. Minimum 720p required (current: ${metadata.resolution})`);
+      }
+      
+    } catch (error) {
+      errors.push(`Failed to validate video: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+    
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  }
+
+  // 蜍慕判諠・ｱ繧呈歓蜃ｺ縺励※繧ｿ繧ｰ繧堤函謌・
+  static async generateTags(metadata: VideoMetadata, classification: CategoryClassification): string[] {
+    const tags: string[] = [];
+    
+    // 繧ｫ繝・ざ繝ｪ繧ｿ繧ｰ
+    tags.push(classification.category);
+
+    if (classification.category === 'beauty' && classification.beautySubCategory) {
+      const meta = beautySubCategoryTagMap[classification.beautySubCategory];
+      tags.push(meta.tag);
+      tags.push(meta.label);
+    }
+    
+    // 隗｣蜒丞ｺｦ繧ｿ繧ｰ
+    const [width, height] = metadata.resolution.split('x').map(Number);
+    if (width >= 3840) tags.push('4K');
+    else if (width >= 1920) tags.push('Full HD');
+    else if (width >= 1280) tags.push('HD');
+    
+    // 繧｢繧ｹ繝壹け繝域ｯ斐ち繧ｰ
+    const aspectRatio = width / height;
+    if (Math.abs(aspectRatio - 9/16) < 0.1) tags.push('9:16');
+    else if (Math.abs(aspectRatio - 16/9) < 0.1) tags.push('16:9');
+    else if (Math.abs(aspectRatio - 1) < 0.1) tags.push('1:1');
+    
+    // 蜍慕判縺ｮ髟ｷ縺輔ち繧ｰ
+    tags.push(`${metadata.duration}遘蛋);
+    
+    // 蛻・｡槭く繝ｼ繝ｯ繝ｼ繝峨°繧蛾未騾｣繧ｿ繧ｰ繧定ｿｽ蜉
+    const relevantKeywords = classification.keywords
+      .filter(kw => kw.length > 3)
+      .slice(0, 5);
+    tags.push(...relevantKeywords);
+    
+    return [...new Set(tags)]; // 驥崎､・ｒ髯､蜴ｻ
+  }
+
+  // 蜍慕判縺ｫ繧ｦ繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ繧定ｿｽ蜉
+  static async addWatermark(
+    inputPath: string,
+    outputPath: string,
+    preset: keyof typeof WatermarkPresets = 'diagonalPattern'
+  ): Promise<{ success: boolean; outputPath?: string; error?: string }> {
+    try {
+      const watermarkConfig = WatermarkPresets[preset];
+      const result = await VideoWatermarkProcessor.addTextWatermark(
+        inputPath,
+        outputPath,
+        watermarkConfig
+      );
+      
+      return result;
+    } catch (error) {
+      console.error('Watermark processing error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to add watermark'
+      };
+    }
+  }
+
+  // 繝舌ャ繝∝・逅・〒繧ｦ繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ繧定ｿｽ蜉
+  static async batchAddWatermark(
+    videos: Array<{ inputPath: string; outputPath: string }>,
+    preset: keyof typeof WatermarkPresets = 'diagonalPattern',
+    onProgress?: (current: number, total: number, filename: string) => void
+  ): Promise<Array<{ inputPath: string; result: { success: boolean; outputPath?: string; error?: string } }>> {
+    const results: Array<{ inputPath: string; result: { success: boolean; outputPath?: string; error?: string } }> = [];
+    
+    for (let i = 0; i < videos.length; i++) {
+      const { inputPath, outputPath } = videos[i];
+      const filename = path.basename(inputPath);
+      
+      if (onProgress) {
+        onProgress(i + 1, videos.length, filename);
+      }
+      
+      const result = await this.addWatermark(inputPath, outputPath, preset);
+      results.push({ inputPath, result });
+    }
+    
+    return results;
+  }
+
+  // 逕ｻ蜒・繝輔Ν繝輔Ξ繝ｼ繝)繧ｦ繧ｩ繝ｼ繧ｿ繝ｼ繝槭・繧ｯ繧定ｿｽ蜉・医Ο繧ｴPNG繧・:16蜈ｨ髱｢縺ｫ驥阪・繧狗畑騾費ｼ・
+  static async addFullFrameImageWatermark(
+    inputPath: string,
+    outputPath: string,
+    watermarkImagePath: string,
+    opacity = 0.85
+  ): Promise<{ success: boolean; outputPath?: string; error?: string }> {
+    try {
+      const result = await VideoWatermarkProcessor.addFullFrameImageWatermark(
+        inputPath,
+        watermarkImagePath,
+        outputPath,
+        opacity
+      );
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to add image watermark'
+      };
+    }
+  }
+}
+
+export default VideoProcessor;
