@@ -57,7 +57,7 @@ const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
       if (isPlaying) {
         videoRef.current.pause();
       } else {
-        { const p = videoRef.current.play(); if (p && typeof (p as Promise<void>).catch === 'function') { (p as Promise<void>).catch(() => {}); } }
+        videoRef.current.play();
       }
       setIsPlaying(!isPlaying);
     }

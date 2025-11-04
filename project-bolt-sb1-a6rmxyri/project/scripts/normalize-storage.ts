@@ -6,7 +6,7 @@
  * Use case:
  *  - Bucket "local-content" contains an extra nested folder "local-content/..."
  *  - We want to move everything from "local-content/<sub>" to "<sub>" (bucket root)
- *  - Typical targets: hero/*, lp-grid/*, dashboard/**/*
+ *  - Typical targets: hero/*, lp-grid/*, dashboard/(subfolders)
  *
  * Requirements:
  *  - SUPABASE_URL
@@ -50,6 +50,7 @@ const nestedPrefix = (getArg('--prefix', 'local-content') || '').replace(/^\/+|\
 const concurrency = Math.max(1, parseInt(getArg('--concurrency', '4') || '4', 10));
 const execute = hasFlag('--execute') || hasFlag('--commit');
 const overwrite = hasFlag('--overwrite');
+const cleanExisting = hasFlag('--clean-existing');
 
 if (!SUPABASE_URL || !SERVICE_ROLE) {
   console.error('[normalize-storage] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment');
@@ -60,7 +61,7 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSessi
 
 function isFile(e: Entry): boolean {
   // Supabase returns metadata for files; folders have no metadata
-  return !!(e as any).metadata || (e as any).id !== undefined;
+  return !!((e as any).metadata && (e as any).metadata.size !== undefined);
 }
 
 async function listRecursive(prefix: string): Promise<string[]> {
@@ -114,6 +115,11 @@ async function moveOne(from: string, to: string): Promise<void> {
   }
   if (!overwrite && (await exists(to))) {
     console.warn(`[skip] destination exists: ${to}`);
+    if (execute && cleanExisting) {
+      const rm = await supabase.storage.from(bucket).remove([from]);
+      if ((rm as any).error) console.error(`[remove-only] failed to remove ${from}:`, (rm as any).error);
+      else console.log(`[removed src] ${from}`);
+    }
     return;
   }
   // Try move API first
