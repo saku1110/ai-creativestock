@@ -95,13 +95,6 @@ export class ErrorHandler {
     if (typeof window !== 'undefined') {
       // 譛ｪ蜃ｦ逅・・Promise諡貞凄
       window.addEventListener('unhandledrejection', (event) => {
-        const r: any = (event as any).reason;
-        const msg: string = typeof r === 'string' ? r : (r?.message || '');
-        const name: string = (r && (r as any).name) || '';
-        if (name === 'NotSupportedError' || /notsupportederror|no supported sources/i.test(msg)) {
-          event.preventDefault();
-          return; // Ignore media play() NotSupportedError rejections
-        }
         const error = new AppError(
           `譛ｪ蜃ｦ逅・・Promise諡貞凄: ${event.reason}`,
           ErrorType.UNKNOWN,
@@ -114,9 +107,6 @@ export class ErrorHandler {
 
       // JavaScript 繧ｨ繝ｩ繝ｼ
       window.addEventListener('error', (event) => {
-        if (/no supported sources/i.test(String((event as ErrorEvent).message || ''))) {
-          return; // Ignore media element source errors to avoid noisy logs
-        }
         const error = new AppError(
           `JavaScript 繧ｨ繝ｩ繝ｼ: ${event.message}`,
           ErrorType.UNKNOWN,
