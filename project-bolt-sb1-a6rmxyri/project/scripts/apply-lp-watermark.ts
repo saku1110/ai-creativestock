@@ -55,13 +55,18 @@ async function processDir(dir: string, wmPath: string, opacity: number) {
       const tmpDir = path.join(process.cwd(), 'temp', 'wm');
       await fs.mkdir(tmpDir, { recursive: true });
       const wmResized = path.join(tmpDir, `lpwm_${width}x${height}.png`);
-      await sharp(wmPath).resize(width, height, { fit: 'cover' }).png().toFile(wmResized);
+      const th = Math.max(0, Math.min(1, Number(process.env.WATERMARK_ALPHA_THRESHOLD || '0.3')));
+      const th255 = Math.round(th * 255);
+      // 透過が弱い背景を完全にカットするため、アルファにしきい値を適用
+      const baseBuf = await sharp(wmPath).resize(width, height, { fit: 'cover' }).png().toBuffer();
+      const alphaBuf = await sharp(baseBuf).extractChannel('alpha').threshold(th255).toBuffer();
+      await sharp(baseBuf).removeAlpha().joinChannel(alphaBuf).png().toFile(wmResized);
 
       await new Promise<void>((resolve, reject) => {
         ffmpeg()
           .input(input)
           .input(wmResized)
-          // 保持されたアルファを利用して合成。overlay の format=auto と alpha で透過を適用
+          // 透過PNG（しきい値済み）をそのまま合成。alpha=opacity で全体の強さを調整
           .complexFilter(`[1:v]format=rgba[wm];[0:v][wm]overlay=0:0:format=auto:alpha=${opacity}[out]`)
           .outputOptions([
             '-map','[out]','-map','0:a?',
