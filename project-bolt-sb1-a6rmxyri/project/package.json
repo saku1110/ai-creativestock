@@ -34,6 +34,7 @@
     "chokidar": "^4.0.3",
     "dompurify": "^3.2.6",
     "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.1.0",
     "fluent-ffmpeg": "^2.1.3",
     "lucide-react": "^0.344.0",
     "multer": "^2.0.2",
@@ -43,8 +44,8 @@
     "react-helmet-async": "^2.0.5",
     "react-window": "^1.8.11",
     "react-window-infinite-loader": "^1.0.10",
-    "sharp": "^0.34.3",
     "resend": "^4.0.0",
+    "sharp": "^0.34.3",
     "stripe": "^16.0.0"
   },
   "devDependencies": {

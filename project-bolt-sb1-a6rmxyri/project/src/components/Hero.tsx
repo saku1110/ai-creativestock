@@ -407,9 +407,9 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
           </h1>
 
           <p className="text-xl sm:text-2xl text-gray-300 max-w-4xl mx-auto mb-8 leading-relaxed">
-            月額9,800円で実写級の高品質AI動画素材が手に入る
+            月額6,800円で実写級の高品質AI動画素材が手に入る
             <br className="hidden sm:block" />
-            モデル撮影不要・即ダウンロード・商用利用OK
+            モデル・撮影不要。即ダウンロードで商用利用OK
           </p>
 
           <div className="relative overflow-hidden py-8 mb-8">
@@ -458,3 +458,4 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
 };
 
 export default Hero;
+

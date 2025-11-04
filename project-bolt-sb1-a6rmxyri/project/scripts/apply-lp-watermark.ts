@@ -3,6 +3,16 @@ import path from 'path';
 import fs from 'fs/promises';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from 'ffmpeg-static';
+// Ensure ffprobe is available for fluent-ffmpeg's metadata calls
+// On some environments ffprobe is not on PATH, so use ffprobe-static if present
+let ffprobePath: string | undefined;
+try {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore - runtime resolution only
+  ffprobePath = (await import('ffprobe-static')).path as string;
+} catch {
+  ffprobePath = undefined;
+}
 import sharp from 'sharp';
 
 async function ensureExists(p: string) {
@@ -12,6 +22,10 @@ async function ensureExists(p: string) {
 
 if (ffmpegPath) {
   ffmpeg.setFfmpegPath(ffmpegPath as string);
+}
+if (ffprobePath) {
+  // fluent-ffmpeg requires ffprobe to read video metadata (size, streams, etc.)
+  ffmpeg.setFfprobePath(ffprobePath as string);
 }
 
 async function getVideoSize(p: string): Promise<{width:number;height:number}> {
@@ -47,8 +61,12 @@ async function processDir(dir: string, wmPath: string, opacity: number) {
         ffmpeg()
           .input(input)
           .input(wmResized)
-          .complexFilter(`[1:v]format=rgba,colorchannelmixer=aa=${opacity}[wm];[0:v][wm]overlay=0:0`)
-          .outputOptions(['-codec:a', 'copy'])
+          .complexFilter(`[1:v]format=rgba,colorchannelmixer=aa=${opacity}[wm];[0:v][wm]overlay=0:0[out]`)
+          .outputOptions([
+            '-map','[out]','-map','0:a?',
+            '-c:v','libx264','-crf','22','-preset','veryfast','-pix_fmt','yuv420p','-movflags','+faststart',
+            '-c:a','aac','-b:a','128k'
+          ])
           .save(tmp)
           .on('end', () => resolve())
           .on('error', reject);
