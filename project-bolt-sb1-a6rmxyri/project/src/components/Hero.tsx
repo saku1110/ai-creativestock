@@ -323,19 +323,33 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
 
     let animationFrame: number;
     let lastTimestamp: number | null = null;
+    let wasReady = false;
 
     const tick = (timestamp: number) => {
       const el = scrollContainerRef.current;
       if (!el) return;
 
       if (!isReadyRef.current) {
-        lastTimestamp = null;
+        // Ready状態が変わったときのみリセット
+        if (wasReady) {
+          lastTimestamp = null;
+          wasReady = false;
+        }
         animationFrame = requestAnimationFrame(tick);
         return;
       }
 
+      // Ready状態になった直後のタイムスタンプをリセット
+      if (!wasReady) {
+        lastTimestamp = null;
+        wasReady = true;
+      }
+
       const track = el.querySelector<HTMLDivElement>('[data-hero-track]');
-      if (!track) return;
+      if (!track) {
+        animationFrame = requestAnimationFrame(tick);
+        return;
+      }
 
       const maxShift = track.scrollWidth / 2;
       if (maxShift > el.clientWidth) {
@@ -345,9 +359,12 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
         const delta = timestamp - lastTimestamp;
         lastTimestamp = timestamp;
 
-        el.scrollLeft += speedPerMsRef.current * delta;
-        if (el.scrollLeft >= maxShift) {
-          el.scrollLeft -= maxShift;
+        // deltaが異常に大きい場合（タブ切り替えなど）はスキップ
+        if (delta < 100) {
+          el.scrollLeft += speedPerMsRef.current * delta;
+          if (el.scrollLeft >= maxShift) {
+            el.scrollLeft -= maxShift;
+          }
         }
       }
 
