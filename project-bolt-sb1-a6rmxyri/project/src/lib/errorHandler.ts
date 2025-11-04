@@ -1,6 +1,5 @@
-import { auditLogger } from './auditLogger';
+// Minimal, robust error handler for client code
 
-// エラータイプ�E定義
 export enum ErrorType {
   AUTHENTICATION = 'authentication',
   AUTHORIZATION = 'authorization',
@@ -13,7 +12,6 @@ export enum ErrorType {
   UNKNOWN = 'unknown'
 }
 
-// エラーレベルの定義
 export enum ErrorLevel {
   LOW = 'low',
   MEDIUM = 'medium',
@@ -21,15 +19,14 @@ export enum ErrorLevel {
   CRITICAL = 'critical'
 }
 
-// カスタムエラークラス
 export class AppError extends Error {
-  public readonly type: ErrorType;
-  public readonly level: ErrorLevel;
-  public readonly code: string;
-  public readonly userId?: string;
-  public readonly context?: Record<string, any>;
-  public readonly timestamp: string;
-  public readonly retryable: boolean;
+  readonly type: ErrorType;
+  readonly level: ErrorLevel;
+  readonly code: string;
+  readonly userId?: string;
+  readonly context?: Record<string, any>;
+  readonly timestamp: string;
+  readonly retryable: boolean;
 
   constructor(
     message: string,
@@ -49,353 +46,123 @@ export class AppError extends Error {
     this.context = context;
     this.timestamp = new Date().toISOString();
     this.retryable = retryable;
-
-    // スタチE��トレースを保持
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, AppError);
-    }
   }
 }
 
-// エラーハンドラーの設宁E
-type ErrorHandlerConfig = any;
+type ErrorHandlerConfig = {
+  enableConsoleLogging: boolean;
+  enableUserNotification: boolean;
+  enableRetry: boolean;
+  maxRetryAttempts: number;
+  sentryDsn?: string;
+};
 
 export class ErrorHandler {
   private static instance: ErrorHandler;
   private config: ErrorHandlerConfig;
   private retryAttempts: Map<string, number> = new Map();
 
-  private constructor(config: Partial<ErrorHandlerConfig> = {}) {
+  private constructor(config?: Partial<ErrorHandlerConfig>) {
     this.config = {
       enableConsoleLogging: true,
-      enableAuditLogging: true,
       enableUserNotification: true,
       enableRetry: true,
       maxRetryAttempts: 3,
       ...config
-    };
-
+    } as ErrorHandlerConfig;
     this.setupGlobalErrorHandlers();
   }
 
-  public static getInstance(config?: Partial<ErrorHandlerConfig>): ErrorHandler {
-    if (!ErrorHandler.instance) {
-      ErrorHandler.instance = new ErrorHandler(config);
-    }
+  static getInstance(config?: Partial<ErrorHandlerConfig>): ErrorHandler {
+    if (!ErrorHandler.instance) ErrorHandler.instance = new ErrorHandler(config);
     return ErrorHandler.instance;
   }
 
-  // グローバルエラーハンドラーの設宁E  private 
   private setupGlobalErrorHandlers(): void {
-    if (typeof window !== 'undefined') {
-      // 未処琁E�EPromise拒否
-      window.addEventListener('unhandledrejection', (event) => {
-        const r: any = (event as any).reason;
-        const msg: string = typeof r === 'string' ? r : (r?.message || '');
-        const name: string = (r && (r as any).name) || '';
-        if (name === 'NotSupportedError' || /notsupportederror|no supported sources/i.test(msg)) {
-          event.preventDefault();
-          return; // Ignore media play() NotSupportedError rejections
-        }
-        const error = new AppError(
-          `未処琁E�EPromise拒否: ${event.reason}`,
-          ErrorType.UNKNOWN,
-          ErrorLevel.HIGH,
-          'UNHANDLED_PROMISE_REJECTION'
-        );
-        this.handleError(error);
-        event.preventDefault();
-      });
+    if (typeof window === 'undefined') return;
 
-      // JavaScript エラー
-      window.addEventListener('error', (event) => {
-        if (/no supported sources/i.test(String((event as ErrorEvent).message || ''))) {
-          return; // Ignore media element source errors to avoid noisy logs
-        }
-        const error = new AppError(
-          `JavaScript エラー: ${event.message}`,
-          ErrorType.UNKNOWN,
-          ErrorLevel.MEDIUM,
-          'JAVASCRIPT_ERROR',
-          undefined,
-          {
-            filename: event.filename,
-            lineno: event.lineno,
-            colno: event.colno
-          }
-        );
-        this.handleError(error);
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason: any = (event as any).reason;
+      const name = reason?.name || '';
+      const msg: string = typeof reason === 'string' ? reason : (reason?.message || '');
+      if (name === 'NotSupportedError' || /notsupportederror|no supported sources/i.test(msg)) {
+        event.preventDefault();
+        return;
+      }
+      const err = new AppError(`Unhandled promise rejection: ${msg || String(reason)}`, ErrorType.UNKNOWN, ErrorLevel.HIGH, 'UNHANDLED_PROMISE_REJECTION');
+      void this.handleError(err);
+      event.preventDefault();
+    });
+
+    window.addEventListener('error', (event: ErrorEvent) => {
+      const msg = String(event.message || '');
+      if (/no supported sources/i.test(msg)) return;
+      const err = new AppError(`JavaScript error: ${msg}`, ErrorType.UNKNOWN, ErrorLevel.MEDIUM, 'JAVASCRIPT_ERROR', undefined, {
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno
       });
-    }
+      void this.handleError(err);
+    });
   }
 
-  // エラーハンドリングの中核メソチE��
-  public async handleError(error: Error | AppError, userId?: string, additionalContext?: Record<string, any>): Promise<void> {
-    let appError: AppError;
+  async handleError(error: Error | AppError, userId?: string, context?: Record<string, any>): Promise<void> {
+    const appError = error instanceof AppError
+      ? error
+      : this.convertToAppError(error, userId, context);
 
-    // AppErrorでなぁE��合�E変換
-    if (!(error instanceof AppError)) {
-      appError = this.convertToAppError(error, userId, additionalContext);
-    } else {
-      appError = error;
-      if (userId && !appError.userId) {
-        appError = new AppError(
-          appError.message,
-          appError.type,
-          appError.level,
-          appError.code,
-          userId,
-          { ...appError.context, ...additionalContext },
-          appError.retryable
-        );
-      }
-    }
+    if (this.config.enableConsoleLogging) this.logToConsole(appError);
 
-    // コンソールログ
-    if (this.config.enableConsoleLogging) {
-      this.logToConsole(appError);
-    }
-
-    // 監査ログ
-    if (this.config.enableAuditLogging) {
-      await this.logToAuditSystem(appError);
-    }
-
-    // ユーザー通知
-    if (this.config.enableUserNotification) {
-      this.notifyUser(appError);
-    }
-
-    // 外部サービス通知�E�Eentry等！E    if (this.config.sentryDsn) {
-      this.reportToExternalService(appError);
-    }
-
-    // リトライ処琁E    if (this.config.enableRetry && appError.retryable) {
+    if (this.config.enableRetry && appError.retryable) {
       await this.handleRetry(appError);
     }
   }
 
-  // エラーをAppErrorに変換
   private convertToAppError(error: Error, userId?: string, context?: Record<string, any>): AppError {
-    let type = ErrorType.UNKNOWN;
-    let level = ErrorLevel.MEDIUM;
-    let code = 'UNKNOWN_ERROR';
-    let retryable = false;
-
-    // エラーメチE��ージめE��イプから�E顁E    const message = error.message.toLowerCase();
-
-    if (message.includes('network') || message.includes('fetch')) {
-      type = ErrorType.NETWORK;
-      retryable = true;
-    } else if (message.includes('auth') || message.includes('unauthorized')) {
-      type = ErrorType.AUTHENTICATION;
-      level = ErrorLevel.HIGH;
-    } else if (message.includes('permission') || message.includes('forbidden')) {
-      type = ErrorType.AUTHORIZATION;
-      level = ErrorLevel.HIGH;
-    } else if (message.includes('validation') || message.includes('invalid')) {
-      type = ErrorType.VALIDATION;
-      level = ErrorLevel.LOW;
-    } else if (message.includes('database') || message.includes('sql')) {
-      type = ErrorType.DATABASE;
-      level = ErrorLevel.HIGH;
-      retryable = true;
-    } else if (message.includes('rate limit') || message.includes('too many')) {
-      type = ErrorType.RATE_LIMIT;
-      level = ErrorLevel.MEDIUM;
-    } else if (message.includes('security') || message.includes('csrf') || message.includes('xss')) {
-      type = ErrorType.SECURITY;
-      level = ErrorLevel.CRITICAL;
-    }
-
-    return new AppError(
-      error.message,
-      type,
-      level,
-      code,
-      userId,
-      {
-        originalError: error.name,
-        stack: error.stack,
-        ...context
-      },
-      retryable
-    );
+    return new AppError(error.message, ErrorType.UNKNOWN, ErrorLevel.MEDIUM, 'UNKNOWN_ERROR', userId, {
+      originalError: error.name,
+      stack: error.stack,
+      ...context
+    });
   }
 
-  // コンソールログ出劁E  private logToConsole(error: AppError): void {
-    const logLevel = error.level === ErrorLevel.CRITICAL ? 'error' :
-                    error.level === ErrorLevel.HIGH ? 'warn' : 'info';
-
-    console[logLevel](`[ERROR] ${error.type.toUpperCase()}: ${error.message}`, {
+  private logToConsole(error: AppError): void {
+    const level = error.level === ErrorLevel.CRITICAL ? 'error' : error.level === ErrorLevel.HIGH ? 'warn' : 'info';
+    (console as any)[level](`[ERROR] ${error.type.toUpperCase()}: ${error.message}`, {
       code: error.code,
       level: error.level,
       userId: error.userId,
       timestamp: error.timestamp,
-      context: error.context,
-      stack: error.stack
+      context: error.context
     });
   }
 
-  // 監査ログシスチE��に記録
-  private async logToAuditSystem(error: AppError): Promise<void> {
-    try {
-      const context = {
-        userId: error.userId,
-        additional: {
-          error_code: error.code,
-          error_level: error.level,
-          error_type: error.type,
-          retryable: error.retryable,
-          timestamp: error.timestamp,
-          ...error.context
-        }
-      };
-
-      auditLogger.logError(error, context, 'error_occurred', 'error_handling');
-    } catch (auditError) {
-      console.error('監査ログ記録エラー:', auditError);
-    }
+  private async handleRetry(error: AppError): Promise<void> {
+    const key = `${error.code}:${error.message}`;
+    const attempts = (this.retryAttempts.get(key) || 0) + 1;
+    this.retryAttempts.set(key, attempts);
+    if (attempts > this.config.maxRetryAttempts) return;
+    const delay = Math.min(1000 * Math.pow(2, attempts - 1), 5000);
+    await new Promise((r) => setTimeout(r, delay));
   }
 
-  // ユーザーへの通知
-  private notifyUser(error: AppError): void {
-    // 開発環墁E��は通知を無効匁E    if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-      console.log(`[DEV] エラー通知を無効匁E ${error.message}`);
-      return;
-    }
-
-    let userMessage = 'シスチE��エラーが発生しました。しばらく時間をおぁE��再度お試しください、E;
-
-    switch (error.type) {
-      case ErrorType.AUTHENTICATION:
-        userMessage = 'ログインの有効期限が�Eれました。�E度ログインしてください、E;
-        break;
-      case ErrorType.AUTHORIZATION:
-        userMessage = 'こ�E操作を実行する権限がありません、E;
-        break;
-      case ErrorType.VALIDATION:
-        userMessage = '入力�E容に誤りがあります。確認して再度お試しください、E;
-        break;
-      case ErrorType.NETWORK:
-        userMessage = 'ネットワーク接続に問題があります。インターネット接続を確認してください、E;
-        break;
-      case ErrorType.FILE_UPLOAD:
-        userMessage = 'ファイルのアチE�Eロードに失敗しました。ファイル形式やサイズを確認してください、E;
-        break;
-      case ErrorType.RATE_LIMIT:
-        userMessage = 'リクエストが多すぎます。しばらく時間をおぁE��再度お試しください、E;
-        break;
-    }
-
-    // ユーザーフレンドリーなエラー表示
-    if (error.level === ErrorLevel.LOW) {
-      console.info(userMessage);
-    } else {
-      alert(userMessage);
-    }
-  }
-
-  // 外部サービスへの報呁E  private reportToExternalService(error: AppError): void {
-    // Sentry、Bugsnag、DataDog等への報呁E    if (this.config.sentryDsn && typeof window !== 'undefined' && (window as any).Sentry) {
-      (window as any).Sentry.captureException(error, {
-        tags: {
-          error_type: error.type,
-          error_level: error.level,
-          error_code: error.code
-        },
-        user: error.userId ? { id: error.userId } : undefined,
-        extra: error.context
-      });
-    }
-  }
-
-  // リトライ処琁E  private async handleRetry(error: AppError): Promise<void> {
-    if (!error.retryable) return;
-
-    const retryKey = `${error.code}_${error.userId || 'anonymous'}`;
-    const currentAttempts = this.retryAttempts.get(retryKey) || 0;
-
-    if (currentAttempts >= this.config.maxRetryAttempts) {
-      console.warn(`最大リトライ回数に達しました: ${error.message}`);
-      this.retryAttempts.delete(retryKey);
-      return;
-    }
-
-    this.retryAttempts.set(retryKey, currentAttempts + 1);
-
-    // 持E��バックオフでリトライ
-    const delay = Math.pow(2, currentAttempts) * 1000;
-    setTimeout(() => {
-      console.log(`リトライ中 (${currentAttempts + 1}/${this.config.maxRetryAttempts}): ${error.message}`);
-      // ここで実際のリトライロジチE��を実裁E    }, delay);
-  }
-
-  // エラー統計�E取征E  public getErrorStatistics(timeRange: 'hour' | 'day' | 'week' = 'day'): {
-    totalErrors: number;
-    errorsByType: Record<string, number>;
-    errorsByLevel: Record<string, number>;
-    topErrors: Array<{ message: string; count: number }>;
-  } {
-    // 実裁E�E監査ログシスチE��と連携
-    return {
-      totalErrors: 0,
-      errorsByType: {},
-      errorsByLevel: {},
-      topErrors: []
-    };
-  }
-
-  // 設定�E更新
   public updateConfig(newConfig: Partial<ErrorHandlerConfig>): void {
-    this.config = { ...this.config, ...newConfig };
+    this.config = { ...this.config, ...newConfig } as ErrorHandlerConfig;
   }
 
-  // リトライカウンターのクリア
   public clearRetryAttempts(): void {
     this.retryAttempts.clear();
   }
 }
 
-// グローバルエラーハンドラーのインスタンス
 export const globalErrorHandler = ErrorHandler.getInstance();
 
-// ヘルパ�E関数
-export const handleAsyncError = async (
-  operation: () => Promise<any>,
-  errorType: ErrorType = ErrorType.UNKNOWN,
-  userId?: string,
-  context?: Record<string, any>
-): Promise<any> => {
+export const handleAsyncError = async <T>(operation: () => Promise<T>, errorType: ErrorType = ErrorType.UNKNOWN, userId?: string, context?: Record<string, any>): Promise<T> => {
   try {
     return await operation();
-  } catch (error) {
-    const appError = new AppError(
-      error instanceof Error ? error.message : String(error),
-      errorType,
-      ErrorLevel.MEDIUM,
-      undefined,
-      userId,
-      context,
-      true
-    );
+  } catch (e: any) {
+    const appError = new AppError(e instanceof Error ? e.message : String(e), errorType, ErrorLevel.MEDIUM, undefined, userId, context, true);
     await globalErrorHandler.handleError(appError);
     throw appError;
   }
-};
-
-// React エラーバウンダリ用のエラーハンドラー
-export const handleReactError = (error: Error, errorInfo: any, userId?: string) => {
-  const appError = new AppError(
-    error.message,
-    ErrorType.UNKNOWN,
-    ErrorLevel.HIGH,
-    'REACT_ERROR',
-    userId,
-    {
-      componentStack: errorInfo.componentStack,
-      errorBoundary: true
-    }
-  );
-  globalErrorHandler.handleError(appError);
 };
