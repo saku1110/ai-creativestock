@@ -241,19 +241,32 @@ export const database = {
   },
 
   // 動画アセット取得
-  getVideoAssets: async (category?: string, limit = 20) => {
-    let query = supabase
-      .from('video_assets')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(limit)
-
-    if (category) {
-      query = query.eq('category', category)
+  getVideoAssets: async (category?: string, limit = 100) => {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return { data: null, error: new Error('Missing Supabase environment variables') }
     }
 
-    const { data, error } = await query
-    return { data, error }
+    const url = new URL(`${supabaseUrl}/rest/v1/video_assets`)
+    url.searchParams.set('select', '*')
+    url.searchParams.set('order', 'created_at.desc')
+    url.searchParams.set('limit', String(limit))
+    if (category) {
+      url.searchParams.set('category', `eq.${category}`)
+    }
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`
+      }
+    })
+
+    if (!response.ok) {
+      return { data: null, error: new Error(`Supabase REST error ${response.status}`) }
+    }
+
+    const data = await response.json()
+    return { data, error: null }
   },
 
   // サブスクリプション情報取得
