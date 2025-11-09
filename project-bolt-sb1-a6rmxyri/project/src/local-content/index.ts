@@ -129,6 +129,24 @@ const ENABLE_LOCAL_DASHBOARD =
   runtimeEnv?.VITE_ENABLE_LOCAL_DASHBOARD === 'true' ||
   (runtimeEnv?.MODE === 'development' && runtimeEnv?.VITE_ENABLE_LOCAL_DASHBOARD !== 'false');
 
+type RemoteManifestEntry = {
+  url: string;
+  path: string;
+  [key: string]: any;
+};
+
+const buildRemoteEntryMap = (prefix: string) => {
+  const entries: Record<string, string> = {};
+  Object.entries(remoteManifest).forEach(([key, meta]) => {
+    if (!key.startsWith(`${prefix}/`)) return;
+    const casted = meta as RemoteManifestEntry;
+    if (casted?.url) {
+      entries[`./${key}`] = casted.url;
+    }
+  });
+  return entries;
+};
+
 const heroVideoModules = ENABLE_LOCAL_DASHBOARD
   ? (import.meta.glob('./hero/*.{mp4,MP4,webm,WEBM}', {
       eager: true,
@@ -158,7 +176,7 @@ const dashboardVideoModules = ENABLE_LOCAL_DASHBOARD
       import: 'default',
       query: '?url'
     }) as Record<string, string>)
-  : {};
+  : buildRemoteEntryMap('dashboard');
 
 const dashboardThumbModules = ENABLE_LOCAL_DASHBOARD
   ? (import.meta.glob('./dashboard-thumbs/**/*.{jpg,jpeg,png,JPG,JPEG,PNG}', {
@@ -285,7 +303,6 @@ const registerDashboardVideo = (video: LocalVideoItem) => {
 };
 
 export const findLocalDashboardVideo = (identifier?: string): LocalVideoItem | undefined => {
-  if (!ENABLE_LOCAL_DASHBOARD) return undefined;
   const key = resolveReviewKey(identifier);
   if (key && DASHBOARD_VIDEO_LOOKUP.has(key)) {
     return DASHBOARD_VIDEO_LOOKUP.get(key);
@@ -421,17 +438,14 @@ const buildDashboardVideos = () => {
   };
 };
 
-const dashboardVideos = ENABLE_LOCAL_DASHBOARD
-  ? buildDashboardVideos()
-  : { byCategory: new Map<string, LocalVideoItem[]>(), flat: [] as LocalVideoItem[] };
+const dashboardVideos = buildDashboardVideos();
 
-export const localDashboardVideosByCategory: Record<string, LocalVideoItem[]> = ENABLE_LOCAL_DASHBOARD
-  ? Object.fromEntries(Array.from(dashboardVideos.byCategory.entries()))
-  : {};
+export const localDashboardVideosByCategory: Record<string, LocalVideoItem[]> = Object.fromEntries(
+  Array.from(dashboardVideos.byCategory.entries())
+);
 
 export const localDashboardVideos: LocalVideoItem[] = dashboardVideos.flat;
 
-export const hasLocalHeroVideos = ENABLE_LOCAL_DASHBOARD && localHeroVideos.length > 0;
-export const hasLocalLpGridVideos = ENABLE_LOCAL_DASHBOARD && localLpGridVideos.length > 0;
-export const hasLocalDashboardVideos = ENABLE_LOCAL_DASHBOARD && localDashboardVideos.length > 0;
-export const isLocalDashboardEnabled = ENABLE_LOCAL_DASHBOARD;
+export const hasLocalHeroVideos = localHeroVideos.length > 0;
+export const hasLocalLpGridVideos = localLpGridVideos.length > 0;
+export const hasLocalDashboardVideos = localDashboardVideos.length > 0;
