@@ -102,3 +102,8 @@ supabase/.branches/
 stripe-config.json
 
 .vercel
+
+# Large local media assets (managed in Supabase)
+src/local-content/dashboard/
+src/local-content/hero/
+src/local-content/lp-grid/
