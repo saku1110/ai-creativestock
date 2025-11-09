@@ -86,15 +86,26 @@ const deriveThumbnailFromFileUrl = (fileUrl?: string) => {
 };
 
 const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
-  if (hasWatermarkSignature(video.file_url)) {
+  const ensureThumbnail = () => {
+    if (!video.thumbnail_url) {
+      video.thumbnail_url =
+        findDashboardThumbnail(video.file_url || video.preview_url || video.title || video.id) ||
+        deriveThumbnailFromFileUrl(video.file_url) ||
+        WHITE_THUMBNAIL;
+    }
+  };
+
+  if (hasWatermarkSignature(video.file_url) || !hasLocalDashboardVideos) {
     video.preview_url = video.file_url;
+    ensureThumbnail();
     return video;
   }
 
   const lookupSource = video.file_url || video.preview_url || video.title || video.id;
   const localAsset = findLocalDashboardVideo(lookupSource);
   if (!localAsset) {
-    return null;
+    ensureThumbnail();
+    return video;
   }
 
   video.preview_url = localAsset.url;
