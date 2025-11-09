@@ -6,6 +6,10 @@ const runtimeEnv: Record<string, any> = (typeof import.meta !== 'undefined' && (
   : (process.env as Record<string, string | undefined>)
 
 const normalizeBool = (value: any) => value === true || value === 'true'
+const resolvePositiveInt = (value: any, fallback: number) => {
+  const numeric = typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : NaN
+  return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : fallback
+}
 
 const isDevFlag = runtimeEnv?.DEV ?? runtimeEnv?.NODE_ENV
 const appEnv = runtimeEnv?.VITE_APP_ENV || runtimeEnv?.APP_ENV || runtimeEnv?.NODE_ENV
@@ -16,6 +20,10 @@ const isSampleMode = isDevMode && normalizeBool(useSampleFlag)
 
 const supabaseUrl = runtimeEnv?.VITE_SUPABASE_URL || runtimeEnv?.SUPABASE_URL
 const supabaseAnonKey = runtimeEnv?.VITE_SUPABASE_ANON_KEY || runtimeEnv?.SUPABASE_ANON_KEY
+const defaultVideoFetchLimit = resolvePositiveInt(
+  runtimeEnv?.VITE_DASHBOARD_VIDEO_LIMIT ?? runtimeEnv?.DASHBOARD_VIDEO_LIMIT,
+  500
+)
 
 // Simple in-memory auth shim for local/dev usage
 let currentUser: any = null
@@ -241,15 +249,17 @@ export const database = {
   },
 
   // 動画アセット取得
-  getVideoAssets: async (category?: string, limit = 100) => {
+  getVideoAssets: async (category?: string, limit = defaultVideoFetchLimit) => {
     if (!supabaseUrl || !supabaseAnonKey) {
       return { data: null, error: new Error('Missing Supabase environment variables') }
     }
 
+    const safeLimit = Math.max(25, Math.min(limit, 2000))
+
     const url = new URL(`${supabaseUrl}/rest/v1/video_assets`)
     url.searchParams.set('select', '*')
     url.searchParams.set('order', 'created_at.desc')
-    url.searchParams.set('limit', String(limit))
+    url.searchParams.set('limit', String(safeLimit))
     if (category) {
       url.searchParams.set('category', `eq.${category}`)
     }

@@ -1,5 +1,6 @@
 import { resolveBeautySubCategory, type BeautySubCategory } from '../utils/categoryInference';
 import { getAssetBasename } from '../utils/videoAssetTools';
+import { fetchSupabaseVideos } from '../lib/media';
 import { remoteManifest } from './remote-manifest';
 import { DASHBOARD_REMOTE_THUMBS, DASHBOARD_REVIEW_HASHTAGS, DASHBOARD_REVIEW_CATEGORIES } from './dashboardThumbMap.generated';
 
@@ -124,6 +125,8 @@ const runtimeEnv =
   typeof import.meta !== 'undefined' && (import.meta as any).env
     ? (import.meta as any).env
     : (process.env as Record<string, string | undefined>);
+
+const LOCAL_CONTENT_BUCKET = runtimeEnv?.VITE_LOCAL_CONTENT_BUCKET || 'local-content';
 
 const ENABLE_LOCAL_DASHBOARD =
   runtimeEnv?.VITE_ENABLE_LOCAL_DASHBOARD === 'true' ||
@@ -349,80 +352,87 @@ const GENDER_FOLDER_MAP: Record<string, { id: string; tags: string[] }> = {
   couple: { id: 'mixed', tags: ['男女', 'カップル', 'mixed', 'couple'] }
 };
 
+const buildDashboardVideoFromEntry = (key: string, url: string): LocalVideoItem | null => {
+  const normalizedKey = key.replace(/^\.\//, '');
+  const parts = normalizedKey.split('/').filter(Boolean);
+  const dashboardIndex = parts.indexOf('dashboard');
+  const relative = dashboardIndex >= 0 ? parts.slice(dashboardIndex + 1) : parts;
+  if (dashboardIndex === -1 || relative.length === 0) return null;
+  if (relative.some(segment => segment.startsWith('_'))) return null;
+
+  const { fileName, baseName } = sanitizeName(normalizedKey);
+  const metaKey = baseName.toLowerCase();
+  const rawCategory = relative[0]?.toLowerCase() ?? 'uncategorized';
+  let category: DashboardCategory = normalizeDashboardCategory(rawCategory) ?? 'lifestyle';
+  const reviewCategory = DASHBOARD_REVIEW_CATEGORIES[metaKey];
+  if (reviewCategory) {
+    category = reviewCategory;
+  }
+
+  const potentialAgeSegment = relative.length > 2 ? relative[1]?.toLowerCase() : undefined;
+  const potentialGenderSegment = relative.length > 3 ? relative[2]?.toLowerCase() : undefined;
+
+  let ageFolder: string | undefined;
+  let genderFolder: string | undefined;
+
+  if (potentialAgeSegment && AGE_FOLDER_MAP[potentialAgeSegment]) {
+    ageFolder = potentialAgeSegment;
+    if (potentialGenderSegment && GENDER_FOLDER_MAP[potentialGenderSegment]) {
+      genderFolder = potentialGenderSegment;
+    }
+  } else if (relative.length > 2) {
+    const maybeGender = relative[1]?.toLowerCase();
+    if (maybeGender && GENDER_FOLDER_MAP[maybeGender]) {
+      genderFolder = maybeGender;
+    }
+  }
+
+  const title = formatTitle(baseName);
+  const thumbnailUrl = DASHBOARD_THUMB_LOOKUP.get(metaKey) ?? DASHBOARD_REMOTE_THUMBS[metaKey];
+
+  let beautySubCategory: BeautySubCategory | undefined;
+  if (category === 'beauty') {
+    const tokens = baseName
+      .toLowerCase()
+      .split(/[\s_\-]+/)
+      .filter(Boolean);
+    const beautyResult = resolveBeautySubCategory({
+      tokens,
+      pathHints: parts
+    });
+    beautySubCategory = beautyResult.subCategory;
+  }
+
+  const reviewHashtags = DASHBOARD_REVIEW_HASHTAGS[metaKey];
+  const video: LocalVideoItem = {
+    id: normalizedKey || `dashboard-${category}-${fileName}`,
+    title,
+    url,
+    fileName,
+    category,
+    thumbnailUrl,
+    beautySubCategory,
+    ageFilterId: ageFolder ? AGE_FOLDER_MAP[ageFolder]?.id : undefined,
+    genderFilterId: genderFolder ? GENDER_FOLDER_MAP[genderFolder]?.id : undefined,
+    extraTags: reviewHashtags?.length ? [...reviewHashtags] : undefined
+  };
+
+  applyReviewMetadata(video);
+  registerDashboardVideo(video);
+  return video;
+};
+
 const buildDashboardVideos = () => {
   const byCategory = new Map<string, LocalVideoItem[]>();
 
   for (const [key, url] of Object.entries(dashboardVideoModules)) {
-    const parts = key.split('/').filter(Boolean);
-    const dashboardIndex = parts.indexOf('dashboard');
-    const relative = dashboardIndex >= 0 ? parts.slice(dashboardIndex + 1) : parts;
-    if (relative.length === 0) continue;
-    if (relative.some(segment => segment.startsWith('_'))) continue;
+    const video = buildDashboardVideoFromEntry(key, url as string);
+    if (!video) continue;
 
-    const { fileName, baseName } = sanitizeName(key);
-    const metaKey = baseName.toLowerCase();
-    const rawCategory = relative[0]?.toLowerCase() ?? 'uncategorized';
-    let category: DashboardCategory = normalizeDashboardCategory(rawCategory) ?? 'lifestyle';
-    const reviewCategory = DASHBOARD_REVIEW_CATEGORIES[metaKey];
-    if (reviewCategory) {
-      category = reviewCategory;
+    if (!byCategory.has(video.category)) {
+      byCategory.set(video.category, []);
     }
-
-    const potentialAgeSegment = relative.length > 2 ? relative[1]?.toLowerCase() : undefined;
-    const potentialGenderSegment = relative.length > 3 ? relative[2]?.toLowerCase() : undefined;
-
-    let ageFolder: string | undefined;
-    let genderFolder: string | undefined;
-
-    if (potentialAgeSegment && AGE_FOLDER_MAP[potentialAgeSegment]) {
-      ageFolder = potentialAgeSegment;
-      if (potentialGenderSegment && GENDER_FOLDER_MAP[potentialGenderSegment]) {
-        genderFolder = potentialGenderSegment;
-      } else if (relative.length > 3) {
-        // third segment not recognized as gender, treat as age sibling, keep undefined
-      }
-    } else if (relative.length > 2) {
-      const maybeGender = relative[1]?.toLowerCase();
-      if (maybeGender && GENDER_FOLDER_MAP[maybeGender]) {
-        genderFolder = maybeGender;
-      }
-    }
-
-    const manifestKey = key.replace(/^\.\//, '');
-    const title = formatTitle(baseName);
-    const thumbnailUrl = DASHBOARD_THUMB_LOOKUP.get(metaKey) ?? DASHBOARD_REMOTE_THUMBS[metaKey];
-
-    let beautySubCategory: BeautySubCategory | undefined;
-    if (category === 'beauty') {
-      const tokens = baseName
-        .toLowerCase()
-        .split(/[\s_\-]+/)
-        .filter(Boolean);
-      const beautyResult = resolveBeautySubCategory({
-        tokens,
-        pathHints: parts
-      });
-      beautySubCategory = beautyResult.subCategory;
-    }
-
-    const reviewHashtags = DASHBOARD_REVIEW_HASHTAGS[metaKey];
-    const video: LocalVideoItem = {
-      id: manifestKey || `dashboard-${category}-${fileName}`,
-      title,
-      url: url as string,
-      fileName,
-      category,
-      thumbnailUrl,
-      beautySubCategory,
-      ageFilterId: ageFolder ? AGE_FOLDER_MAP[ageFolder]?.id : undefined,
-      genderFilterId: genderFolder ? GENDER_FOLDER_MAP[genderFolder]?.id : undefined,
-      extraTags: reviewHashtags?.length ? [...reviewHashtags] : undefined
-    };
-
-    if (!byCategory.has(category)) {
-      byCategory.set(category, []);
-    }
-    byCategory.get(category)!.push(video);
+    byCategory.get(video.category)!.push(video);
   }
 
   for (const videos of byCategory.values()) {
@@ -447,7 +457,55 @@ export const localDashboardVideosByCategory: Record<string, LocalVideoItem[]> = 
 
 export const localDashboardVideos: LocalVideoItem[] = dashboardVideos.flat;
 
+export const hasLocalDashboardVideos = localDashboardVideos.length > 0;
+
+let remoteDashboardCache: LocalVideoItem[] | null = null;
+let remoteDashboardFetchPromise: Promise<LocalVideoItem[]> | null = null;
+
+export const fetchRemoteDashboardVideos = async (): Promise<LocalVideoItem[]> => {
+  if (hasLocalDashboardVideos) return localDashboardVideos;
+  if (remoteDashboardCache) return remoteDashboardCache;
+  if (remoteDashboardFetchPromise) return remoteDashboardFetchPromise;
+
+  remoteDashboardFetchPromise = (async () => {
+    try {
+      const items = await fetchSupabaseVideos({
+        bucket: LOCAL_CONTENT_BUCKET,
+        prefix: 'dashboard',
+        limit: 2000,
+        expires: 60 * 60 * 6
+      });
+      if (!items?.length) {
+        remoteDashboardCache = [];
+        return remoteDashboardCache;
+      }
+
+      const videos: LocalVideoItem[] = [];
+      for (const item of items) {
+        const normalizedPath = item.path.startsWith('dashboard')
+          ? item.path
+          : `dashboard/${item.path.replace(/^\/?/, '')}`;
+        const entry = buildDashboardVideoFromEntry(normalizedPath, item.url);
+        if (entry) {
+          videos.push(entry);
+        }
+      }
+
+      videos.sort((a, b) => a.fileName.localeCompare(b.fileName));
+      remoteDashboardCache = videos;
+      return remoteDashboardCache;
+    } catch (error) {
+      console.error('Failed to fetch remote dashboard videos:', error);
+      remoteDashboardCache = [];
+      return remoteDashboardCache;
+    } finally {
+      remoteDashboardFetchPromise = null;
+    }
+  })();
+
+  return remoteDashboardFetchPromise;
+};
+
 export const hasLocalHeroVideos = localHeroVideos.length > 0;
 export const hasLocalLpGridVideos = localLpGridVideos.length > 0;
-export const hasLocalDashboardVideos = localDashboardVideos.length > 0;
 export const isLocalDashboardEnabled = ENABLE_LOCAL_DASHBOARD;

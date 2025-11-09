@@ -4,7 +4,15 @@ import { useUser } from '../hooks/useUser';
 import { useAdmin } from '../hooks/useAdmin';
 import { database, supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
-import { localDashboardVideos, hasLocalDashboardVideos, findDashboardThumbnail, findLocalDashboardVideo, isLocalDashboardEnabled } from '../local-content';
+import {
+  localDashboardVideos,
+  hasLocalDashboardVideos,
+  findDashboardThumbnail,
+  findLocalDashboardVideo,
+  isLocalDashboardEnabled,
+  fetchRemoteDashboardVideos
+} from '../local-content';
+import type { LocalVideoItem } from '../local-content';
 import type { BeautySubCategory } from '../utils/categoryInference';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
 import { assetsMatchByFilename, dedupeVideoAssets } from '../utils/videoAssetTools';
@@ -31,10 +39,27 @@ interface DashboardProps {
   onPageChange?: (page: string) => void;
 }
 
-const isDashboardCategory = (value?: string): value is VideoAsset['category'] => {
+const DASHBOARD_CATEGORY_IDS: VideoAsset['category'][] = [
+  'beauty',
+  'diet',
+  'healthcare',
+  'business',
+  'lifestyle',
+  'romance'
+];
+
+const isDashboardCategory = (value?: string | null): value is VideoAsset['category'] => {
   if (!value) return false;
-  const normalized = value.toLowerCase();
-  return ['beauty', 'diet', 'healthcare', 'business', 'lifestyle', 'romance'].includes(normalized);
+  const normalized = value.toString().trim().toLowerCase();
+  return DASHBOARD_CATEGORY_IDS.includes(normalized as VideoAsset['category']);
+};
+
+const normalizeDashboardCategory = (value?: string | null): VideoAsset['category'] => {
+  if (!value) return 'lifestyle';
+  const normalized = value.toString().trim().toLowerCase();
+  return DASHBOARD_CATEGORY_IDS.includes(normalized as VideoAsset['category'])
+    ? (normalized as VideoAsset['category'])
+    : 'lifestyle';
 };
 
 const BEAUTY_SUBCATEGORY_SEQUENCE: BeautySubCategory[] = ['skincare', 'haircare', 'oralcare'];
@@ -121,9 +146,8 @@ const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
   }
 
   if (!video.category || video.category === 'lifestyle') {
-    const resolvedCategory = localAsset.category;
-    if (resolvedCategory && isDashboardCategory(resolvedCategory)) {
-      video.category = resolvedCategory;
+    if (localAsset.category && isDashboardCategory(localAsset.category)) {
+      video.category = normalizeDashboardCategory(localAsset.category);
     }
   }
 
@@ -147,51 +171,58 @@ const deriveBeautySubCategoryFromTags = (tags: string[]): BeautySubCategory | un
   return undefined;
 };
 
-const LOCAL_DASHBOARD_ASSETS: VideoAsset[] = isLocalDashboardEnabled && hasLocalDashboardVideos
-  ? dedupeVideoAssets(localDashboardVideos.map((video, index) => {
-      const category = isDashboardCategory(video.category)
-        ? (video.category as VideoAsset['category'])
-        : 'lifestyle';
+const mapLocalVideoToAsset = (video: LocalVideoItem, index: number): VideoAsset => {
+  const category = isDashboardCategory(video.category)
+    ? normalizeDashboardCategory(video.category)
+    : 'lifestyle';
 
-      const baseTitle = video.title || 'ローカル素材 ' + (index + 1);
-      const tagSet = new Set<string>(
-        Array.isArray(video.extraTags) ? video.extraTags.filter(Boolean) : []
-      );
+  const baseTitle = video.title || 'ローカル素材 ' + (index + 1);
+  const tagSet = new Set<string>(
+    Array.isArray(video.extraTags) ? video.extraTags.filter(Boolean) : []
+  );
 
-      let beautySubCategory: BeautySubCategory | undefined = video.category === 'beauty'
-        ? (video as any).beautySubCategory ?? undefined
-        : undefined;
+  let beautySubCategory: BeautySubCategory | undefined =
+    category === 'beauty'
+      ? (video.beautySubCategory as BeautySubCategory | undefined)
+      : undefined;
 
-      if (category === 'beauty') {
-        const derivedFromName = deriveBeautySubCategoryFromTags(Array.from(tagSet));
-        beautySubCategory = beautySubCategory || derivedFromName || BEAUTY_SUBCATEGORY_SEQUENCE[index % BEAUTY_SUBCATEGORY_SEQUENCE.length];
-      }
+  if (category === 'beauty') {
+    const derivedFromName = deriveBeautySubCategoryFromTags(Array.from(tagSet));
+    beautySubCategory =
+      beautySubCategory ||
+      derivedFromName ||
+      BEAUTY_SUBCATEGORY_SEQUENCE[index % BEAUTY_SUBCATEGORY_SEQUENCE.length];
+  }
 
-      const tags = Array.from(tagSet);
-      const providedThumb = (video as any).thumbnailUrl ?? (video as any).thumbnail;
-      const matchedLocalThumb = assetsMatchByFilename(video.fileName, providedThumb) ? providedThumb : undefined;
-      const localThumbnail =
-        matchedLocalThumb ??
-        findDashboardThumbnail(video.fileName) ??
-        (isImageLikeUrl(video.url) ? (video.url as string) : undefined) ??
-        deriveThumbnailFromFileUrl(video.url) ??
-        WHITE_THUMBNAIL;
-      return {
-        id: video.id,
-        title: baseTitle,
-        description: baseTitle + ' (ローカルコンテンツ)',
-        category,
-        tags,
-        duration: 30,
-        resolution: '1080x1920',
-        file_url: video.url,
-        thumbnail_url: localThumbnail,
-        is_featured: index < 3,
-        download_count: 0,
-        created_at: new Date().toISOString(),
-        beautySubCategory
-      } satisfies VideoAsset;
-    }))
+  const tags = Array.from(tagSet);
+  const providedThumb = video.thumbnailUrl ?? (video as any).thumbnail;
+  const matchedLocalThumb = assetsMatchByFilename(video.fileName, providedThumb) ? providedThumb : undefined;
+  const localThumbnail =
+    matchedLocalThumb ??
+    findDashboardThumbnail(video.fileName) ??
+    (isImageLikeUrl(video.url) ? (video.url as string) : undefined) ??
+    deriveThumbnailFromFileUrl(video.url) ??
+    WHITE_THUMBNAIL;
+
+  return {
+    id: video.id,
+    title: baseTitle,
+    description: baseTitle + ' (ローカルコンテンツ)',
+    category,
+    tags,
+    duration: 30,
+    resolution: '1080x1920',
+    file_url: video.url,
+    thumbnail_url: localThumbnail,
+    is_featured: index < 3,
+    download_count: 0,
+    created_at: new Date().toISOString(),
+    beautySubCategory
+  };
+};
+
+const LOCAL_DASHBOARD_ASSETS: VideoAsset[] = hasLocalDashboardVideos
+  ? dedupeVideoAssets(localDashboardVideos.map((video, index) => mapLocalVideoToAsset(video, index)))
   : [];
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
@@ -389,11 +420,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       try {
         setLoading(true);
 
-        if (isLocalDashboardEnabled && LOCAL_DASHBOARD_ASSETS.length > 0) {
+        if (LOCAL_DASHBOARD_ASSETS.length > 0) {
           if (!isMounted) return;
           setVideos(LOCAL_DASHBOARD_ASSETS);
           setLoading(false);
           return;
+        }
+
+        try {
+          const remoteLocalVideos = await fetchRemoteDashboardVideos();
+          if (remoteLocalVideos.length > 0) {
+            if (!isMounted) return;
+            const normalizedRemote = dedupeVideoAssets(
+              remoteLocalVideos.map((video, index) => mapLocalVideoToAsset(video, index))
+            );
+            setVideos(normalizedRemote);
+            setLoading(false);
+            return;
+          }
+        } catch (remoteError) {
+          console.error('ローカルコンテンツの取得に失敗しました:', remoteError);
         }
 
         if (!supabase) {
@@ -429,9 +475,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
           }
 
           const transformed = data.map((row: any) => {
-            const normalizedCategory: VideoAsset['category'] = isDashboardCategory(row.category)
-              ? row.category
-              : 'lifestyle';
+            const normalizedCategory = normalizeDashboardCategory(row.category);
             const tags: string[] = Array.isArray(row.tags) ? [...row.tags] : [];
             const beautySubCategory: BeautySubCategory | undefined = normalizedCategory === 'beauty'
               ? (row.beauty_sub_category as BeautySubCategory | null) ?? deriveBeautySubCategoryFromTags(tags)
