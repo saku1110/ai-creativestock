@@ -43,7 +43,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
     }
 
     if (!isSubscribed) {
-      alert('ダウンロードにはサブスクリプション登録が忁E��でぁE);
+      alert('\\u30c0\\u30a6\\u30f3\\u30ed\\u30fc\\u30c9\\u306b\\u306f\\u30b5\\u30d6\\u30b9\\u30af\\u30ea\\u30d7\\u30b7\\u30e7\\u30f3\\u767b\\u9332\\u304c\\u5fc5\\u8981\\u3067\\u3059');
       return;
     }
 
@@ -74,15 +74,13 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   };
 
   const getDownloadButtonState = () => {
-    if (!user) return { disabled: true, text: 'ログイン忁E��E, color: 'bg-gray-600' };
-    if (!isSubscribed) return { disabled: true, text: '要サブスクリプション', color: 'bg-gray-600' };
-    if (isDownloading) return { disabled: true, text: 'ダウンロード中...', color: 'bg-blue-600' };
-    if (usage?.isLimitExceeded) return { disabled: true, text: '制限到遁E, color: 'bg-red-600' };
-    
-    return { disabled: false, text: 'ダウンローチE, color: 'bg-green-600 hover:bg-green-700' };
+    if (!user) return { disabled: true, text: '\\u30ed\\u30b0\\u30a4\\u30f3\\u304c\\u5fc5\\u8981\\u3067\\u3059', color: 'bg-gray-600' };
+    if (!isSubscribed) return { disabled: true, text: '\\u8981\\u30b5\\u30d6\\u30b9\\u30af\\u30ea\\u30d7\\u30b7\\u30e7\\u30f3', color: 'bg-gray-600' };
+    if (isDownloading) return { disabled: true, text: '\\u30c0\\u30a6\\u30f3\\u30ed\\u30fc\\u30c9\\u4e2d...', color: 'bg-blue-600' };
+    if (usage?.isLimitExceeded) return { disabled: true, text: '\\u5236\\u9650\\u5230\\u9054', color: 'bg-red-600' };
+    return { disabled: false, text: '\\u30c0\\u30a6\\u30f3\\u30ed\\u30fc\\u30c9', color: 'bg-green-600 hover:bg-green-700' };
   };
-
-  const downloadButtonState = getDownloadButtonState();
+const downloadButtonState = getDownloadButtonState();
 
   const startInline = async () => {
     const el = videoRef.current;

@@ -12,6 +12,29 @@ type GalleryVideo = {
   src: string;
 };
 
+const MAX_GALLERY_ITEMS = 16;
+
+const normalizeSourceKey = (src?: string) => {
+  if (!src) return '';
+  const [base] = src.split('?');
+  return (base || src).toLowerCase();
+};
+
+const buildUniqueGalleryList = (...sources: GalleryVideo[][]): GalleryVideo[] => {
+  const seen = new Set<string>();
+  const result: GalleryVideo[] = [];
+  for (const group of sources) {
+    for (const video of group) {
+      const key = normalizeSourceKey(video.src) || video.id.toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      result.push(video);
+      if (result.length >= MAX_GALLERY_ITEMS) return result;
+    }
+  }
+  return result;
+};
+
 const FALLBACK_GALLERY_VIDEOS: GalleryVideo[] = [
   { id: 'sample-1', title: 'Sample 1', src: '/videos/sample1.mp4' },
   { id: 'sample-2', title: 'Sample 2', src: '/videos/sample2.mp4' },
@@ -45,11 +68,18 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
       try {
         const vids = await fetchSupabaseVideos({ bucket: 'local-content', prefix: 'lp-grid', limit: 200, expires: 3600 });
         if (!vids || vids.length === 0) return;
-        const items: GalleryVideo[] = vids.map((v, idx) => ({
-          id: `sb-${idx}-${v.path}`,
-          title: stem(v.path).replace(/[-_]+/g, ' ').replace(/\s{2,}/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-          src: v.url
-        }));
+        const seenPaths = new Set<string>();
+        const items: GalleryVideo[] = [];
+        vids.forEach((v, idx) => {
+          const normalizedPath = (v.path || `sb-${idx}`).toLowerCase();
+          if (seenPaths.has(normalizedPath)) return;
+          seenPaths.add(normalizedPath);
+          items.push({
+            id: `sb-${idx}-${v.path}`,
+            title: stem(v.path).replace(/[-_]+/g, ' ').replace(/\s{2,}/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+            src: v.url
+          });
+        });
         setRemoteVideos(items);
       } catch {
         // ignore
@@ -58,10 +88,11 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
   }, []);
 
   const GALLERY_VIDEOS: GalleryVideo[] = useMemo(() => {
-    const base = remoteVideos && remoteVideos.length > 0
-      ? remoteVideos
-      : (LOCAL_GALLERY_VIDEOS.length > 0 ? LOCAL_GALLERY_VIDEOS : FALLBACK_GALLERY_VIDEOS);
-    return base.slice(0, 16);
+    return buildUniqueGalleryList(
+      remoteVideos || [],
+      LOCAL_GALLERY_VIDEOS,
+      FALLBACK_GALLERY_VIDEOS
+    );
   }, [remoteVideos]);
 
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
@@ -125,4 +156,3 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
 };
 
 export default VideoGallery;
-

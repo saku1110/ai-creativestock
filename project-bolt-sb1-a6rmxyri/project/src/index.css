@@ -3,8 +3,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'InterVariable';
+  src: url('/fonts/inter-var.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 * {
-  font-family: 'Inter', sans-serif;
+  font-family: 'InterVariable', 'Inter', 'Noto Sans JP', sans-serif;
 }
 
 body {
@@ -101,10 +109,20 @@ body {
   overflow: hidden;
 }
 
-/* シンプルな白背景 */
-.white-bg {
-  background: #ffffff;
-  color: #000000;
+.tech-grid {
+  background-image: 
+    linear-gradient(rgba(0, 212, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 255, 0.05) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+@media (min-width: 768px) {
+  .tech-grid {
+    background-image: 
+      linear-gradient(rgba(0, 212, 255, 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.1) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
 }
 
 .neon-border {
@@ -236,56 +254,4 @@ input:focus, select:focus, button:focus {
 
 .modal-content {
   animation: modalFadeIn 0.3s ease-out;
-}
-
-/* h2タグを全て黒色に - 最強の優先度で設定 */
-h2,
-h2 *,
-.h2,
-[class*="h2"] {
-  color: #000000 !important;
-}
-
-/* Tailwind CSSのlayerを使用してより確実に適用 */
-@layer base {
-  h2 {
-    color: #000000 !important;
-  }
-}
-
-@layer utilities {
-  h2 {
-    color: #000000 !important;
-  }
-
-  .force-white-h2 h2:not(.force-black) {
-    color: #ffffff !important;
-  }
-}
-
-.filter-heading,
-.filter-heading * {
-  color: #000000 !important;
-}
-
-.force-white-h2 h2:not(.force-black) *,
-.force-white-h2 .h2:not(.force-black) {
-  color: #ffffff !important;
-}
-
-.section-heading,
-.section-heading * {
-  color: #000000 !important;
-}
-
-.force-white-h2 h2.section-heading,
-.force-white-h2 .section-heading,
-.force-white-h2 h2.section-heading *,
-.force-white-h2 .section-heading * {
-  color: #000000 !important;
-}
-
-.force-white-h2 .force-black,
-.force-white-h2 .force-black * {
-  color: #000000 !important;
 }

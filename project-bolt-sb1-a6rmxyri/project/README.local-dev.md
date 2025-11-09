@@ -11,6 +11,8 @@ VITE_APP_ENV=development
 VITE_USE_SAMPLE_DATA=false
 VITE_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR-ANON-KEY
+VITE_API_PROXY_TARGET=https://ai-creative-stock.com  # optional: hit production /api/* from localhost
+# VITE_API_PROXY_SECURE=true                          # uncomment if you need to force TLS verification
 
 2) Ensure the bucket policy allows authenticated uploads to `video-assets`.
 

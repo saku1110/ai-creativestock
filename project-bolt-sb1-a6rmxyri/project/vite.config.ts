@@ -1,8 +1,18 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:3000';
+  const normalizeBool = (value?: string) => {
+    if (value === undefined) return undefined;
+    const normalized = value.toString().toLowerCase();
+    return normalized === 'true' || normalized === '1';
+  };
+  const proxySecure = normalizeBool(env.VITE_API_PROXY_SECURE) ?? apiProxyTarget.startsWith('https://');
+
+  return {
   plugins: [
     react(),
     // 開発時のみ /api/contact をViteで受ける簡易API（vercel dev なしでも送信可）
@@ -155,11 +165,11 @@ export default defineConfig({
       'Pragma': 'no-cache'
     },
     proxy: {
-      // Proxy API calls to Vercel dev server when running locally
+      // Proxy API calls (switchable between local functions and production API)
       '/api': {
-        target: 'http://localhost:3000',
+        target: apiProxyTarget,
         changeOrigin: true,
-        secure: false,
+        secure: proxySecure,
       },
     },
     watch: {
@@ -177,4 +187,5 @@ export default defineConfig({
       'Pragma': 'no-cache'
     }
   }
+};
 });

@@ -1,0 +1,281 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { User } from '@supabase/supabase-js';
+import { auth, database, supabase } from '../lib/supabase';
+
+interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface UserSubscription {
+  id: string;
+  plan: 'standard' | 'pro' | 'enterprise';
+  status: 'trial' | 'active' | 'canceled' | 'past_due' | 'unpaid';
+  current_period_end: string;
+  monthly_download_limit: number;
+  trial_end_date?: string;
+  trial_downloads_used?: number;
+  trial_downloads_limit?: number;
+  auto_charge_date?: string;
+  stripe_customer_id?: string;
+  stripe_subscription_id?: string;
+}
+
+interface UserContextValue {
+  user: User | null;
+  profile: UserProfile | null;
+  subscription: UserSubscription | null;
+  monthlyDownloads: number;
+  remainingDownloads: number;
+  hasActiveSubscription: boolean;
+  isTrialUser: boolean;
+  trialDaysRemaining: number;
+  trialDownloadsRemaining: number;
+  loading: boolean;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<{ data?: UserProfile | null; error?: unknown }>;
+  refreshUserData: () => Promise<void>;
+}
+
+const UserContext = createContext<UserContextValue | undefined>(undefined);
+
+let lastAuthLogStatus: 'Authenticated' | 'Not authenticated' | null = null;
+
+export const UserProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [subscription, setSubscription] = useState<UserSubscription | null>(null);
+  const [monthlyDownloads, setMonthlyDownloads] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchUserData = async () => {
+      try {
+        const { user: currentUser } = await auth.getCurrentUser();
+
+        if (import.meta.env.DEV) {
+          const status = currentUser ? 'Authenticated' : 'Not authenticated';
+          if (lastAuthLogStatus !== status) {
+            lastAuthLogStatus = status;
+            console.log('User authentication check:', status);
+          }
+        }
+
+        if (!currentUser || !isMounted) {
+          setUser(null);
+          setProfile(null);
+          setSubscription(null);
+          setMonthlyDownloads(0);
+          setLoading(false);
+          return;
+        }
+
+        setUser(currentUser);
+
+        const { data: profileData, error: profileError } = await database.getUserProfile(currentUser.id);
+
+        if (profileError && profileError.code === 'PGRST116') {
+          const { data: newProfile, error: createError } = await database.updateUserProfile(currentUser.id, {
+            email: currentUser.email,
+            name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'ゲストユーザー',
+            avatar_url: currentUser.user_metadata?.avatar_url
+          });
+
+          if (!createError && newProfile && isMounted) {
+            setProfile(newProfile);
+          }
+        } else if (profileData && isMounted) {
+          setProfile(profileData);
+        }
+
+        const { data: subscriptionData } = await database.getUserSubscription(currentUser.id);
+        if (isMounted) {
+          setSubscription(subscriptionData);
+        }
+
+        const { count } = await database.getMonthlyDownloadCount(currentUser.id);
+        if (isMounted) {
+          setMonthlyDownloads(count);
+        }
+      } catch (error) {
+        console.error('ユーザーデータ取得エラー:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchUserData();
+
+    let authSubscription: { unsubscribe: () => void } | undefined;
+    if (!(import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development')) {
+      const { data: { subscription: authSub } } = auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          setUser(session.user);
+          await fetchUserData();
+        } else if (event === 'SIGNED_OUT') {
+          if (!isMounted) return;
+          setUser(null);
+          setProfile(null);
+          setSubscription(null);
+          setMonthlyDownloads(0);
+          setLoading(false);
+        }
+      });
+      authSubscription = authSub;
+    }
+
+    return () => {
+      isMounted = false;
+      authSubscription?.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let isActive = true;
+
+    const syncMonthlyDownloads = async () => {
+      try {
+        const { count } = await database.getMonthlyDownloadCount(user.id);
+        if (isActive && typeof count === 'number') {
+          setMonthlyDownloads(count);
+        }
+      } catch (error) {
+        console.error('月次ダウンロード数同期エラー:', error);
+      }
+    };
+
+    const syncSubscription = async () => {
+      try {
+        const { data } = await database.getUserSubscription(user.id);
+        if (isActive) {
+          setSubscription(data);
+        }
+      } catch (error) {
+        console.error('サブスクリプション同期エラー:', error);
+      }
+    };
+
+    const downloadChannel = supabase
+      .channel(`download-usage:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'download_history', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          if (!isActive) return;
+          if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+            void syncMonthlyDownloads();
+          }
+        }
+      )
+      .subscribe();
+
+    const subscriptionChannel = supabase
+      .channel(`subscription-plan:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'subscriptions', filter: `user_id=eq.${user.id}` },
+        () => {
+          if (!isActive) return;
+          void syncSubscription();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isActive = false;
+      downloadChannel?.unsubscribe?.();
+      subscriptionChannel?.unsubscribe?.();
+    };
+  }, [user?.id]);
+
+  const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (!user) return { error: 'ユーザーが未ログインです' };
+
+    try {
+      const { data, error } = await database.updateUserProfile(user.id, updates);
+      if (!error && data) {
+        setProfile(data);
+      }
+      return { data, error };
+    } catch (error) {
+      return { error };
+    }
+  };
+
+  const refreshUserData = async () => {
+    if (!user) return;
+
+    try {
+      const { data: profileData } = await database.getUserProfile(user.id);
+      if (profileData) {
+        setProfile(profileData);
+      }
+
+      const { data: subscriptionData } = await database.getUserSubscription(user.id);
+      setSubscription(subscriptionData);
+
+      const { count } = await database.getMonthlyDownloadCount(user.id);
+      setMonthlyDownloads(count);
+    } catch (error) {
+      console.error('ユーザーデータ再取得エラー:', error);
+    }
+  };
+
+  const remainingDownloads = subscription
+    ? Math.max(0, subscription.monthly_download_limit - monthlyDownloads)
+    : 0;
+
+  const hasActiveSubscription = Boolean(
+    subscription &&
+    (subscription.status === 'active' || subscription.status === 'trial') &&
+    new Date(subscription.current_period_end) > new Date()
+  );
+
+  const isTrialUser = subscription?.status === 'trial' || false;
+
+  const trialDaysRemaining = subscription?.trial_end_date
+    ? Math.max(0, Math.ceil((new Date(subscription.trial_end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : 0;
+
+  const trialDownloadsRemaining = subscription?.trial_downloads_limit && subscription?.trial_downloads_used
+    ? Math.max(0, subscription.trial_downloads_limit - subscription.trial_downloads_used)
+    : 0;
+
+  const contextValue: UserContextValue = {
+    user,
+    profile,
+    subscription,
+    monthlyDownloads,
+    remainingDownloads,
+    hasActiveSubscription,
+    isTrialUser,
+    trialDaysRemaining,
+    trialDownloadsRemaining,
+    loading,
+    updateProfile,
+    refreshUserData
+  };
+
+  return (
+    <UserContext.Provider value={contextValue}>
+      {children}
+    </UserContext.Provider>
+  );
+};
+
+export const useUser = () => {
+  const context = useContext(UserContext);
+  if (!context) {
+    throw new Error('useUser must be used within a UserProvider');
+  }
+  return context;
+};

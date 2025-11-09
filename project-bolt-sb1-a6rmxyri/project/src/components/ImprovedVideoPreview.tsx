@@ -44,7 +44,8 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const { user, subscription, remainingDownloads } = useUser();
+  const { user, remainingDownloads, hasActiveSubscription } = useUser();
+  const canDownload = Boolean(user && hasActiveSubscription);
 
   const categories = {
     'beauty': '美容',
@@ -67,7 +68,7 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
       
       // 自動再生（ミュート状態で）
       setTimeout(() => {
-        if (videoRef.current && subscription) {
+        if (videoRef.current && canDownload) {
           videoRef.current.play().catch(() => {
             setHasError(true);
           });
@@ -75,7 +76,7 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
         }
       }, 500);
     }
-  }, [isOpen, subscription]);
+  }, [isOpen, canDownload]);
 
   // お気に入り状態をチェック
   const checkFavoriteStatus = async () => {
@@ -148,7 +149,7 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
   }, [isOpen, onClose]);
 
   const togglePlay = () => {
-    if (!videoRef.current || !subscription) return;
+    if (!videoRef.current || !canDownload) return;
     
     if (isPlaying) {
       videoRef.current.pause();
@@ -166,7 +167,7 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!videoRef.current || !subscription) return;
+    if (!videoRef.current || !canDownload) return;
     
     const time = parseFloat(e.target.value);
     videoRef.current.currentTime = time;
@@ -340,7 +341,7 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
               )}
               
               {/* 未登録ユーザー用のオーバーレイ */}
-              {!subscription && (
+              {!canDownload && (
                 <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
                   <div className="text-center p-6">
                     <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-glow">
@@ -359,7 +360,7 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
               )}
               
               {/* 再生コントロール */}
-              {subscription && (
+              {canDownload && (
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                   {/* プログレスバー */}
                   <div className="mb-3">
@@ -465,11 +466,11 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
 
                 {/* アクションボタン */}
                 <div className="space-y-3">
-                  {subscription ? (
+                  {canDownload ? (
                     <>
                       <button
                         onClick={() => onDownload && onDownload(video)}
-                        disabled={remainingDownloads <= 0}
+                        disabled={!canDownload || remainingDownloads <= 0}
                         className={`w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-xl font-bold transition-all ${
                           remainingDownloads > 0
                             ? 'bg-cyan-400 hover:bg-cyan-500 text-black'

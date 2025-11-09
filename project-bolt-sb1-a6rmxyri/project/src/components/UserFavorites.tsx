@@ -1,21 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { Heart, Search, Filter, Download, Play, Eye, Grid, List, Star, Clock, TrendingUp } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Heart, Grid, List, Download, Trash2, Search } from 'lucide-react';
+import Sidebar from './Sidebar';
 import { useUser } from '../hooks/useUser';
 import { database } from '../lib/supabase';
-import Sidebar from './Sidebar';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
 
 interface VideoAsset {
   id: string;
   title: string;
   description: string;
-  category: 'beauty' | 'fitness' | 'haircare' | 'business' | 'lifestyle';
+  category: 'beauty' | 'diet' | 'healthcare' | 'business' | 'lifestyle' | 'romance';
   tags: string[];
   duration: number;
   resolution: string;
   file_url: string;
   thumbnail_url: string;
-  is_featured: boolean;
   download_count: number;
   created_at: string;
 }
@@ -39,52 +38,71 @@ interface UserFavoritesProps {
   onPageChange?: (page: string) => void;
 }
 
+const CATEGORY_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'beauty', label: 'Beauty' },
+  { id: 'diet', label: 'Diet' },
+  { id: 'healthcare', label: 'Healthcare' },
+  { id: 'business', label: 'Business' },
+  { id: 'lifestyle', label: 'Lifestyle' },
+  { id: 'romance', label: 'Romance' }
+] as const;
+
+const SORT_OPTIONS = [
+  { id: 'newest', label: 'Newest' },
+  { id: 'oldest', label: 'Oldest' },
+  { id: 'category', label: 'Category' },
+  { id: 'duration', label: 'Duration' },
+  { id: 'popular', label: 'Most Popular' }
+] as const;
+
+type ViewMode = 'grid' | 'list';
+
+const formatDuration = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
+
 const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }) => {
+  const { user, remainingDownloads, hasActiveSubscription } = useUser();
   const [favorites, setFavorites] = useState<FavoriteRecord[]>([]);
   const [stats, setStats] = useState<FavoriteStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('newest');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewVideo, setPreviewVideo] = useState<VideoAsset | null>(null);
-  const { user, subscription, remainingDownloads } = useUser();
-
-  const categories = [
-    { id: 'all', name: '全て' },
-    { id: 'beauty', name: '美容' },
-    { id: 'fitness', name: 'フィットネス' },
-    { id: 'haircare', name: 'ヘアケア' },
-    { id: 'business', name: 'ビジネス' },
-    { id: 'lifestyle', name: 'ライフスタイル' }
-  ];
-
-  const sortOptions = [
-    { id: 'newest', name: '最新順' },
-    { id: 'oldest', name: '古い順' },
-    { id: 'category', name: 'カテゴリ順' },
-    { id: 'duration', name: '動画時間順' },
-    { id: 'popular', name: '人気順' }
-  ];
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('newest');
 
   useEffect(() => {
-    if (user) {
-      fetchFavorites();
-      fetchFavoriteStats();
+    if (!user) {
+      setFavorites([]);
+      setStats(null);
+      setLoading(false);
+      return;
     }
+
+    void fetchFavorites();
+    void fetchStats();
   }, [user]);
 
   const fetchFavorites = async () => {
+    if (!user) return;
+
     try {
       setLoading(true);
       const { data, error } = await database
         .from('user_favorites')
-        .select(`
-          *,
-          video:video_assets(*)
-        `)
-        .eq('user_id', user!.id)
+        .select(
+          `
+            *,
+            video:video_assets(*)
+          `
+        )
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -92,421 +110,385 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
         return;
       }
 
-      setFavorites(data || []);
-    } catch (error) {
-      console.error('Favorites error:', error);
+      setFavorites((data || []).filter((record) => Boolean(record.video)) as FavoriteRecord[]);
+    } catch (err) {
+      console.error('Favorites error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchFavoriteStats = async () => {
+  const fetchStats = async () => {
+    if (!user) return;
+
     try {
       const { data, error } = await database
         .from('user_favorites')
-        .select(`
-          created_at,
-          video:video_assets(category, duration, title)
-        `)
-        .eq('user_id', user!.id);
+        .select(
+          `
+            created_at,
+            video:video_assets(category, duration, title)
+          `
+        )
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-      if (error || !data) return;
+      if (error || !data) {
+          return;
+      }
 
-      // カテゴリ別集計
       const categoryCount: Record<string, number> = {};
-      data.forEach(f => {
-        const category = f.video?.category || 'unknown';
+      let totalDuration = 0;
+
+      data.forEach((entry) => {
+        const category = entry.video?.category || 'unknown';
         categoryCount[category] = (categoryCount[category] || 0) + 1;
+        totalDuration += entry.video?.duration || 0;
       });
 
       const favoriteCategories = Object.entries(categoryCount)
-        .map(([category, count]) => ({ category: getCategoryName(category), count }))
+        .map(([category, count]) => ({ category, count }))
         .sort((a, b) => b.count - a.count);
-
-      // 平均動画時間
-      const totalDuration = data.reduce((sum, f) => sum + (f.video?.duration || 0), 0);
-      const averageDuration = data.length > 0 ? Math.round(totalDuration / data.length) : 0;
-
-      // 最新のお気に入り
-      const mostRecentFavorite = data.length > 0 ? data[0].video?.title || 'なし' : 'なし';
 
       setStats({
         totalFavorites: data.length,
         favoriteCategories,
-        averageDuration,
-        mostRecentFavorite
+        averageDuration: data.length ? Math.round(totalDuration / data.length) : 0,
+        mostRecentFavorite: data[0]?.created_at || ''
       });
-    } catch (error) {
-      console.error('Stats fetch error:', error);
+    } catch (err) {
+      console.error('Favorite stats error:', err);
     }
   };
 
-  const getCategoryName = (categoryId: string) => {
-    return categories.find(c => c.id === categoryId)?.name || categoryId;
-  };
+  const filteredFavorites = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+    return favorites
+      .filter((record) => {
+        const matchesSearch = query
+          ? record.video?.title?.toLowerCase().includes(query) ||
+            record.video?.tags?.some((tag) => tag.toLowerCase().includes(query))
+          : true;
+        const matchesCategory = categoryFilter === 'all' || record.video?.category === categoryFilter;
+        return matchesSearch && matchesCategory;
+      })
+      .sort((a, b) => {
+        switch (sortBy) {
+          case 'newest':
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          case 'oldest':
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          case 'category':
+            return (a.video?.category || '').localeCompare(b.video?.category || '');
+          case 'duration':
+            return (a.video?.duration || 0) - (b.video?.duration || 0);
+          case 'popular':
+            return (b.video?.download_count || 0) - (a.video?.download_count || 0);
+          default:
+            return 0;
+        }
+      });
+  }, [favorites, searchQuery, categoryFilter, sortBy]);
 
   const removeFavorite = async (favoriteId: string) => {
     try {
-      const { error } = await database
-        .from('user_favorites')
-        .delete()
-        .eq('id', favoriteId)
-        .eq('user_id', user!.id);
-
+      const { error } = await database.from('user_favorites').delete().eq('id', favoriteId);
       if (error) {
         console.error('Remove favorite error:', error);
-        alert('お気に入りの削除に失敗しました。');
         return;
       }
-
-      // 再フェッチ
-      fetchFavorites();
-      fetchFavoriteStats();
-    } catch (error) {
-      console.error('Remove favorite error:', error);
-      alert('お気に入りの削除に失敗しました。');
+      setFavorites((prev) => prev.filter((favorite) => favorite.id !== favoriteId));
+    } catch (err) {
+      console.error('Remove favorite error:', err);
     }
   };
 
-  const downloadVideo = async (video: VideoAsset) => {
-    if (!subscription || remainingDownloads <= 0) {
-      alert('ダウンロード制限に達しています。プランをアップグレードしてください。');
+  const downloadVideo = (video: VideoAsset) => {
+    if (!hasActiveSubscription) {
+      alert('ダウンロードには有料プランが必要です。');
+      return;
+    }
+
+    if (remainingDownloads !== null && remainingDownloads <= 0) {
+      alert('今月のダウンロード上限に達しています。');
+      return;
+    }
+
+    if (!video.file_url) {
+      alert('ダウンロード可能なファイルが見つかりません。');
       return;
     }
 
     try {
-      // ダウンロード処理
-      const link = document.createElement('a');
-      link.href = video.file_url;
-      link.download = getNextDownloadFilename(video.file_url);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      // ダウンロード履歴を記録
-      await database
-        .from('download_history')
-        .insert([{
-          user_id: user!.id,
-          video_id: video.id,
-          ip_address: null,
-          user_agent: navigator.userAgent
-        }]);
-
-      // ダウンロード数を更新
-      await database
-        .from('video_assets')
-        .update({ download_count: video.download_count + 1 })
-        .eq('id', video.id);
-
-    } catch (error) {
-      console.error('Download error:', error);
-      alert('ダウンロードに失敗しました。');
+      const anchor = document.createElement('a');
+      anchor.href = video.file_url;
+      anchor.download = getNextDownloadFilename(video.file_url);
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+    } catch (err) {
+      console.error('Download error:', err);
+      alert('ダウンロードに失敗しました。もう一度お試しください。');
     }
   };
-
-  // フィルターとソート
-  const filteredFavorites = favorites
-    .filter(favorite => {
-      // 検索フィルター
-      const searchMatch = !searchQuery || 
-        favorite.video?.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        favorite.video?.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-      
-      // カテゴリフィルター
-      const categoryMatch = categoryFilter === 'all' || favorite.video?.category === categoryFilter;
-      
-      return searchMatch && categoryMatch;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'newest':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        case 'oldest':
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        case 'category':
-          return (a.video?.category || '').localeCompare(b.video?.category || '');
-        case 'duration':
-          return (a.video?.duration || 0) - (b.video?.duration || 0);
-        case 'popular':
-          return (b.video?.download_count || 0) - (a.video?.download_count || 0);
-        default:
-          return 0;
-      }
-    });
 
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">お気に入りを読み込み中...</p>
+        <div className="space-y-4 text-center">
+          <div className="w-14 h-14 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-gray-400">お気に入りを読み込んでいます...</p>
         </div>
       </div>
     );
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center">
+        <p className="text-gray-400">このページを表示するにはログインが必要です。</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen" style={{ background: '#0a0a0a', color: '#ffffff' }}>
-      {/* サイドバー */}
+    <div className="min-h-screen bg-[#050505] text-white">
       <Sidebar currentPage="favorites" onPageChange={onPageChange} />
-      
-      {/* メインコンテンツ */}
-      <div style={{ marginLeft: '260px', padding: '20px 30px' }}>
-        <div className="max-w-7xl mx-auto">
-        {/* ヘッダー */}
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white mb-2 sm:mb-4">
-            <span className="gradient-text">お気に入り</span>
-          </h1>
-          <p className="text-sm sm:text-lg text-gray-400">
-            あなたがお気に入りに追加した動画コレクション
-          </p>
-        </div>
-
-        {/* 統計サマリー */}
-        {stats && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-            <div className="glass-effect rounded-xl p-4 border border-white/10">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-gradient-to-br from-pink-400 to-red-600 rounded-xl flex items-center justify-center mx-auto mb-3">
-                  <Heart className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-xl font-black text-white mb-1">{stats.totalFavorites}</h3>
-                <p className="text-gray-400 text-sm">お気に入り総数</p>
+      <div className="ml-0 lg:ml-[260px] px-4 py-8 lg:px-10">
+        <div className="max-w-7xl mx-auto space-y-8">
+          <header className="space-y-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-400 mb-1 flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-cyan-400" />
+                  Favorites
+                </p>
+                <h1 className="text-3xl font-black">User Favorites</h1>
+                <p className="text-sm text-gray-400">気に入った動画をまとめてすばやく管理できます。</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-400">今月の残りダウンロード</p>
+                <p className="text-3xl font-semibold">
+                  {remainingDownloads === null ? '∞' : remainingDownloads}
+                </p>
               </div>
             </div>
 
-            <div className="glass-effect rounded-xl p-4 border border-white/10">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-600 rounded-xl flex items-center justify-center mx-auto mb-3">
-                  <Star className="w-6 h-6 text-white" />
+            {stats && (
+              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                  <p className="text-sm text-gray-400">総お気に入り数</p>
+                  <p className="text-3xl font-semibold mt-1">{stats.totalFavorites}</p>
                 </div>
-                <h3 className="text-lg font-black text-white mb-1">
-                  {stats.favoriteCategories[0]?.category || 'なし'}
-                </h3>
-                <p className="text-gray-400 text-sm">好みのジャンル</p>
-              </div>
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                  <p className="text-sm text-gray-400">平均動画時間</p>
+                  <p className="text-3xl font-semibold mt-1">{formatDuration(stats.averageDuration)}</p>
+                </div>
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                  <p className="text-sm text-gray-400">人気カテゴリ</p>
+                  <p className="text-lg font-semibold mt-1">
+                    {stats.favoriteCategories[0]?.category || 'N/A'}
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                  <p className="text-sm text-gray-400">最新登録日</p>
+                  <p className="text-lg font-semibold mt-1">
+                    {stats.mostRecentFavorite ? formatDate(stats.mostRecentFavorite) : '—'}
+                  </p>
+                </div>
+              </section>
+            )}
+          </header>
+
+          <section className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative w-full lg:max-w-sm">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="お気に入りを検索"
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-cyan-400"
+              />
             </div>
 
-            <div className="glass-effect rounded-xl p-4 border border-white/10">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-red-600 rounded-xl flex items-center justify-center mx-auto mb-3">
-                  <Clock className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-lg font-black text-white mb-1">{stats.averageDuration}秒</h3>
-                <p className="text-gray-400 text-sm">平均動画時間</p>
-              </div>
-            </div>
-
-            <div className="glass-effect rounded-xl p-4 border border-white/10">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-cyan-600 rounded-xl flex items-center justify-center mx-auto mb-3">
-                  <TrendingUp className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-sm font-black text-white mb-1 line-clamp-1">{stats.mostRecentFavorite}</h3>
-                <p className="text-gray-400 text-sm">最新のお気に入り</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* フィルターとコントロール */}
-        <div className="space-y-4 mb-6 sm:mb-8">
-          {/* 検索バー */}
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="お気に入りを検索..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-gray-800/50 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
-            />
-          </div>
-
-          {/* フィルターとソート */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <select
+                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3"
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="bg-gray-800/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-400"
               >
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
+                {CATEGORY_FILTERS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
                   </option>
                 ))}
               </select>
 
               <select
+                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="bg-gray-800/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-400"
               >
-                {sortOptions.map((option) => (
+                {SORT_OPTIONS.map((option) => (
                   <option key={option.id} value={option.id}>
-                    {option.name}
+                    {option.label}
                   </option>
                 ))}
               </select>
-            </div>
 
-            {/* 表示モード切り替え */}
-            <div className="flex bg-gray-800/50 rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 rounded ${
-                  viewMode === 'grid' ? 'bg-cyan-400 text-black' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                <Grid className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 rounded ${
-                  viewMode === 'list' ? 'bg-cyan-400 text-black' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                <List className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* 結果数表示 */}
-          <div className="text-sm text-gray-400">
-            <span className="text-white font-medium">{filteredFavorites.length}</span>件のお気に入りが見つかりました
-          </div>
-        </div>
-
-        {/* お気に入りリスト */}
-        {filteredFavorites.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-24 h-24 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Heart className="w-12 h-12 text-gray-600" />
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">お気に入りがありません</h3>
-            <p className="text-gray-400 mb-4">
-              条件に一致するお気に入り動画が見つかりませんでした。
-            </p>
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setCategoryFilter('all');
-              }}
-              className="cyber-button text-white px-6 py-2 rounded-lg font-medium"
-            >
-              フィルターをリセット
-            </button>
-          </div>
-        ) : (
-          <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6' : 'space-y-4'}>
-            {filteredFavorites.map((favorite) => (
-              <div key={favorite.id} className={`glass-effect rounded-xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-300 group ${viewMode === 'list' ? 'flex gap-4 p-4' : ''}`}>
-                {/* サムネイル */}
-                <div className={`relative ${viewMode === 'list' ? 'w-32 h-20 flex-shrink-0' : 'aspect-video'} bg-gray-800 overflow-hidden`}>
-                  <img
-                    src={favorite.video?.thumbnail_url}
-                    alt={favorite.video?.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <button
-                      onClick={() => {
-                        setPreviewVideo(favorite.video);
-                        setShowPreview(true);
-                      }}
-                      className="bg-white/20 backdrop-blur-sm rounded-full p-2 hover:bg-white/30 transition-colors"
-                    >
-                      <Eye className="w-4 h-4 text-white" />
-                    </button>
-                    <button
-                      onClick={() => downloadVideo(favorite.video)}
-                      className="bg-cyan-400/20 backdrop-blur-sm rounded-full p-2 hover:bg-cyan-400/30 transition-colors"
-                    >
-                      <Download className="w-4 h-4 text-cyan-400" />
-                    </button>
-                  </div>
-                  <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-1 rounded">
-                    {formatDuration(favorite.video?.duration || 0)}
-                  </div>
-                </div>
-
-                {/* 動画情報 */}
-                <div className={`${viewMode === 'list' ? 'flex-1 min-w-0' : 'p-4'}`}>
-                  <div className="flex items-start justify-end mb-2">
-                    <button
-                      onClick={() => removeFavorite(favorite.id)}
-                      className="text-pink-400 hover:text-pink-300 transition-colors ml-2"
-                    >
-                      <Heart className="w-4 h-4 fill-current" />
-                    </button>
-                  </div>
-                  
-                  <p className={`text-gray-400 text-xs ${viewMode === 'list' ? 'line-clamp-2' : 'line-clamp-3'} mb-3`}>
-                    {favorite.video?.description}
-                  </p>
-                  
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    <span className="bg-cyan-400/20 text-cyan-400 px-2 py-1 rounded text-xs">
-                      {getCategoryName(favorite.video?.category || '')}
-                    </span>
-                    <span className="bg-gray-700 text-gray-300 px-2 py-1 rounded text-xs">
-                      {favorite.video?.resolution}
-                    </span>
-                  </div>
-                  
-                  <div className="text-xs text-gray-500">
-                    {formatDate(favorite.created_at)}にお気に入り追加
-                  </div>
-                </div>
+              <div className="flex gap-2">
+                <button
+                  className={`p-2 rounded-lg border ${
+                    viewMode === 'grid' ? 'border-cyan-400 text-cyan-400' : 'border-slate-700 text-slate-400'
+                  }`}
+                  onClick={() => setViewMode('grid')}
+                  aria-label="Grid view"
+                >
+                  <Grid className="w-5 h-5" />
+                </button>
+                <button
+                  className={`p-2 rounded-lg border ${
+                    viewMode === 'list' ? 'border-cyan-400 text-cyan-400' : 'border-slate-700 text-slate-400'
+                  }`}
+                  onClick={() => setViewMode('list')}
+                  aria-label="List view"
+                >
+                  <List className="w-5 h-5" />
+                </button>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* プレビューモーダル */}
-      {showPreview && previewVideo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="relative glass-dark rounded-2xl border border-white/20 p-6 max-w-2xl w-full">
-            <button
-              onClick={() => setShowPreview(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
-            >
-              ×
-            </button>
-            <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden mb-4">
-              <video 
-                controls 
-                className="w-full h-full"
-                poster={previewVideo.thumbnail_url}
-              >
-                <source src={previewVideo.file_url} type="video/mp4" />
-              </video>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">{previewVideo.title}</h3>
-            <p className="text-gray-400 text-sm">{previewVideo.description}</p>
-          </div>
+          </section>
+
+          {filteredFavorites.length === 0 ? (
+            <div className="border border-dashed border-white/20 rounded-3xl py-16 text-center text-gray-400">
+              条件に一致するお気に入りが見つかりませんでした。
+            </div>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filteredFavorites.map((favorite) => (
+                <article key={favorite.id} className="rounded-3xl bg-white/5 border border-white/10 overflow-hidden">
+                  <div className="relative aspect-video">
+                    <img
+                      src={favorite.video.thumbnail_url}
+                      alt={favorite.video.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      className="absolute top-3 right-3 bg-white/90 text-slate-900 rounded-full p-2"
+                      onClick={() => removeFavorite(favorite.id)}
+                      aria-label="お気に入りから削除"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-400">
+                          {favorite.video.category}
+                        </p>
+                        <h3 className="text-lg font-semibold text-white">{favorite.video.title}</h3>
+                      </div>
+                      <span className="text-sm text-gray-400">{formatDuration(favorite.video.duration)}</span>
+                    </div>
+
+                    <p className="text-sm text-gray-400 line-clamp-2">
+                      {favorite.video.description || '説明文はまだありません。'}
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {(favorite.video.tags || []).slice(0, 3).map((tag) => (
+                        <span
+                          key={tag}
+                          className="text-xs px-3 py-1 rounded-full bg-white/10 border border-white/10"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <button
+                        className="text-sm text-cyan-400 hover:text-cyan-200"
+                        onClick={() => downloadVideo(favorite.video)}
+                      >
+                        <Download className="w-4 h-4 inline mr-2" />
+                        Download
+                      </button>
+                      <span className="text-xs text-gray-500">{formatDate(favorite.created_at)}</span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredFavorites.map((favorite) => (
+                <article
+                  key={favorite.id}
+                  className="rounded-3xl bg-white/5 border border-white/10 overflow-hidden flex flex-col md:flex-row"
+                >
+                  <div className="md:w-1/3 aspect-video md:aspect-auto">
+                    <img
+                      src={favorite.video.thumbnail_url}
+                      alt={favorite.video.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 p-5 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-400">
+                          {favorite.video.category}
+                        </p>
+                        <h3 className="text-lg font-semibold text-white">{favorite.video.title}</h3>
+                      </div>
+                      <span className="text-sm text-gray-400">{formatDuration(favorite.video.duration)}</span>
+                    </div>
+
+                    <p className="text-sm text-gray-400 line-clamp-2">
+                      {favorite.video.description || '説明文はまだありません。'}
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {(favorite.video.tags || []).slice(0, 5).map((tag) => (
+                        <span
+                          key={tag}
+                          className="text-xs px-3 py-1 rounded-full bg-white/10 border border-white/10"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 justify-between">
+                      <div className="text-xs text-gray-500">{formatDate(favorite.created_at)}</div>
+                      <div className="flex gap-2">
+                        <button
+                          className="inline-flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-200"
+                          onClick={() => downloadVideo(favorite.video)}
+                        >
+                          <Download className="w-4 h-4" />
+                          Download
+                        </button>
+                        <button
+                          className="inline-flex items-center gap-2 text-sm text-red-300 hover:text-red-200"
+                          onClick={() => removeFavorite(favorite.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
-      )}
       </div>
     </div>
   );

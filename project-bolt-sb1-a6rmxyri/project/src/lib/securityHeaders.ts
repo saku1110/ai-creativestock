@@ -35,7 +35,7 @@ export class SecurityHeaderManager {
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://*.supabase.co",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' https://fonts.gstatic.com",
-        "img-src 'self' data: blob: https://*.supabase.co https://via.placeholder.com",
+        "img-src 'self' data: blob: https://*.supabase.co",
         "media-src 'self' blob: https://*.supabase.co",
         "connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.ipify.org",
         "frame-src 'self' https://js.stripe.com",
