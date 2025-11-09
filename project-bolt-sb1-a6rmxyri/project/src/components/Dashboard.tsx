@@ -4,7 +4,7 @@ import { useUser } from '../hooks/useUser';
 import { useAdmin } from '../hooks/useAdmin';
 import { database, supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
-import { localDashboardVideos, hasLocalDashboardVideos, findDashboardThumbnail, findLocalDashboardVideo } from '../local-content';
+import { localDashboardVideos, hasLocalDashboardVideos, findDashboardThumbnail, findLocalDashboardVideo, isLocalDashboardEnabled } from '../local-content';
 import type { BeautySubCategory } from '../utils/categoryInference';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
 import { assetsMatchByFilename, dedupeVideoAssets } from '../utils/videoAssetTools';
@@ -95,7 +95,7 @@ const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
     }
   };
 
-  if (hasWatermarkSignature(video.file_url) || !hasLocalDashboardVideos) {
+  if (hasWatermarkSignature(video.file_url) || !isLocalDashboardEnabled || !hasLocalDashboardVideos) {
     video.preview_url = video.file_url;
     ensureThumbnail();
     return video;
@@ -147,7 +147,7 @@ const deriveBeautySubCategoryFromTags = (tags: string[]): BeautySubCategory | un
   return undefined;
 };
 
-const LOCAL_DASHBOARD_ASSETS: VideoAsset[] = hasLocalDashboardVideos
+const LOCAL_DASHBOARD_ASSETS: VideoAsset[] = isLocalDashboardEnabled && hasLocalDashboardVideos
   ? dedupeVideoAssets(localDashboardVideos.map((video, index) => {
       const category = isDashboardCategory(video.category)
         ? (video.category as VideoAsset['category'])
@@ -389,7 +389,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       try {
         setLoading(true);
 
-        if (LOCAL_DASHBOARD_ASSETS.length > 0) {
+        if (isLocalDashboardEnabled && LOCAL_DASHBOARD_ASSETS.length > 0) {
           if (!isMounted) return;
           setVideos(LOCAL_DASHBOARD_ASSETS);
           setLoading(false);

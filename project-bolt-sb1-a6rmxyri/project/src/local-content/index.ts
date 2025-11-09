@@ -303,6 +303,7 @@ const registerDashboardVideo = (video: LocalVideoItem) => {
 };
 
 export const findLocalDashboardVideo = (identifier?: string): LocalVideoItem | undefined => {
+  if (!ENABLE_LOCAL_DASHBOARD) return undefined;
   const key = resolveReviewKey(identifier);
   if (key && DASHBOARD_VIDEO_LOOKUP.has(key)) {
     return DASHBOARD_VIDEO_LOOKUP.get(key);
@@ -449,3 +450,4 @@ export const localDashboardVideos: LocalVideoItem[] = dashboardVideos.flat;
 export const hasLocalHeroVideos = localHeroVideos.length > 0;
 export const hasLocalLpGridVideos = localLpGridVideos.length > 0;
 export const hasLocalDashboardVideos = localDashboardVideos.length > 0;
+export const isLocalDashboardEnabled = ENABLE_LOCAL_DASHBOARD;
