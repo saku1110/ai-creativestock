@@ -1,18 +1,19 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Search, Download, Heart, X, ChevronLeft, Eye, Bookmark, Crown, Zap, Star } from 'lucide-react';
 import { useUser } from '../hooks/useUser';
 import { useAdmin } from '../hooks/useAdmin';
 import { database, supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
-import { localDashboardVideos, hasLocalDashboardVideos } from '../local-content';
+import { localDashboardVideos, hasLocalDashboardVideos, findDashboardThumbnail, findLocalDashboardVideo } from '../local-content';
 import type { BeautySubCategory } from '../utils/categoryInference';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
+import { assetsMatchByFilename, dedupeVideoAssets } from '../utils/videoAssetTools';
 
 interface VideoAsset {
   id: string;
   title: string;
   description: string;
-  category: 'beauty' | 'fitness' | 'haircare' | 'oralcare' | 'business' | 'lifestyle' | 'romance' | 'pet';
+  category: 'beauty' | 'diet' | 'healthcare' | 'business' | 'lifestyle' | 'romance';
   tags: string[];
   duration: number;
   resolution: string;
@@ -33,15 +34,97 @@ interface DashboardProps {
 const isDashboardCategory = (value?: string): value is VideoAsset['category'] => {
   if (!value) return false;
   const normalized = value.toLowerCase();
-  return ['beauty', 'fitness', 'haircare', 'oralcare', 'business', 'lifestyle', 'romance', 'pet'].includes(normalized);
+  return ['beauty', 'diet', 'healthcare', 'business', 'lifestyle', 'romance'].includes(normalized);
 };
 
 const BEAUTY_SUBCATEGORY_SEQUENCE: BeautySubCategory[] = ['skincare', 'haircare', 'oralcare'];
+
+const CATEGORY_PILL_CLASSES: Record<VideoAsset['category'], string> = {
+  beauty: 'bg-gradient-to-r from-pink-100 via-rose-100 to-white text-black',
+  diet: 'bg-gradient-to-r from-emerald-100 via-teal-100 to-white text-black',
+  healthcare: 'bg-gradient-to-r from-cyan-100 via-blue-100 to-white text-black',
+  business: 'bg-gradient-to-r from-sky-100 via-indigo-100 to-white text-black',
+  lifestyle: 'bg-gradient-to-r from-amber-100 via-orange-100 to-white text-black',
+  romance: 'bg-gradient-to-r from-rose-100 via-pink-100 to-white text-black'
+};
 
 const BEAUTY_SUBCATEGORY_DATA: Record<BeautySubCategory, { label: string; tag: string }> = {
   skincare: { label: 'スキンケア', tag: 'beauty:skincare' },
   haircare: { label: 'ヘアケア', tag: 'beauty:haircare' },
   oralcare: { label: 'オーラルケア', tag: 'beauty:oralcare' }
+};
+
+const WHITE_THUMBNAIL =
+  'data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\" width=\"240\" height=\"426\" viewBox=\"0 0 240 426\"%3E%3Crect width=\"100%25\" height=\"100%25\" fill=\"%23ffffff\"/%3E%3C/svg%3E';
+
+const isImageLikeUrl = (value?: string) => {
+  if (!value) return false;
+  const clean = value.split('?')[0] ?? value;
+  return /\.(avif|jpe?g|png|gif|webp)$/i.test(clean);
+};
+
+const WATERMARK_PATTERN = /-wm-[a-z0-9]+/i;
+const hasWatermarkSignature = (value?: string) => typeof value === 'string' && WATERMARK_PATTERN.test(value);
+
+const deriveThumbnailFromFileUrl = (fileUrl?: string) => {
+  if (!fileUrl || !/^https?:/i.test(fileUrl)) return undefined;
+  try {
+    const parsed = new URL(fileUrl);
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    const videosIndex = segments.indexOf('videos');
+    if (videosIndex === -1) return undefined;
+    segments[videosIndex] = 'thumbnails';
+    const lastIndex = segments.length - 1;
+    const currentFile = segments[lastIndex];
+    const swapped = currentFile.replace(/\.(mp4|mov|webm|mkv)$/i, '.jpg');
+    segments[lastIndex] = swapped === currentFile ? `${currentFile}.jpg` : swapped;
+    parsed.pathname = '/' + segments.join('/');
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
+};
+
+const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
+  if (hasWatermarkSignature(video.file_url)) {
+    video.preview_url = video.file_url;
+    return video;
+  }
+
+  const lookupSource = video.file_url || video.preview_url || video.title || video.id;
+  const localAsset = findLocalDashboardVideo(lookupSource);
+  if (!localAsset) {
+    return null;
+  }
+
+  video.preview_url = localAsset.url;
+  if (!video.thumbnail_url) {
+    video.thumbnail_url =
+      localAsset.thumbnailUrl ||
+      findDashboardThumbnail(localAsset.fileName) ||
+      WHITE_THUMBNAIL;
+  }
+
+  if (!video.tags?.length && localAsset.extraTags?.length) {
+    video.tags = [...localAsset.extraTags];
+  }
+
+  if (!video.category || video.category === 'lifestyle') {
+    const resolvedCategory = localAsset.category;
+    if (resolvedCategory && isDashboardCategory(resolvedCategory)) {
+      video.category = resolvedCategory;
+    }
+  }
+
+  return video;
+};
+
+const formatDuration = (seconds?: number | null) => {
+  if (seconds === undefined || seconds === null || Number.isNaN(seconds)) return null;
+  const totalSeconds = Math.max(0, Math.floor(seconds));
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
 const deriveBeautySubCategoryFromTags = (tags: string[]): BeautySubCategory | undefined => {
@@ -53,69 +136,16 @@ const deriveBeautySubCategoryFromTags = (tags: string[]): BeautySubCategory | un
   return undefined;
 };
 
-const generateSampleVideos = (): VideoAsset[] => {
-  const baseCategories: Array<VideoAsset['category']> = ['beauty', 'fitness', 'haircare', 'oralcare', 'business', 'lifestyle', 'romance', 'pet'];
-  const items: VideoAsset[] = [];
-
-  baseCategories.forEach((category, categoryIndex) => {
-    for (let i = 1; i <= 12; i++) {
-      const beautySubCategory = category === 'beauty'
-        ? BEAUTY_SUBCATEGORY_SEQUENCE[(categoryIndex + i) % BEAUTY_SUBCATEGORY_SEQUENCE.length]
-        : undefined;
-
-      const tags = [category, 'サンプル', `動画${i}`];
-      if (beautySubCategory) {
-        const meta = BEAUTY_SUBCATEGORY_DATA[beautySubCategory];
-        tags.push(meta.tag, meta.label);
-      }
-
-      items.push({
-        id: `${category}-${i}`,
-        title: `${category === 'beauty' ? '美容' :
-                 category === 'fitness' ? 'フィットネス' :
-                 category === 'haircare' ? 'ヘアケア' :
-                 category === 'oralcare' ? 'オーラルケア' :
-                 category === 'business' ? 'ビジネス' :
-                 category === 'lifestyle' ? 'ライフスタイル' :
-                 category === 'romance' ? 'モテ・恋愛' : 'ペット'}動画 ${i}`,
-        description: `${category}カテゴリのサンプル動画${i}です。`,
-        category,
-        tags,
-        duration: 12 + (i % 8),
-        resolution: '1080x1920',
-        file_url: `https://via.placeholder.com/720x1280/6b46c1/ffffff?text=${category}-${i}`,
-        thumbnail_url: `https://via.placeholder.com/240x426/6b46c1/ffffff?text=${category}-${i}`,
-        is_featured: i <= 6,
-        download_count: Math.floor(Math.random() * 1200),
-        created_at: new Date(Date.now() - i * 60 * 60 * 1000).toISOString(),
-        beautySubCategory,
-      });
-    }
-  });
-
-  return items;
-};
-
 const LOCAL_DASHBOARD_ASSETS: VideoAsset[] = hasLocalDashboardVideos
-  ? localDashboardVideos.map((video, index) => {
+  ? dedupeVideoAssets(localDashboardVideos.map((video, index) => {
       const category = isDashboardCategory(video.category)
         ? (video.category as VideoAsset['category'])
         : 'lifestyle';
 
-      const baseTitle = video.title || `ローカル動画 ${index + 1}`;
-      const rawTags = (video.fileName.replace(/\.[^/.]+$/, '') || '')
-        .split(/[-_]/)
-        .map(tag => tag.trim())
-        .filter(Boolean);
-      const tagSet = new Set<string>([category, 'local', ...rawTags]);
-
-      if (video.extraTags) {
-        for (const extra of video.extraTags) {
-          if (extra) {
-            tagSet.add(extra);
-          }
-        }
-      }
+      const baseTitle = video.title || 'ローカル素材 ' + (index + 1);
+      const tagSet = new Set<string>(
+        Array.isArray(video.extraTags) ? video.extraTags.filter(Boolean) : []
+      );
 
       let beautySubCategory: BeautySubCategory | undefined = video.category === 'beauty'
         ? (video as any).beautySubCategory ?? undefined
@@ -124,32 +154,33 @@ const LOCAL_DASHBOARD_ASSETS: VideoAsset[] = hasLocalDashboardVideos
       if (category === 'beauty') {
         const derivedFromName = deriveBeautySubCategoryFromTags(Array.from(tagSet));
         beautySubCategory = beautySubCategory || derivedFromName || BEAUTY_SUBCATEGORY_SEQUENCE[index % BEAUTY_SUBCATEGORY_SEQUENCE.length];
-
-        if (beautySubCategory) {
-          const beautyMeta = BEAUTY_SUBCATEGORY_DATA[beautySubCategory];
-          tagSet.add(beautyMeta.tag);
-          tagSet.add(beautyMeta.label);
-        }
       }
 
       const tags = Array.from(tagSet);
-
+      const providedThumb = (video as any).thumbnailUrl ?? (video as any).thumbnail;
+      const matchedLocalThumb = assetsMatchByFilename(video.fileName, providedThumb) ? providedThumb : undefined;
+      const localThumbnail =
+        matchedLocalThumb ??
+        findDashboardThumbnail(video.fileName) ??
+        (isImageLikeUrl(video.url) ? (video.url as string) : undefined) ??
+        deriveThumbnailFromFileUrl(video.url) ??
+        WHITE_THUMBNAIL;
       return {
         id: video.id,
         title: baseTitle,
-        description: `${baseTitle} (ローカルコンテンツ)`,
+        description: baseTitle + ' (ローカルコンテンツ)',
         category,
         tags,
         duration: 30,
         resolution: '1080x1920',
         file_url: video.url,
-        thumbnail_url: video.url,
+        thumbnail_url: localThumbnail,
         is_featured: index < 3,
         download_count: 0,
         created_at: new Date().toISOString(),
         beautySubCategory
       } satisfies VideoAsset;
-    })
+    }))
   : [];
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
@@ -177,9 +208,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     isTrialUser,
     trialDaysRemaining,
     trialDownloadsRemaining,
-    monthlyDownloads
+    monthlyDownloads,
+    hasActiveSubscription,
+    refreshUserData
   } = useUser();
   const { isAdmin } = useAdmin();
+  const canDownloadVideos = Boolean(user && hasActiveSubscription);
 
   // プラン判定
   const resolvedPlanType = useMemo(() => {
@@ -280,15 +314,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
 
   // カテゴリー定義
   const categories = [
-    { id: 'all', name: '全て', color: 'bg-gradient-to-r from-purple-500 to-pink-500' },
+    { id: 'all', name: 'すべて', color: 'bg-gradient-to-r from-purple-500 to-pink-500' },
     { id: 'beauty', name: '美容', color: 'bg-gradient-to-r from-pink-500 to-rose-500' },
-    { id: 'fitness', name: 'フィットネス', color: 'bg-gradient-to-r from-green-500 to-emerald-500' },
-    { id: 'haircare', name: 'ヘアケア', color: 'bg-gradient-to-r from-purple-500 to-violet-500' },
-    { id: 'oralcare', name: 'オーラルケア', color: 'bg-gradient-to-r from-cyan-500 to-blue-500' },
+    { id: 'diet', name: 'ダイエット', color: 'bg-gradient-to-r from-emerald-500 to-teal-500' },
+    { id: 'healthcare', name: 'ヘルスケア', color: 'bg-gradient-to-r from-cyan-500 to-blue-500' },
     { id: 'business', name: 'ビジネス', color: 'bg-gradient-to-r from-blue-500 to-indigo-500' },
     { id: 'lifestyle', name: 'ライフスタイル', color: 'bg-gradient-to-r from-yellow-500 to-orange-500' },
-    { id: 'romance', name: 'モテ・恋愛', color: 'bg-gradient-to-r from-rose-500 to-pink-600' },
-    { id: 'pet', name: 'ペット', color: 'bg-gradient-to-r from-amber-500 to-orange-600' }
+    { id: 'romance', name: '恋愛', color: 'bg-gradient-to-r from-rose-500 to-pink-600' }
   ];
 
   // 年齢フィルター定義
@@ -353,10 +385,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
           return;
         }
 
-        const useSampleData = (import.meta.env.DEV && import.meta.env.VITE_USE_SAMPLE_DATA === 'true') || !supabase;
-        if (useSampleData) {
+        if (!supabase) {
+          console.warn('Supabaseクライアントが初期化されていないため、動画を取得できません。');
           if (!isMounted) return;
-          setVideos(generateSampleVideos());
+          setVideos([]);
           setLoading(false);
           return;
         }
@@ -386,8 +418,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
           }
 
           const transformed = data.map((row: any) => {
+            const normalizedCategory: VideoAsset['category'] = isDashboardCategory(row.category)
+              ? row.category
+              : 'lifestyle';
             const tags: string[] = Array.isArray(row.tags) ? [...row.tags] : [];
-            const beautySubCategory: BeautySubCategory | undefined = row.category === 'beauty'
+            const beautySubCategory: BeautySubCategory | undefined = normalizedCategory === 'beauty'
               ? (row.beauty_sub_category as BeautySubCategory | null) ?? deriveBeautySubCategoryFromTags(tags)
               : undefined;
 
@@ -397,16 +432,25 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
               if (!tags.includes(meta.label)) tags.push(meta.label);
             }
 
+            const previewIsImage = isImageLikeUrl(row.preview_url);
+            const matchedThumbnailUrl = assetsMatchByFilename(row.file_url, row.thumbnail_url) ? row.thumbnail_url : undefined;
+            const derivedThumbnail =
+              matchedThumbnailUrl ||
+              (previewIsImage ? row.preview_url : undefined) ||
+              findDashboardThumbnail(row.file_url || row.preview_url || row.title || row.id) ||
+              deriveThumbnailFromFileUrl(row.file_url) ||
+              WHITE_THUMBNAIL;
+
             return {
               id: row.id,
               title: row.title,
               description: row.description ?? '',
-              category: row.category,
+              category: normalizedCategory,
               tags,
               duration: row.duration ?? 0,
               resolution: row.resolution ?? '1080x1920',
               file_url: row.file_url,
-              thumbnail_url: row.thumbnail_url,
+              thumbnail_url: derivedThumbnail,
               is_featured: !!row.is_featured,
               download_count: downloadCountMap[row.id] ?? row.download_count ?? 0,
               created_at: row.created_at ?? new Date().toISOString(),
@@ -414,14 +458,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
             } satisfies VideoAsset;
           });
 
-          setVideos(transformed);
+          const hydrated = transformed
+            .map((video) => hydrateWithLocalWatermark(video))
+            .filter((video): video is VideoAsset => Boolean(video));
+
+          const uniqueTransformed = dedupeVideoAssets(hydrated);
+
+          setVideos(uniqueTransformed);
         } else {
-          setVideos(generateSampleVideos());
+          setVideos([]);
         }
       } catch (error) {
         console.error('動画の読み込みに失敗しました:', error);
         if (isMounted) {
-          setVideos(generateSampleVideos());
+          setVideos([]);
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -476,12 +526,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     };
 
     if (!user) {
-      triggerDownload();
+      alert('\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u6a5f\u80fd\u3092\u5229\u7528\u3059\u308b\u306b\u306f\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059');
+      return;
+    }
+
+    if (!hasActiveSubscription) {
+      alert('\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u306b\u306f\u6599\u91d1\u30d7\u30e9\u30f3\u3078\u306e\u52a0\u5165\u304c\u5fc5\u8981\u3067\u3059');
       return;
     }
 
     if ((isTrialUser && trialDownloadsRemaining <= 0) || (!isTrialUser && remainingDownloads <= 0)) {
-      alert('ダウンロード制限に達しました。プランをアップグレードしてください。');
+      alert('\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u5236\u9650\u306b\u9054\u3057\u307e\u3057\u305f\u3002\u30d7\u30e9\u30f3\u3092\u30a2\u30c3\u30d7\u30b0\u30ec\u30fc\u30c9\u3057\u3066\u304f\u3060\u3055\u3044\u3002');
       return;
     }
 
@@ -489,6 +544,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       setDownloadingVideos(prev => new Set(prev).add(video.id));
       await database.addDownloadHistory(user.id, video.id);
       triggerDownload();
+      void refreshUserData();
       setTimeout(() => {
         setDownloadingVideos(prev => {
           const next = new Set(prev);
@@ -504,7 +560,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
         return next;
       });
     }
-  }, [user, isTrialUser, trialDownloadsRemaining, remainingDownloads]);
+  }, [user, isTrialUser, trialDownloadsRemaining, remainingDownloads, hasActiveSubscription, refreshUserData]);
 
   const handleClearFilters = useCallback(() => {
     setSelectedCategories(new Set(['all']));
@@ -636,6 +692,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
 
     return sorted;
   }, [videos, selectedCategories, selectedAges, selectedGenders, showOnlyFavorites, userFavorites, sortBy, debouncedSearchQuery]);
+  const spotlightVideos = useMemo(() => filteredVideos.slice(0, 12), [filteredVideos]);
+  const spotlightIds = useMemo(() => new Set(spotlightVideos.map(video => video.id)), [spotlightVideos]);
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-slate-900">
@@ -872,7 +930,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                   showOnlyFavorites ||
                                   Boolean(debouncedSearchQuery)
                                 ) ? (
-                                  <div className="grid gap-5 sm:gap-6 lg:gap-8 xl:gap-10 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2.5 sm:gap-3 lg:gap-4 xl:gap-5">
                                     {filteredVideos.map((video) => (
                                       <VideoCard
                                         key={video.id}
@@ -884,6 +942,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                         onToggleFavorite={() => toggleFavorite(video.id)}
                                         onTagClick={handleTagClick}
                                         onCategoryClick={handleCategoryClick}
+                                        canDownload={canDownloadVideos}
                                       />
                                     ))}
                                   </div>
@@ -899,6 +958,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                       onToggleFavorite={toggleFavorite}
                                       onTagClick={handleTagClick}
                                       onCategoryClick={handleCategoryClick}
+                                      canDownload={canDownloadVideos}
                                     />
                                     {categories
                                       .filter(cat => cat.id !== 'all')
@@ -917,6 +977,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                             onToggleFavorite={toggleFavorite}
                                             onTagClick={handleTagClick}
                                             onCategoryClick={handleCategoryClick}
+                                            canDownload={canDownloadVideos}
                                             onShowAll={() => {
                                               handleCategoryClick(category.id);
                                               setCurrentPage('category');
@@ -962,6 +1023,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
           onDownload={() => handleDownload(selectedVideoForModal)}
           onToggleFavorite={() => toggleFavorite(selectedVideoForModal.id)}
           isFavorited={userFavorites.has(selectedVideoForModal.id)}
+          canDownload={canDownloadVideos}
         />
       )}
     </div>
@@ -994,15 +1056,14 @@ const CategoryDetailPage: React.FC<{
   
   const categoryNames = {
     beauty: '美容',
-    fitness: 'フィットネス',
-    haircare: 'ヘアケア',
-    oralcare: 'オーラルケア',
+    diet: 'ダイエット',
+    healthcare: 'ヘルスケア',
     business: 'ビジネス',
     lifestyle: 'ライフスタイル',
-    romance: 'モテ・恋愛',
-    pet: 'ペット'
+    romance: '恋愛'
   };
 
+  
   return (
     <div className="space-y-10">
       {/* カテゴリーヘッダー */}
@@ -1023,9 +1084,9 @@ const CategoryDetailPage: React.FC<{
       </div>
       
       {/* 動画グリッド */}
-      <div className="-mx-2 flex flex-wrap gap-y-4 sm:-mx-3 sm:gap-y-5 md:-mx-3 md:gap-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2 sm:gap-2.5 md:gap-3">
         {currentVideos.map((video) => (
-          <div key={video.id} className="w-1/2 px-2 sm:w-1/3 sm:px-3 md:w-1/4 lg:w-1/5 xl:w-1/5">
+          <div key={video.id} className="h-full">
             <VideoCard
               video={video}
               onClick={() => onVideoClick(video)}
@@ -1106,6 +1167,7 @@ const VideoSection: React.FC<{
   onToggleFavorite: (videoId: string) => void;
   onTagClick?: (tag: string) => void;
   onCategoryClick?: (categoryId: string) => void;
+  canDownload: boolean;
   onShowAll?: () => void;
 }> = ({ title, videos, onVideoClick, userFavorites, downloadingVideos, onDownload, onToggleFavorite, onTagClick, onCategoryClick, onShowAll }) => {
   if (videos.length === 0) return null;
@@ -1126,7 +1188,7 @@ const VideoSection: React.FC<{
         )}
       </div>
 
-      <div className="mt-6 grid gap-5 sm:gap-6 lg:gap-8 xl:gap-10 grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+      <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2.5 sm:gap-3 lg:gap-4 xl:gap-5">
         {videos.map((video) => (
           <VideoCard
             key={video.id}
@@ -1322,7 +1384,8 @@ const VideoModal: React.FC<{
   onDownload: () => void;
   onToggleFavorite: () => void;
   isFavorited: boolean;
-}> = ({ video, onClose, onDownload, onToggleFavorite, isFavorited }) => {
+  canDownload: boolean;
+}> = ({ video, onClose, onDownload, onToggleFavorite, isFavorited, canDownload }) => {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -1358,14 +1421,20 @@ const VideoModal: React.FC<{
         
         {/* アクションボタン */}
         <div className="p-6 border-t border-gray-200 flex gap-4 justify-center">
-          <button 
-            onClick={onDownload}
-            className="py-3 px-6 border-none rounded-full text-sm font-bold cursor-pointer transition-all duration-300 flex items-center gap-2 bg-indigo-600 text-white hover:-translate-y-0.5 hover:bg-indigo-500 hover:shadow-lg"
-          >
-            <Download className="w-4 h-4" />
-            ダウンロード
-          </button>
-          
+          {canDownload ? (
+            <button 
+              onClick={onDownload}
+              className="py-3 px-6 border-none rounded-full text-sm font-bold cursor-pointer transition-all duration-300 flex items-center gap-2 bg-indigo-600 text-white hover:-translate-y-0.5 hover:bg-indigo-500 hover:shadow-lg"
+            >
+              <Download className="w-4 h-4" />
+              {'\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9'}
+            </button>
+          ) : (
+            <div className="py-3 px-6 border border-dashed border-gray-300 rounded-full text-sm font-bold text-gray-500 bg-white/80">
+              {'\u30d7\u30e9\u30f3\u52a0\u5165\u3067\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u53ef\u80fd'}
+            </div>
+          )}
+
           <button 
             onClick={onToggleFavorite}
             className={`py-3 px-6 border border-gray-300 rounded-full text-sm font-bold cursor-pointer transition-all duration-300 flex items-center gap-2 ${
@@ -1393,7 +1462,7 @@ const VideoCard: React.FC<{
   onToggleFavorite: () => void;
   onTagClick?: (tag: string) => void;
   onCategoryClick?: (categoryId: string) => void;
-}> = ({ video, onClick, isFavorited, isDownloading, onDownload, onToggleFavorite, onTagClick, onCategoryClick }) => {
+}> = ({ video, onClick, isFavorited, isDownloading, onDownload, onToggleFavorite, onTagClick, onCategoryClick, canDownload }) => {
   const [isHovered, setIsHovered] = useState(false);
   const hoverVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -1430,31 +1499,11 @@ const VideoCard: React.FC<{
 
   const categoryNames = {
     beauty: '美容',
-    fitness: 'フィットネス',
-    haircare: 'ヘアケア',
-    oralcare: 'オーラルケア',
+    diet: 'ダイエット',
+    healthcare: 'ヘルスケア',
     business: 'ビジネス',
     lifestyle: 'ライフスタイル',
-    romance: 'モテ・恋愛',
-    pet: 'ペット'
-  } as const;
-
-  const categoryPills = {
-    beauty: 'bg-gradient-to-r from-pink-100 via-rose-100 to-white text-black',
-    fitness: 'bg-gradient-to-r from-emerald-100 via-green-100 to-white text-black',
-    haircare: 'bg-gradient-to-r from-violet-100 via-purple-100 to-white text-black',
-    oralcare: 'bg-gradient-to-r from-cyan-100 via-blue-100 to-white text-black',
-    business: 'bg-gradient-to-r from-sky-100 via-indigo-100 to-white text-black',
-    lifestyle: 'bg-gradient-to-r from-amber-100 via-orange-100 to-white text-black',
-    romance: 'bg-gradient-to-r from-rose-100 via-pink-100 to-white text-black',
-    pet: 'bg-gradient-to-r from-orange-100 via-amber-100 to-white text-black'
-  } as const;
-
-  const formatDuration = (seconds?: number) => {
-    if (seconds === undefined || Number.isNaN(seconds)) return null;
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    romance: '恋愛'
   };
 
   const durationLabel = formatDuration(video.duration);
@@ -1464,6 +1513,11 @@ const VideoCard: React.FC<{
   const mobileTagList = tagList
     .filter(tag => typeof tag === 'string' && !tag.includes(':') && tag.toLowerCase() !== video.category)
     .slice(0, 2);
+  const formatTag = (value: string) => {
+    const trimmed = (value || '').trim();
+    if (!trimmed) return '';
+    return trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  };
 
   return (
     <article
@@ -1509,7 +1563,7 @@ const VideoCard: React.FC<{
               e.stopPropagation();
               onCategoryClick?.(video.category);
             }}
-            className={`pointer-events-auto inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold shadow-md ${categoryPills[video.category]}`}
+            className={`pointer-events-auto inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold shadow-md ${CATEGORY_PILL_CLASSES[video.category]}`}
           >
             {categoryNames[video.category]}
           </button>
@@ -1566,7 +1620,7 @@ const VideoCard: React.FC<{
               }}
               className="pointer-events-auto inline-flex items-center rounded-full bg-white/85 px-2.5 py-1 text-[10px] font-semibold text-slate-700 shadow"
             >
-              #{tag}
+              {formatTag(tag)}
             </button>
           ))}
         </div>
@@ -1586,7 +1640,7 @@ const VideoCard: React.FC<{
               }}
               className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition-colors duration-200 hover:bg-slate-200"
             >
-              #{tag}
+              {formatTag(tag)}
             </button>
           ))}
         </div>
@@ -1603,24 +1657,30 @@ const VideoCard: React.FC<{
             <Eye className="h-3.5 w-3.5" />
             プレビュー
           </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDownload();
-            }}
-            disabled={isDownloading}
-            className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition-all duration-200 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
-          >
-            {isDownloading ? (
-              <span>取得中...</span>
-            ) : (
-              <>
-                <Download className="h-3.5 w-3.5" />
-                ダウンロード
-              </>
-            )}
-          </button>
+          {canDownload ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownload();
+              }}
+              disabled={isDownloading}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition-all duration-200 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
+            >
+              {isDownloading ? (
+                <span>{'\u53d6\u5f97\u4e2d\u002e\u002e\u002e'}</span>
+              ) : (
+                <>
+                  <Download className="h-3.5 w-3.5" />
+                  {'\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9'}
+                </>
+              )}
+            </button>
+          ) : (
+            <div className="w-full rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-500">
+              {'\u30d7\u30e9\u30f3\u52a0\u5165\u3067\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u53ef\u80fd'}
+            </div>
+          )}
         </div>
       </div>
     </article>
@@ -1629,3 +1689,6 @@ const VideoCard: React.FC<{
 
 
 export default Dashboard;
+
+
+

@@ -1,5 +1,7 @@
 import { resolveBeautySubCategory, type BeautySubCategory } from '../utils/categoryInference';
+import { getAssetBasename } from '../utils/videoAssetTools';
 import { remoteManifest } from './remote-manifest';
+import { DASHBOARD_REMOTE_THUMBS, DASHBOARD_REVIEW_HASHTAGS, DASHBOARD_REVIEW_CATEGORIES } from './dashboardThumbMap.generated';
 
 export interface LocalVideoItem {
   id: string;
@@ -11,7 +13,19 @@ export interface LocalVideoItem {
   ageFilterId?: string;
   genderFilterId?: string;
   extraTags?: string[];
+  thumbnailUrl?: string;
 }
+
+const DASHBOARD_CATEGORIES = ['beauty', 'diet', 'healthcare', 'business', 'lifestyle', 'romance'] as const;
+type DashboardCategory = typeof DASHBOARD_CATEGORIES[number];
+
+const normalizeDashboardCategory = (value?: string): DashboardCategory | undefined => {
+  if (!value) return undefined;
+  const normalized = value.toLowerCase();
+  return (DASHBOARD_CATEGORIES as readonly string[]).includes(normalized)
+    ? (normalized as DashboardCategory)
+    : undefined;
+};
 
 const sanitizeName = (filePath: string): { fileName: string; baseName: string } => {
   const segments = filePath.split('/');
@@ -66,10 +80,10 @@ const buildVideoList = (entries: Record<string, string>, prefix: string): LocalV
         if (altKey) remoteEntry = remoteManifest[altKey as keyof typeof remoteManifest];
       }
       const { fileName, baseName } = sanitizeName(key);
-      const slug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
       const title = formatTitle(baseName);
+      const stableId = manifestKey || `${prefix}-${fileName}` || `${prefix}-${baseName}` || `${prefix}-${url}`;
       return {
-        id: `${prefix}-${slug || baseName || url}`,
+        id: stableId,
         title,
         url: remoteEntry?.url ?? (url as string),
         fileName
@@ -86,13 +100,20 @@ const buildVideoList = (entries: Record<string, string>, prefix: string): LocalV
     if (!r?.url) continue;
     const { fileName, baseName } = sanitizeName(k);
     if (existingNames.has(fileName)) continue;
-    const slug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const stableId = k || `${prefix}-${fileName}` || `${prefix}-${baseName}`;
     list.push({
-      id: `${prefix}-${slug || baseName}`,
+      id: stableId,
       title: formatTitle(baseName),
       url: r.url,
       fileName
     });
+  }
+
+  if (prefix === 'dashboard') {
+    for (const video of list) {
+      applyReviewMetadata(video);
+      registerDashboardVideo(video);
+    }
   }
 
   list.sort((a, b) => a.fileName.localeCompare(b.fileName));
@@ -122,6 +143,147 @@ const dashboardVideoModules = import.meta.glob('./dashboard/**/*.{mp4,MP4,webm,W
   import: 'default',
   query: '?url'
 }) as Record<string, string>;
+
+const dashboardThumbModules = import.meta.glob('./dashboard-thumbs/**/*.{jpg,jpeg,png,JPG,JPEG,PNG}', {
+  eager: true,
+  import: 'default',
+  query: '?url'
+}) as Record<string, string>;
+
+const DASHBOARD_THUMB_LOOKUP = new Map<string, string>();
+const DASHBOARD_STEM_LOOKUP = new Map<string, string>();
+const DASHBOARD_CORE_LOOKUP = new Map<string, string>();
+const DASHBOARD_VIDEO_LOOKUP = new Map<string, LocalVideoItem>();
+
+const stripWatermarkToken = (value: string) =>
+  value.replace(/-wm-[a-z0-9]+$/i, '').replace(/-wm$/i, '');
+
+const registerThumbKey = (key: string, url?: string) => {
+  if (!key) return;
+  if (url) {
+    DASHBOARD_THUMB_LOOKUP.set(key, url);
+  }
+  const normalized = normalizeStem(key);
+  if (normalized && !DASHBOARD_STEM_LOOKUP.has(normalized)) {
+    DASHBOARD_STEM_LOOKUP.set(normalized, key);
+  }
+  const core = stripWatermarkToken(normalized);
+  if (core && !DASHBOARD_CORE_LOOKUP.has(core)) {
+    DASHBOARD_CORE_LOOKUP.set(core, key);
+  }
+};
+
+for (const [key, url] of Object.entries(dashboardThumbModules)) {
+  const file = key.split('/').pop() ?? '';
+  const base = file.replace(/\.[^/.]+$/, '').toLowerCase();
+  if (base) {
+    registerThumbKey(base, url);
+  }
+}
+
+for (const base of Object.keys(DASHBOARD_REMOTE_THUMBS)) {
+  registerThumbKey(base);
+}
+
+const toThumbKey = (input: string): string => getAssetBasename(input);
+
+const resolveReviewKey = (identifier?: string): string | undefined => {
+  if (!identifier) return undefined;
+  const directKey = toThumbKey(identifier);
+  if (directKey) {
+    if (DASHBOARD_THUMB_LOOKUP.has(directKey) || DASHBOARD_REMOTE_THUMBS[directKey]) {
+      return directKey;
+    }
+  }
+  const normalized = normalizeStem(directKey || identifier);
+  if (normalized) {
+    const stemMatch = DASHBOARD_STEM_LOOKUP.get(normalized);
+    if (stemMatch) return stemMatch;
+    const coreMatch = DASHBOARD_CORE_LOOKUP.get(stripWatermarkToken(normalized));
+    if (coreMatch) return coreMatch;
+  }
+  return undefined;
+};
+
+export const findDashboardThumbnail = (identifier?: string): string | undefined => {
+  const reviewKey = resolveReviewKey(identifier);
+  if (reviewKey) {
+    return DASHBOARD_THUMB_LOOKUP.get(reviewKey) ?? DASHBOARD_REMOTE_THUMBS[reviewKey];
+  }
+  return undefined;
+};
+
+const applyReviewMetadata = (video: LocalVideoItem) => {
+  if (!video?.fileName) return;
+  const metaKey =
+    resolveReviewKey(video.fileName) ??
+    resolveReviewKey(video.title) ??
+    resolveReviewKey(video.id) ??
+    stripWatermarkToken(video.fileName?.replace(/\.[^/.]+$/, '').toLowerCase());
+  if (!metaKey) return;
+
+  const reviewCategory = DASHBOARD_REVIEW_CATEGORIES[metaKey];
+  if (reviewCategory) {
+    video.category = reviewCategory;
+  } else if (!video.category || !normalizeDashboardCategory(video.category)) {
+    video.category = 'lifestyle';
+  }
+
+  if (!video.thumbnailUrl) {
+    video.thumbnailUrl = DASHBOARD_THUMB_LOOKUP.get(metaKey) ?? DASHBOARD_REMOTE_THUMBS[metaKey];
+  }
+
+  if (!video.extraTags?.length) {
+    const reviewHashtags = DASHBOARD_REVIEW_HASHTAGS[metaKey];
+    if (reviewHashtags?.length) {
+      video.extraTags = [...reviewHashtags];
+    }
+  }
+
+  if (video.category === 'beauty' && !video.beautySubCategory) {
+    const tokens = metaKey.split(/[\s_\-]+/).filter(Boolean);
+    const beautyResult = resolveBeautySubCategory({
+      tokens,
+      pathHints: []
+    });
+    video.beautySubCategory = beautyResult.subCategory;
+  }
+};
+
+const registerDashboardVideo = (video: LocalVideoItem) => {
+  const candidates = [
+    resolveReviewKey(video.fileName),
+    resolveReviewKey(video.id),
+    resolveReviewKey(video.title),
+    normalizeStem(video.fileName || ''),
+    stripWatermarkToken(normalizeStem(video.fileName || ''))
+  ].filter(Boolean) as string[];
+
+  for (const key of candidates) {
+    if (!DASHBOARD_VIDEO_LOOKUP.has(key)) {
+      DASHBOARD_VIDEO_LOOKUP.set(key, video);
+    }
+  }
+};
+
+export const findLocalDashboardVideo = (identifier?: string): LocalVideoItem | undefined => {
+  const key = resolveReviewKey(identifier);
+  if (key && DASHBOARD_VIDEO_LOOKUP.has(key)) {
+    return DASHBOARD_VIDEO_LOOKUP.get(key);
+  }
+  const normalized = normalizeStem(identifier || '');
+  if (normalized) {
+    const altKey = DASHBOARD_STEM_LOOKUP.get(normalized);
+    if (altKey) {
+      return DASHBOARD_VIDEO_LOOKUP.get(altKey);
+    }
+    const coreKey = DASHBOARD_CORE_LOOKUP.get(stripWatermarkToken(normalized));
+    if (coreKey) {
+      return DASHBOARD_VIDEO_LOOKUP.get(coreKey);
+    }
+  }
+  return undefined;
+};
 
 export const localHeroVideos: LocalVideoItem[] = buildVideoList(heroWatermarkedModules, 'hero');
 
@@ -158,9 +320,16 @@ const buildDashboardVideos = () => {
     const dashboardIndex = parts.indexOf('dashboard');
     const relative = dashboardIndex >= 0 ? parts.slice(dashboardIndex + 1) : parts;
     if (relative.length === 0) continue;
+    if (relative.some(segment => segment.startsWith('_'))) continue;
 
+    const { fileName, baseName } = sanitizeName(key);
+    const metaKey = baseName.toLowerCase();
     const rawCategory = relative[0]?.toLowerCase() ?? 'uncategorized';
-    const category = rawCategory;
+    let category: DashboardCategory = normalizeDashboardCategory(rawCategory) ?? 'lifestyle';
+    const reviewCategory = DASHBOARD_REVIEW_CATEGORIES[metaKey];
+    if (reviewCategory) {
+      category = reviewCategory;
+    }
 
     const potentialAgeSegment = relative.length > 2 ? relative[1]?.toLowerCase() : undefined;
     const potentialGenderSegment = relative.length > 3 ? relative[2]?.toLowerCase() : undefined;
@@ -182,9 +351,9 @@ const buildDashboardVideos = () => {
       }
     }
 
-    const { fileName, baseName } = sanitizeName(key);
-    const slug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const manifestKey = key.replace(/^\.\//, '');
     const title = formatTitle(baseName);
+    const thumbnailUrl = DASHBOARD_THUMB_LOOKUP.get(metaKey) ?? DASHBOARD_REMOTE_THUMBS[metaKey];
 
     let beautySubCategory: BeautySubCategory | undefined;
     if (category === 'beauty') {
@@ -199,30 +368,19 @@ const buildDashboardVideos = () => {
       beautySubCategory = beautyResult.subCategory;
     }
 
-      const video: LocalVideoItem = {
-        id: `dashboard-${category}-${slug || baseName || url}`,
-        title,
-        url: url as string,
-        fileName,
-        category,
-        beautySubCategory,
-        ageFilterId: ageFolder ? AGE_FOLDER_MAP[ageFolder]?.id : undefined,
-        genderFilterId: genderFolder ? GENDER_FOLDER_MAP[genderFolder]?.id : undefined,
-        extraTags: []
-      };
-
-      if (video.extraTags) {
-        if (ageFolder && AGE_FOLDER_MAP[ageFolder]) {
-          video.extraTags.push(...AGE_FOLDER_MAP[ageFolder].tags);
-        }
-        if (genderFolder && GENDER_FOLDER_MAP[genderFolder]) {
-          video.extraTags.push(...GENDER_FOLDER_MAP[genderFolder].tags);
-        }
-      }
-
-      if (video.extraTags && video.extraTags.length === 0) {
-        delete video.extraTags;
-      }
+    const reviewHashtags = DASHBOARD_REVIEW_HASHTAGS[metaKey];
+    const video: LocalVideoItem = {
+      id: manifestKey || `dashboard-${category}-${fileName}`,
+      title,
+      url: url as string,
+      fileName,
+      category,
+      thumbnailUrl,
+      beautySubCategory,
+      ageFilterId: ageFolder ? AGE_FOLDER_MAP[ageFolder]?.id : undefined,
+      genderFilterId: genderFolder ? GENDER_FOLDER_MAP[genderFolder]?.id : undefined,
+      extraTags: reviewHashtags?.length ? [...reviewHashtags] : undefined
+    };
 
     if (!byCategory.has(category)) {
       byCategory.set(category, []);
