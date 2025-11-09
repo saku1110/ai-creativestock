@@ -75,6 +75,8 @@ const INAPPROPRIATE_TAG_PATTERNS: RegExp[] = [
   /挑発/
 ];
 
+const BANNED_TAGS = new Set(['#fitness', 'fitness']);
+
 const stripQueryAndHash = (value?: string) => {
   if (!value) return '';
   const [withoutQuery] = value.split(/[?#]/);
@@ -162,6 +164,7 @@ export const sanitizeTags = (tags?: Array<string | null | undefined>): string[] 
     const normalized = trimmed.toLowerCase();
     const isBanned = INAPPROPRIATE_TAG_PATTERNS.some((pattern) => pattern.test(trimmed) || pattern.test(normalized));
     if (isBanned) continue;
+    if (BANNED_TAGS.has(normalized)) continue;
     if (seen.has(normalized)) continue;
     seen.add(normalized);
     sanitized.push(trimmed);
