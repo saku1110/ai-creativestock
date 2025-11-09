@@ -120,35 +120,53 @@ const buildVideoList = (entries: Record<string, string>, prefix: string): LocalV
   return list;
 };
 
-const heroVideoModules = import.meta.glob('./hero/*.{mp4,MP4,webm,WEBM}', {
-  eager: true,
-  import: 'default',
-  query: '?url'
-}) as Record<string, string>;
+const runtimeEnv =
+  typeof import.meta !== 'undefined' && (import.meta as any).env
+    ? (import.meta as any).env
+    : (process.env as Record<string, string | undefined>);
+
+const ENABLE_LOCAL_DASHBOARD =
+  runtimeEnv?.VITE_ENABLE_LOCAL_DASHBOARD === 'true' ||
+  (runtimeEnv?.MODE === 'development' && runtimeEnv?.VITE_ENABLE_LOCAL_DASHBOARD !== 'false');
+
+const heroVideoModules = ENABLE_LOCAL_DASHBOARD
+  ? (import.meta.glob('./hero/*.{mp4,MP4,webm,WEBM}', {
+      eager: true,
+      import: 'default',
+      query: '?url'
+    }) as Record<string, string>)
+  : {};
 
 // Use only finalized watermarked outputs to avoid locking or oversized test files.
 // Specifically pick files suffixed with -wm-alpha200.* (current production setting).
-const heroWatermarkedModules = Object.fromEntries(
-  Object.entries(heroVideoModules).filter(([key]) => key.includes('-wm-alpha200.'))
-);
+const heroWatermarkedModules =
+  ENABLE_LOCAL_DASHBOARD
+    ? Object.fromEntries(Object.entries(heroVideoModules).filter(([key]) => key.includes('-wm-alpha200.')))
+    : {};
 
-const lpGridVideoModules = import.meta.glob('./lp-grid/*.{mp4,MP4,webm,WEBM}', {
-  eager: true,
-  import: 'default',
-  query: '?url'
-}) as Record<string, string>;
+const lpGridVideoModules = ENABLE_LOCAL_DASHBOARD
+  ? (import.meta.glob('./lp-grid/*.{mp4,MP4,webm,WEBM}', {
+      eager: true,
+      import: 'default',
+      query: '?url'
+    }) as Record<string, string>)
+  : {};
 
-const dashboardVideoModules = import.meta.glob('./dashboard/**/*.{mp4,MP4,webm,WEBM}', {
-  eager: true,
-  import: 'default',
-  query: '?url'
-}) as Record<string, string>;
+const dashboardVideoModules = ENABLE_LOCAL_DASHBOARD
+  ? (import.meta.glob('./dashboard/**/*.{mp4,MP4,webm,WEBM}', {
+      eager: true,
+      import: 'default',
+      query: '?url'
+    }) as Record<string, string>)
+  : {};
 
-const dashboardThumbModules = import.meta.glob('./dashboard-thumbs/**/*.{jpg,jpeg,png,JPG,JPEG,PNG}', {
-  eager: true,
-  import: 'default',
-  query: '?url'
-}) as Record<string, string>;
+const dashboardThumbModules = ENABLE_LOCAL_DASHBOARD
+  ? (import.meta.glob('./dashboard-thumbs/**/*.{jpg,jpeg,png,JPG,JPEG,PNG}', {
+      eager: true,
+      import: 'default',
+      query: '?url'
+    }) as Record<string, string>)
+  : {};
 
 const DASHBOARD_THUMB_LOOKUP = new Map<string, string>();
 const DASHBOARD_STEM_LOOKUP = new Map<string, string>();
@@ -267,6 +285,7 @@ const registerDashboardVideo = (video: LocalVideoItem) => {
 };
 
 export const findLocalDashboardVideo = (identifier?: string): LocalVideoItem | undefined => {
+  if (!ENABLE_LOCAL_DASHBOARD) return undefined;
   const key = resolveReviewKey(identifier);
   if (key && DASHBOARD_VIDEO_LOOKUP.has(key)) {
     return DASHBOARD_VIDEO_LOOKUP.get(key);
@@ -285,9 +304,9 @@ export const findLocalDashboardVideo = (identifier?: string): LocalVideoItem | u
   return undefined;
 };
 
-export const localHeroVideos: LocalVideoItem[] = buildVideoList(heroWatermarkedModules, 'hero');
+export const localHeroVideos: LocalVideoItem[] = ENABLE_LOCAL_DASHBOARD ? buildVideoList(heroWatermarkedModules, 'hero') : [];
 
-export const localLpGridVideos: LocalVideoItem[] = buildVideoList(lpGridVideoModules, 'lp-grid');
+export const localLpGridVideos: LocalVideoItem[] = ENABLE_LOCAL_DASHBOARD ? buildVideoList(lpGridVideoModules, 'lp-grid') : [];
 
 const AGE_FOLDER_MAP: Record<string, { id: string; tags: string[] }> = {
   teen: { id: 'teen', tags: ['10代', 'ティーン', 'teen', 'teenage'] },
@@ -402,14 +421,17 @@ const buildDashboardVideos = () => {
   };
 };
 
-const dashboardVideos = buildDashboardVideos();
+const dashboardVideos = ENABLE_LOCAL_DASHBOARD
+  ? buildDashboardVideos()
+  : { byCategory: new Map<string, LocalVideoItem[]>(), flat: [] as LocalVideoItem[] };
 
-export const localDashboardVideosByCategory: Record<string, LocalVideoItem[]> = Object.fromEntries(
-  Array.from(dashboardVideos.byCategory.entries())
-);
+export const localDashboardVideosByCategory: Record<string, LocalVideoItem[]> = ENABLE_LOCAL_DASHBOARD
+  ? Object.fromEntries(Array.from(dashboardVideos.byCategory.entries()))
+  : {};
 
 export const localDashboardVideos: LocalVideoItem[] = dashboardVideos.flat;
 
-export const hasLocalHeroVideos = localHeroVideos.length > 0;
-export const hasLocalLpGridVideos = localLpGridVideos.length > 0;
-export const hasLocalDashboardVideos = localDashboardVideos.length > 0;
+export const hasLocalHeroVideos = ENABLE_LOCAL_DASHBOARD && localHeroVideos.length > 0;
+export const hasLocalLpGridVideos = ENABLE_LOCAL_DASHBOARD && localLpGridVideos.length > 0;
+export const hasLocalDashboardVideos = ENABLE_LOCAL_DASHBOARD && localDashboardVideos.length > 0;
+export const isLocalDashboardEnabled = ENABLE_LOCAL_DASHBOARD;
