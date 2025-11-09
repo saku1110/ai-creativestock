@@ -14,13 +14,15 @@ interface WhiteLandingPageProps {
   onTrialRequest: () => void;
   onPurchaseRequest: () => void;
   onContactRequest: () => void;
+  onLoginRequest?: () => void;
 }
 
 const WhiteLandingPage: React.FC<WhiteLandingPageProps> = ({
   onAuthRequest,
   onTrialRequest,
   onPurchaseRequest,
-  onContactRequest
+  onContactRequest,
+  onLoginRequest
 }) => {
   return (
     <div className="white-theme">
@@ -309,9 +311,10 @@ const WhiteLandingPage: React.FC<WhiteLandingPageProps> = ({
         }
       `}</style>
       
-      <Hero 
-        onAuthRequest={onTrialRequest} 
-        onPurchaseRequest={onPurchaseRequest} 
+      <Hero
+        onAuthRequest={onTrialRequest}
+        onPurchaseRequest={onPurchaseRequest}
+        onLoginRequest={onLoginRequest}
       />
       <ProblemMetrics />
       <SolutionFeatures />

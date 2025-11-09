@@ -369,9 +369,19 @@ function App() {
     setShowAuthModal(true);
   };
 
+  const handleLoginRequest = () => {
+    isNewUserRegistrationRef.current = false; // refを先に設定
+    setIsNewUserRegistration(false); // 既存ユーザーログインなのでフラグをfalseに
+    console.log('handleLoginRequest: 既存ユーザーログインフラグを設定 - ref:', isNewUserRegistrationRef.current);
+    setShowAuthModal(true);
+  };
+
   const handleRegistrationRequest = () => {
     // ログインしていない場合は認証モーダルを表示
     if (!isLoggedIn) {
+      isNewUserRegistrationRef.current = true; // refを先に設定
+      setIsNewUserRegistration(true); // 新規登録なのでフラグをtrueに
+      console.log('handleRegistrationRequest: 新規登録フラグを設定 - ref:', isNewUserRegistrationRef.current);
       setShowAuthModal(true);
       return;
     }
@@ -490,17 +500,18 @@ function App() {
         // 白背景LPを表示
         return (
           <WhiteLandingPage
-            onAuthRequest={handleAuthRequest}
+            onAuthRequest={handleLoginRequest}
             onTrialRequest={handleRegistrationRequest}
             onPurchaseRequest={handlePurchaseRequest}
             onContactRequest={handleContactRequest}
+            onLoginRequest={handleLoginRequest}
           />
         );
       } else if (currentPage === 'landing') {
         // 従来のLPを表示（黒背景）
         return (
           <>
-            <Hero onAuthRequest={handleRegistrationRequest} onPurchaseRequest={handlePurchaseRequest} />
+            <Hero onAuthRequest={handleRegistrationRequest} onPurchaseRequest={handlePurchaseRequest} onLoginRequest={handleLoginRequest} />
             <ProblemMetrics />
             <SolutionFeatures />
             <ComparisonTable />
@@ -623,6 +634,8 @@ function App() {
                     onAuthRequest={handleAuthRequest}
                     onLogout={handleLogout}
                     userData={userData}
+                    onLoginRequest={handleLoginRequest}
+                    onRegistrationRequest={handleRegistrationRequest}
                   />
                 </div>
                 

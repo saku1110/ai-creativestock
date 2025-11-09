@@ -5,6 +5,7 @@ import { fetchSupabaseVideos } from '../lib/media';
 interface HeroProps {
   onAuthRequest: () => void;
   onPurchaseRequest?: () => void;
+  onLoginRequest?: () => void;
 }
 
 type HeroVideoItem = {
@@ -116,7 +117,7 @@ type RegisteredItem = {
   isPlaying: boolean;
 };
 
-const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest }) => {
+const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRequest }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const speedPerMsRef = useRef<number>(0.02);
   const observerRef = useRef<IntersectionObserver | null>(null);

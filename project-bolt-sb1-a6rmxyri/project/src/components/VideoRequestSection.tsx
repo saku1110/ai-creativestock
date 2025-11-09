@@ -22,9 +22,9 @@ const VideoRequestSection: React.FC<VideoRequestSectionProps> = ({ onTrialReques
       examples: ["サプリメント服用シーン", "スムージー作り", "健康的な食事風景"]
     },
     {
-      industry: "アパレル",
-      icon: "👗",
-      examples: ["コーディネート紹介", "着回しシーン", "季節別ファッション"]
+      industry: "暮らし",
+      icon: "🏡",
+      examples: ["日常の生活シーン", "家事・掃除シーン", "リラックスタイム"]
     },
     {
       industry: "マッチングアプリ",
