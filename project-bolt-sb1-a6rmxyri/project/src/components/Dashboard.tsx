@@ -137,6 +137,16 @@ const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
     video.id
   ];
 
+  const reviewTagSet = new Set<string>();
+  for (const candidate of identifiers) {
+    const reviewTags = findDashboardReviewTags(candidate);
+    if (reviewTags?.length) {
+      reviewTags.forEach(tag => {
+        if (tag) reviewTagSet.add(tag);
+      });
+    }
+  }
+
   const ensureThumbnail = () => {
     if (!video.thumbnail_url) {
       const thumbnailSource =
@@ -149,14 +159,14 @@ const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
     }
   };
 
-  if (!video.tags?.length) {
-    for (const candidate of identifiers) {
-      const reviewTags = findDashboardReviewTags(candidate);
-      if (reviewTags?.length) {
-        video.tags = [...reviewTags];
-        break;
-      }
-    }
+  const combinedTags = new Set<string>(
+    Array.isArray(video.tags) ? video.tags.filter(Boolean) : []
+  );
+  if (reviewTagSet.size > 0) {
+    reviewTagSet.forEach(tag => combinedTags.add(tag));
+  }
+  if (combinedTags.size > 0) {
+    video.tags = Array.from(combinedTags);
   }
 
   if (!video.category || video.category === 'lifestyle') {
