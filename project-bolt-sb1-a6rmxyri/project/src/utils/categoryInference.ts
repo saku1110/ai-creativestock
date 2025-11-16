@@ -1,4 +1,4 @@
-export type BeautySubCategory = 'skincare' | 'haircare' | 'oralcare';
+﻿export type BeautySubCategory = 'skincare' | 'haircare' | 'oralcare';
 export type VideoCategory = 'beauty' | 'diet' | 'business' | 'lifestyle' | 'romance' | 'pet';
 export type CategorySource = 'filename' | 'model' | 'manual';
 
@@ -25,11 +25,12 @@ const BEAUTY_SUBCATEGORY_LABELS: Record<BeautySubCategory, string> = {
 };
 
 const CATEGORY_HINTS: Partial<Record<VideoCategory, string[]>> = {
-  beauty: ['beauty', 'cosme', 'cosmetic', 'makeup', 'skincare', 'esthetic', 'salon', 'nail', 'spa', '美', '美容', 'コスメ', 'メイク', 'スキンケア'],
-  fitness: ['fitness', 'workout', 'gym', 'training', 'exercise', 'athlete', 'yoga', 'muscle', 'run', 'fit', 'スポーツ', '筋トレ', 'フィットネス', 'ワークアウト', 'ヨガ'],
-  haircare: ['hair', 'haircare', 'haircut', 'salon', 'barber', 'styling', 'shampoo', 'conditioner', 'ヘア', '美容室', 'サロン', 'カット', '理容'],
+  beauty: ['beauty', 'cosme', 'cosmetic', 'makeup', 'skincare', 'esthetic', 'salon', 'nail', 'spa', '美容', 'コスメ', 'メイク', 'スキンケア'],
+  diet: ['diet', 'fitness', 'workout', 'gym', 'training', 'exercise', 'athlete', 'yoga', 'pilates', 'nutrition', 'healthy', 'slim', 'calorie', 'スポーツ', '筋トレ', 'フィットネス', 'ワークアウト', 'ヨガ'],
   business: ['business', 'office', 'corporate', 'meeting', 'presentation', 'startup', 'company', 'work', 'desk', 'sales', 'ビジネス', 'オフィス', '会議', '企業', '仕事'],
-  lifestyle: ['lifestyle', 'life', 'daily', 'home', 'family', 'travel', 'cafe', 'kitchen', 'living', 'relax', '日常', 'ライフ', '暮らし', 'ライフスタイル', 'カフェ', '旅']
+  lifestyle: ['lifestyle', 'life', 'daily', 'home', 'family', 'travel', 'cafe', 'kitchen', 'living', 'relax', '日常', 'ライフ', '暮らし', 'ライフスタイル', 'カフェ', '旅'],
+  romance: ['romance', 'love', 'couple', 'wedding', 'dating', 'kiss', 'bridal', 'romantic', 'valentine', '恋愛', 'カップル', 'ウェディング', '結婚式'],
+  pet: ['pet', 'dog', 'cat', 'animal', 'puppy', 'kitten', 'hamster', 'leash', 'ペット', '犬', '猫', '小動物']
 };
 
 const sanitizeToken = (value: string): string => value
@@ -104,10 +105,13 @@ const resolveBeautySubCategoryInternal = (candidates: string[]): { subCategory?:
     }
   }
 
-  return {
-    subCategory: best,
+  const result = {
     matched: Array.from(new Set(bestMatched))
-  };
+  } as { subCategory?: BeautySubCategory; matched: string[] };
+  if (best) {
+    result.subCategory = best;
+  }
+  return result;
 };
 
 export const resolveBeautySubCategory = (input: {
@@ -214,11 +218,15 @@ export const inferCategoryFromFilename = (
 
   const confidence = bestScore > 0 ? bestScore : 0.5;
 
-  return {
+  const response: CategoryClassification = {
     category: bestCategory,
     confidence,
     keywords: Array.from(bestKeywords).slice(0, 10),
-    source: 'filename',
-    beautySubCategory
+    source: 'filename'
   };
+  if (beautySubCategory) {
+    response.beautySubCategory = beautySubCategory;
+  }
+  return response;
 };
+

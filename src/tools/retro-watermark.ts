@@ -93,12 +93,12 @@ async function processOne(client: any, opts: Options, key: string): Promise<{ ok
     const src = await downloadToTemp(client, opts.bucket, key);
     const out = path.join(os.tmpdir(), `wmo-${Date.now()}-${Math.random().toString(36).slice(2)}${path.extname(key)}`);
     // Try to resolve ffmpeg-static from project submodule if available
-    let ffmpegBin: string | undefined;
+    let ffmpegBin = 'ffmpeg';
     try {
-      ffmpegBin = (await import('../../project-bolt-sb1-a6rmxyri/project/node_modules/ffmpeg-static')).default as unknown as string;
+      const resolved = (await import('../../project-bolt-sb1-a6rmxyri/project/node_modules/ffmpeg-static')).default as unknown as string;
+      if (resolved) ffmpegBin = resolved;
     } catch {
-      // fallback to system ffmpeg
-      ffmpegBin = 'ffmpeg';
+      // fallback to system ffmpeg (already set)
     }
     const filter = `[1:v][0:v]scale2ref=w=iw:h=ih[wm][vid];` +
                    `[vid][wm]overlay=0:0:format=auto:alpha=${opts.opacity}[ov];` +
@@ -116,7 +116,7 @@ async function processOne(client: any, opts: Options, key: string): Promise<{ ok
     }
     args.push('-y', out);
     await new Promise<void>((resolve, reject) => {
-      const p = spawn(ffmpegBin!, args, { stdio: 'ignore' });
+      const p = spawn(ffmpegBin, args, { stdio: 'ignore' });
       p.on('error', reject);
       p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited with code ${code}`))));
     });
@@ -160,6 +160,7 @@ async function main() {
     const i = idx++;
     if (i >= keys.length) return;
     const key = keys[i];
+    if (!key) return;
     const r = await processOne(client, opts, key);
     if (r.ok) { ok++; console.log(`[OK] ${r.target}`); } else { fail++; console.warn(`[FAIL] ${r.target}: ${r.error}`); }
     await next();

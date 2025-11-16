@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import { createReadStream } from 'fs';
 import { createClient } from '@supabase/supabase-js';
 import ffmpeg from 'fluent-ffmpeg';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - type defs not required for runtime
 import ffmpegPath from 'ffmpeg-static';
 
@@ -64,23 +65,37 @@ type VideoMetadata = {
   bitrate: number;
   size?: number;
   format: string;
-}
+};
+
+type DemoTags = { age?: string; gender?: string; tags: string[] };
+
+const CATEGORY_INFERENCE_MODULE = '../../project-bolt-sb1-a6rmxyri/project/src/utils/categoryInference';
+
+const loadCategoryInferenceModule = async () => {
+  try {
+    return await import(`${CATEGORY_INFERENCE_MODULE}.js`);
+  } catch {
+    return import(`${CATEGORY_INFERENCE_MODULE}.ts`);
+  }
+};
 
 async function extractMetadata(videoPath: string): Promise<VideoMetadata> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (ffmpeg as any).setFfmpegPath(ffmpegPath as unknown as string);
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(videoPath, (err, m) => {
+    ffmpeg.ffprobe(videoPath, (err: Error | null, m: any) => {
       if (err) return reject(err);
-      const vs = m.streams.find((s) => (s as any).codec_type === 'video') as any;
+      const vs = (m?.streams || []).find((s: any) => s?.codec_type === 'video') as any;
       if (!vs) return reject(new Error('No video stream found'));
       const meta: VideoMetadata = {
-        duration: Math.round((m.format.duration as number) || 0),
+        duration: Math.round((m?.format?.duration as number) || 0),
         resolution: `${vs.width}x${vs.height}`,
-        bitrate: m.format.bit_rate ? parseInt(String(m.format.bit_rate)) : 0,
-        size: m.format.size ? parseInt(String(m.format.size)) : undefined,
-        format: String(m.format.format_name || 'unknown'),
+        bitrate: m?.format?.bit_rate ? parseInt(String(m.format.bit_rate)) : 0,
+        format: String(m?.format?.format_name || 'unknown'),
       };
+      if (m?.format?.size) {
+        meta.size = parseInt(String(m.format.size));
+      }
       resolve(meta);
     });
   });
@@ -121,10 +136,7 @@ function sanitizeBasename(name: string): string {
 type VideoCategory = 'beauty' | 'fitness' | 'haircare' | 'business' | 'lifestyle';
 async function inferCategoryFromNameOrPath(filePath: string): Promise<VideoCategory> {
   try {
-    const mod = await import(
-      // relative to this file
-      '../../project-bolt-sb1-a6rmxyri/project/src/utils/categoryInference.ts'
-    );
+    const mod = await loadCategoryInferenceModule();
     const { inferCategoryFromFilename } = mod as any;
     const res = inferCategoryFromFilename(path.basename(filePath), { filePath, fallback: 'lifestyle' });
     return res?.category ?? 'lifestyle';
@@ -140,7 +152,7 @@ async function inferCategoryFromNameOrPath(filePath: string): Promise<VideoCateg
 
 async function inferBeautySubTags(filePath: string): Promise<string[]> {
   try {
-    const mod = await import('../../project-bolt-sb1-a6rmxyri/project/src/utils/categoryInference.ts');
+    const mod = await loadCategoryInferenceModule();
     const { inferCategoryFromFilename, resolveBeautySubCategory } = mod as any;
     const res = inferCategoryFromFilename(path.basename(filePath), { filePath, fallback: 'lifestyle' });
     if (res?.category !== 'beauty') return [];
@@ -149,7 +161,11 @@ async function inferBeautySubTags(filePath: string): Promise<string[]> {
     const r = resolveBeautySubCategory({ tokens, pathHints: hints, keywords: tokens });
     const sub = r?.subCategory as 'skincare' | 'haircare' | 'oralcare' | undefined;
     if (!sub) return [];
-    const labelMap: Record<string, string> = { skincare: 'スキンケア', haircare: 'ヘアケア', oralcare: 'オーラルケア' };
+    const labelMap: Record<'skincare' | 'haircare' | 'oralcare', string> = {
+      skincare: 'スキンケア',
+      haircare: 'ヘアケア',
+      oralcare: 'オーラルケア'
+    };
     return [`beauty:${sub}`, labelMap[sub]];
   } catch {
     return [];
@@ -171,18 +187,18 @@ async function detectWithRekognition(thumbnailPath: string): Promise<Rekognition
     const bytes = await fs.readFile(thumbnailPath);
 
     const [facesRes, labelsRes] = await Promise.all([
-      client.send(new DetectFacesCommand({ Image: { Bytes: bytes }, Attributes: ['ALL'] })),
-      client.send(new DetectLabelsCommand({ Image: { Bytes: bytes }, MaxLabels: 20, MinConfidence: 75 }))
+      client.send(new DetectFacesCommand({ Image: { Bytes: bytes }, Attributes: ['ALL'] })) as Promise<any>,
+      client.send(new DetectLabelsCommand({ Image: { Bytes: bytes }, MaxLabels: 20, MinConfidence: 75 })) as Promise<any>
     ]);
 
     let ageRange: { low: number; high: number } | undefined;
     let gender: 'Male' | 'Female' | undefined;
-    const labels = (labelsRes.Labels || []).map((l: any) => String(l.Name)).filter(Boolean);
+    const labels = (labelsRes?.Labels || []).map((l: any) => String(l?.Name)).filter(Boolean);
 
-    const faceCount = facesRes.FaceDetails?.length || 0;
+    const faceCount = facesRes?.FaceDetails?.length || 0;
     if (faceCount > 0) {
       // choose the face with largest bounding box area
-      const sorted = [...facesRes.FaceDetails].sort((a: any, b: any) => {
+      const sorted = [...(facesRes?.FaceDetails || [])].sort((a: any, b: any) => {
         const areaA = (a.BoundingBox?.Width || 0) * (a.BoundingBox?.Height || 0);
         const areaB = (b.BoundingBox?.Width || 0) * (b.BoundingBox?.Height || 0);
         return areaB - areaA;
@@ -193,7 +209,13 @@ async function detectWithRekognition(thumbnailPath: string): Promise<Rekognition
       if (g === 'Male' || g === 'Female') gender = g;
     }
 
-    return { ageRange, gender, labels, facesCount: faceCount };
+    const result: RekognitionAttributes = {
+      labels,
+      facesCount: faceCount
+    };
+    if (ageRange) result.ageRange = ageRange;
+    if (gender) result.gender = gender;
+    return result;
   } catch (e) {
     console.warn('[rekognition] skipped or failed:', (e as any)?.message || e);
     return {};
@@ -209,30 +231,30 @@ function mapAgeToUiJapanese(avg: number): string | undefined {
   return undefined; // 子供はUIに明示カテゴリがないため除外
 }
 
-function deriveDemographics(attrs: RekognitionAttributes): { age?: string; gender?: string; tags: string[] } {
+function deriveDemographics(attrs: RekognitionAttributes): DemoTags {
   const tags: string[] = [];
-  let age: string | undefined;
-  let gender: string | undefined;
+  let inferredAge: string | undefined;
+  let inferredGender: string | undefined;
 
   if (attrs.ageRange) {
     const avg = Math.round((attrs.ageRange.low + attrs.ageRange.high) / 2);
-    if (avg < 13) age = 'child';
-    else if (avg < 20) age = 'teen';
-    else if (avg < 35) age = 'young-adult';
-    else if (avg < 60) age = 'adult';
-    else age = 'senior';
+    if (avg < 13) inferredAge = 'child';
+    else if (avg < 20) inferredAge = 'teen';
+    else if (avg < 35) inferredAge = 'young-adult';
+    else if (avg < 60) inferredAge = 'adult';
+    else inferredAge = 'senior';
     // English canonical tag
-    tags.push(age);
+    tags.push(inferredAge);
     // Japanese UI-friendly decade tag
     const ja = mapAgeToUiJapanese(avg);
     if (ja) tags.push(ja);
   }
   if (attrs.gender) {
-    gender = attrs.gender.toLowerCase();
-    tags.push(gender);
+    inferredGender = attrs.gender.toLowerCase();
+    tags.push(inferredGender);
     // Japanese synonym for UI filter
-    if (gender === 'male') tags.push('男性');
-    if (gender === 'female') tags.push('女性');
+    if (inferredGender === 'male') tags.push('男性');
+    if (inferredGender === 'female') tags.push('女性');
   }
   if (attrs.labels && attrs.labels.length) {
     tags.push(...attrs.labels.slice(0, 10).map((s) => s.toLowerCase().replace(/\s+/g, '-')));
@@ -241,7 +263,11 @@ function deriveDemographics(attrs: RekognitionAttributes): { age?: string; gende
     // couple/mixed presence
     tags.push('mixed', '男女');
   }
-  return { age, gender, tags: Array.from(new Set(tags)).slice(0, 15) };
+  const uniqueTags = Array.from(new Set(tags)).slice(0, 15);
+  const result: DemoTags = { tags: uniqueTags };
+  if (inferredAge) result.age = inferredAge;
+  if (inferredGender) result.gender = inferredGender;
+  return result;
 }
 
 async function main() {
@@ -254,12 +280,11 @@ async function main() {
 
   // Ensure bucket exists (public) for simple public URL serving
   try {
-    // @ts-expect-error: method exists at runtime
-    const { data: buckets } = await (supabase.storage as any).listBuckets?.();
+    const storageApi = supabase.storage as Record<string, any>;
+    const { data: buckets } = await storageApi.listBuckets?.();
     const exists = Array.isArray(buckets) && buckets.some((b: any) => b.name === opts.bucket);
     if (!exists) {
-      // @ts-expect-error: createBucket available with service key
-      await (supabase.storage as any).createBucket?.(opts.bucket, { public: true });
+      await storageApi.createBucket?.(opts.bucket, { public: true });
       console.log(`[ingest] created bucket ${opts.bucket} (public)`);
     }
   } catch (e) {
@@ -277,7 +302,7 @@ async function main() {
       const meta = await extractMetadata(videoPath);
       const thumbPath = await generateThumbnail(videoPath, Math.min(3, Math.max(1, Math.floor(meta.duration / 3))));
 
-      let demoTags: { age?: string; gender?: string; tags: string[] } = { tags: [] };
+      let demoTags: DemoTags = { tags: [] };
       if (opts.provider === 'rekognition') {
         const attrs = await detectWithRekognition(thumbPath);
         demoTags = deriveDemographics(attrs);
@@ -285,14 +310,24 @@ async function main() {
 
       const baseName = path.basename(videoPath);
       const safeBase = sanitizeBasename(baseName);
+      const category = await inferCategoryFromNameOrPath(videoPath);
       const videoKey = `videos/${category}/${safeBase}`;
       const thumbKey = `thumbnails/${category}/${safeBase.replace(/\.[^.]+$/, '')}.jpg`;
 
-      const category = await inferCategoryFromNameOrPath(videoPath);
-
-      const [w, h] = meta.resolution.split('x').map(Number);
-      const ratio = w && h ? w / h : 0;
-      const ratioTag = !ratio ? undefined : Math.abs(ratio - 9 / 16) < 0.1 ? '9:16' : Math.abs(ratio - 16 / 9) < 0.1 ? '16:9' : Math.abs(ratio - 1) < 0.1 ? '1:1' : undefined;
+      const [rawW = 0, rawH = 0] = meta.resolution.split('x').map(Number);
+      const w = Number.isFinite(rawW) ? rawW : 0;
+      const h = Number.isFinite(rawH) ? rawH : 0;
+      const ratio = w > 0 && h > 0 ? w / h : 0;
+      const ratioTag =
+        ratio === 0
+          ? undefined
+          : Math.abs(ratio - 9 / 16) < 0.1
+          ? '9:16'
+          : Math.abs(ratio - 16 / 9) < 0.1
+          ? '16:9'
+          : Math.abs(ratio - 1) < 0.1
+          ? '1:1'
+          : undefined;
 
       const beautyTags = category === 'beauty' ? await inferBeautySubTags(videoPath) : [];
       const tags = Array.from(new Set([
