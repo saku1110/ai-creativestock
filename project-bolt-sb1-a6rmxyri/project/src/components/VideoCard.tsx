@@ -6,15 +6,21 @@ import { useDownloadLimits } from '../lib/downloadLimits';
 import { useUser } from '../hooks/useUser';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
 
-interface VideoCardProps {  minimal?: boolean; // LP�O���b�h�p�̊ȈՕ\��\n}
+interface VideoCardProps {  minimal?: boolean; // LP�O���b�h�p�̊ȈՕ\��\n}
 
 const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAuthRequest, minimal = false }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isInlinePlaying, setIsInlinePlaying] = useState(false);
+  const [isPreviewReady, setIsPreviewReady] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  
+  useEffect(() => {
+    setIsPreviewReady(false);
+    setIsInlinePlaying(false);
+  }, [video.videoUrl]);
   
   const { user } = useUser();
   const { usage, executeDownload, checkDownload, warningMessage } = useDownloadLimits(user?.id || '');
@@ -60,7 +66,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
         link.click();
         document.body.removeChild(link);
         
-        // 成功メチE��ージを表示
+        // 成功メチE��ージを表示
         alert('ダウンロードが開始されました');
       } else {
         alert(result.error || 'ダウンロードに失敗しました');
@@ -155,15 +161,23 @@ const downloadButtonState = getDownloadButtonState();
               src={video.videoUrl}
               muted
               playsInline
-              preload="metadata"
+              preload="auto"
+              loop
+              poster={video.thumbnailUrl}
               onClick={handleTapToggle}
               onTouchStart={handleTapToggle}
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${isInlinePlaying ? 'opacity-100' : 'opacity-0'}`}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${isInlinePlaying && isPreviewReady ? 'opacity-100' : 'opacity-0'}`}
+              onLoadedData={() => {
+                setIsPreviewReady(true);
+                if (isHovered && videoRef.current && videoRef.current.paused) {
+                  void videoRef.current.play();
+                }
+              }}
               onContextMenu={(e) => { e.preventDefault(); return false; }}
             />
           )}
 
-          {/* プレイボタンオーバ�Eレイ */}
+          {/* プレイボタンオーバ�Eレイ */}
           <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-center justify-center transition-opacity duration-300 ${
             isHovered ? 'opacity-100' : 'opacity-0'
           }`}>
@@ -215,7 +229,7 @@ const downloadButtonState = getDownloadButtonState();
         <div className="p-3 sm:p-4 lg:p-6">
           <p className="text-gray-400 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2 leading-relaxed">{video.description}</p>
           
-          {/* メタ惁E�� */}
+          {/* メタ惁E�� */}
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <span className="glass-effect text-cyan-400 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-bold border border-cyan-400/30">
               {video.category}
@@ -269,7 +283,7 @@ const downloadButtonState = getDownloadButtonState();
                 />
               </div>
               <div className="text-xs text-gray-400 mt-1">
-                リセチE��: {usage.resetDate.toLocaleDateString()}
+                リセチE��: {usage.resetDate.toLocaleDateString()}
               </div>
             </div>
           )}

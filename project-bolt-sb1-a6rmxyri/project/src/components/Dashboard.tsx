@@ -10,7 +10,9 @@ import {
   findDashboardThumbnail,
   findLocalDashboardVideo,
   isLocalDashboardEnabled,
-  fetchRemoteDashboardVideos
+  fetchRemoteDashboardVideos,
+  findDashboardReviewTags,
+  findDashboardReviewCategory
 } from '../local-content';
 import type { LocalVideoItem } from '../local-content';
 import type { BeautySubCategory } from '../utils/categoryInference';
@@ -38,6 +40,23 @@ interface DashboardProps {
   onLogout?: () => void;
   onPageChange?: (page: string) => void;
 }
+
+type RawSupabaseVideo = {
+  id?: string;
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  tags?: string[] | null;
+  duration?: number | null;
+  resolution?: string | null;
+  file_url: string;
+  preview_url?: string | null;
+  thumbnail_url?: string | null;
+  is_featured?: boolean | null;
+  download_count?: number | null;
+  created_at?: string | null;
+  beauty_sub_category?: BeautySubCategory | null;
+};
 
 const DASHBOARD_CATEGORY_IDS: VideoAsset['category'][] = [
   'beauty',
@@ -111,22 +130,55 @@ const deriveThumbnailFromFileUrl = (fileUrl?: string) => {
 };
 
 const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
+  const identifiers = [
+    video.file_url,
+    video.preview_url,
+    video.title,
+    video.id
+  ];
+
   const ensureThumbnail = () => {
     if (!video.thumbnail_url) {
+      const thumbnailSource =
+        identifiers.find((id) => !!findDashboardThumbnail(id)) ?? video.file_url;
+
       video.thumbnail_url =
-        findDashboardThumbnail(video.file_url || video.preview_url || video.title || video.id) ||
+        (thumbnailSource && findDashboardThumbnail(thumbnailSource)) ||
         deriveThumbnailFromFileUrl(video.file_url) ||
         WHITE_THUMBNAIL;
     }
   };
 
-  if (hasWatermarkSignature(video.file_url) || !isLocalDashboardEnabled || !hasLocalDashboardVideos) {
+  if (!video.tags?.length) {
+    for (const candidate of identifiers) {
+      const reviewTags = findDashboardReviewTags(candidate);
+      if (reviewTags?.length) {
+        video.tags = [...reviewTags];
+        break;
+      }
+    }
+  }
+
+  if (!video.category || video.category === 'lifestyle') {
+    for (const candidate of identifiers) {
+      const reviewCategory = findDashboardReviewCategory(candidate);
+      if (reviewCategory && isDashboardCategory(reviewCategory)) {
+        video.category = normalizeDashboardCategory(reviewCategory);
+        break;
+      }
+    }
+  }
+
+  const canUseLocalSources =
+    !hasWatermarkSignature(video.file_url) && isLocalDashboardEnabled && hasLocalDashboardVideos;
+
+  if (!canUseLocalSources) {
     video.preview_url = video.file_url;
     ensureThumbnail();
     return video;
   }
 
-  const lookupSource = video.file_url || video.preview_url || video.title || video.id;
+  const lookupSource = identifiers.find(Boolean);
   const localAsset = findLocalDashboardVideo(lookupSource);
   if (!localAsset) {
     ensureThumbnail();
@@ -137,7 +189,7 @@ const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
   if (!video.thumbnail_url) {
     video.thumbnail_url =
       localAsset.thumbnailUrl ||
-      findDashboardThumbnail(localAsset.fileName) ||
+      (localAsset.fileName && findDashboardThumbnail(localAsset.fileName)) ||
       WHITE_THUMBNAIL;
   }
 
@@ -217,6 +269,55 @@ const mapLocalVideoToAsset = (video: LocalVideoItem, index: number): VideoAsset 
     is_featured: index < 3,
     download_count: 0,
     created_at: new Date().toISOString(),
+    beautySubCategory
+  };
+};
+
+const mapSupabaseRowToAsset = (
+  row: RawSupabaseVideo,
+  downloadCountMap: Record<string, number>
+): VideoAsset => {
+  const normalizedCategory = normalizeDashboardCategory(row.category);
+  const tags: string[] = Array.isArray(row.tags) ? [...row.tags] : [];
+  let beautySubCategory: BeautySubCategory | undefined;
+
+  if (normalizedCategory === 'beauty') {
+    beautySubCategory =
+      (row.beauty_sub_category as BeautySubCategory | null) ?? deriveBeautySubCategoryFromTags(tags);
+
+    if (beautySubCategory) {
+      const meta = BEAUTY_SUBCATEGORY_DATA[beautySubCategory];
+      if (!tags.includes(meta.tag)) tags.push(meta.tag);
+      if (!tags.includes(meta.label)) tags.push(meta.label);
+    }
+  }
+
+  const previewIsImage = isImageLikeUrl(row.preview_url);
+  const matchedThumbnailUrl = assetsMatchByFilename(row.file_url, row.thumbnail_url)
+    ? row.thumbnail_url
+    : undefined;
+  const derivedThumbnail =
+    matchedThumbnailUrl ||
+    (previewIsImage ? row.preview_url : undefined) ||
+    findDashboardThumbnail(row.file_url || row.preview_url || row.title || row.id || '') ||
+    deriveThumbnailFromFileUrl(row.file_url) ||
+    WHITE_THUMBNAIL;
+
+  const safeId = row.id || row.file_url || row.title || `video-${Date.now()}`;
+
+  return {
+    id: safeId,
+    title: row.title,
+    description: row.description ?? '',
+    category: normalizedCategory,
+    tags,
+    duration: row.duration ?? 0,
+    resolution: row.resolution ?? '1080x1920',
+    file_url: row.file_url,
+    thumbnail_url: derivedThumbnail,
+    is_featured: !!row.is_featured,
+    download_count: downloadCountMap[safeId] ?? row.download_count ?? 0,
+    created_at: row.created_at ?? new Date().toISOString(),
     beautySubCategory
   };
 };
@@ -416,115 +517,90 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   useEffect(() => {
     let isMounted = true;
 
-    const fetchVideos = async () => {
+    const applyVideoList = (list: VideoAsset[]) => {
+      if (!isMounted) return false;
+      setVideos(list);
+      return true;
+    };
+
+    const tryLoadSupabaseVideos = async (): Promise<boolean> => {
+      try {
+        const { data, error } = await database.getVideoAssets();
+        if (error) {
+          console.error('Supabaseの動画取得に失敗しました:', error);
+          return false;
+        }
+        if (!data?.length) return false;
+
+        let downloadCountMap: Record<string, number> = {};
+
+        try {
+          const { data: downloadStats, error: statsError } = await supabase
+            .from('download_history')
+            .select('video_id, count=video_id', { head: false })
+            .group('video_id');
+
+          if (!statsError && Array.isArray(downloadStats)) {
+            downloadCountMap = downloadStats.reduce<Record<string, number>>((acc, stat: any) => {
+              if (stat?.video_id) {
+                acc[stat.video_id] =
+                  typeof stat.count === 'number' ? stat.count : Number(stat.count) || 0;
+              }
+              return acc;
+            }, {});
+          }
+        } catch (statsError) {
+          console.error('ダウンロード履歴の取得に失敗しました:', statsError);
+        }
+
+        const transformed = data.map((row: RawSupabaseVideo) =>
+          mapSupabaseRowToAsset(row, downloadCountMap)
+        );
+        const hydrated = transformed
+          .map((video) => hydrateWithLocalWatermark(video))
+          .filter((video): video is VideoAsset => Boolean(video));
+        const uniqueTransformed = dedupeVideoAssets(hydrated);
+
+        return applyVideoList(uniqueTransformed);
+      } catch (error) {
+        console.error('Supabaseの動画取得処理でエラーが発生しました:', error);
+        return false;
+      }
+    };
+
+    const tryLoadRemoteLocalVideos = async (): Promise<boolean> => {
+      if (hasLocalDashboardVideos) return false;
+      try {
+        const remoteLocalVideos = await fetchRemoteDashboardVideos();
+        if (!remoteLocalVideos?.length) return false;
+        const normalizedRemote = dedupeVideoAssets(
+          remoteLocalVideos.map((video, index) => mapLocalVideoToAsset(video, index))
+        );
+        return applyVideoList(normalizedRemote);
+      } catch (remoteError) {
+        console.error('ローカルコンテンツの取得に失敗しました:', remoteError);
+        return false;
+      }
+    };
+
+    const tryLoadBundledLocalVideos = (): boolean => {
+      if (!LOCAL_DASHBOARD_ASSETS.length) return false;
+      return applyVideoList(LOCAL_DASHBOARD_ASSETS);
+    };
+
+        const fetchVideos = async () => {
       try {
         setLoading(true);
 
-        if (LOCAL_DASHBOARD_ASSETS.length > 0) {
-          if (!isMounted) return;
-          setVideos(LOCAL_DASHBOARD_ASSETS);
-          setLoading(false);
-          return;
-        }
+        if (await tryLoadSupabaseVideos()) return;
+        if (await tryLoadRemoteLocalVideos()) return;
+        if (tryLoadBundledLocalVideos()) return;
 
-        try {
-          const remoteLocalVideos = await fetchRemoteDashboardVideos();
-          if (remoteLocalVideos.length > 0) {
-            if (!isMounted) return;
-            const normalizedRemote = dedupeVideoAssets(
-              remoteLocalVideos.map((video, index) => mapLocalVideoToAsset(video, index))
-            );
-            setVideos(normalizedRemote);
-            setLoading(false);
-            return;
-          }
-        } catch (remoteError) {
-          console.error('ローカルコンテンツの取得に失敗しました:', remoteError);
-        }
-
-        if (!supabase) {
-          console.warn('Supabaseクライアントが初期化されていないため、動画を取得できません。');
-          if (!isMounted) return;
-          setVideos([]);
-          setLoading(false);
-          return;
-        }
-
-        const { data, error } = await database.getVideoAssets();
-        if (!isMounted) return;
-
-        if (!error && data && data.length > 0) {
-          let downloadCountMap: Record<string, number> = {};
-
-          try {
-            const { data: downloadStats, error: statsError } = await supabase
-              .from('download_history')
-              .select('video_id, count=video_id', { head: false })
-              .group('video_id');
-
-            if (!statsError && Array.isArray(downloadStats)) {
-              downloadCountMap = downloadStats.reduce<Record<string, number>>((acc, stat: any) => {
-                if (stat?.video_id) {
-                  acc[stat.video_id] = typeof stat.count === 'number' ? stat.count : Number(stat.count) || 0;
-                }
-                return acc;
-              }, {});
-            }
-          } catch (statsError) {
-            console.error('ダウンロード統計の取得に失敗しました:', statsError);
-          }
-
-          const transformed = data.map((row: any) => {
-            const normalizedCategory = normalizeDashboardCategory(row.category);
-            const tags: string[] = Array.isArray(row.tags) ? [...row.tags] : [];
-            const beautySubCategory: BeautySubCategory | undefined = normalizedCategory === 'beauty'
-              ? (row.beauty_sub_category as BeautySubCategory | null) ?? deriveBeautySubCategoryFromTags(tags)
-              : undefined;
-
-            if (beautySubCategory) {
-              const meta = BEAUTY_SUBCATEGORY_DATA[beautySubCategory];
-              if (!tags.includes(meta.tag)) tags.push(meta.tag);
-              if (!tags.includes(meta.label)) tags.push(meta.label);
-            }
-
-            const previewIsImage = isImageLikeUrl(row.preview_url);
-            const matchedThumbnailUrl = assetsMatchByFilename(row.file_url, row.thumbnail_url) ? row.thumbnail_url : undefined;
-            const derivedThumbnail =
-              matchedThumbnailUrl ||
-              (previewIsImage ? row.preview_url : undefined) ||
-              findDashboardThumbnail(row.file_url || row.preview_url || row.title || row.id) ||
-              deriveThumbnailFromFileUrl(row.file_url) ||
-              WHITE_THUMBNAIL;
-
-            return {
-              id: row.id,
-              title: row.title,
-              description: row.description ?? '',
-              category: normalizedCategory,
-              tags,
-              duration: row.duration ?? 0,
-              resolution: row.resolution ?? '1080x1920',
-              file_url: row.file_url,
-              thumbnail_url: derivedThumbnail,
-              is_featured: !!row.is_featured,
-              download_count: downloadCountMap[row.id] ?? row.download_count ?? 0,
-              created_at: row.created_at ?? new Date().toISOString(),
-              beautySubCategory,
-            } satisfies VideoAsset;
-          });
-
-          const hydrated = transformed
-            .map((video) => hydrateWithLocalWatermark(video))
-            .filter((video): video is VideoAsset => Boolean(video));
-
-          const uniqueTransformed = dedupeVideoAssets(hydrated);
-
-          setVideos(uniqueTransformed);
-        } else {
+        if (isMounted) {
           setVideos([]);
         }
       } catch (error) {
-        console.error('動画の読み込みに失敗しました:', error);
+        console.error('����̓ǂݍ��݂Ɏ��s���܂���:', error);
         if (isMounted) {
           setVideos([]);
         }
