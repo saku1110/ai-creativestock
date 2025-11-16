@@ -135,7 +135,9 @@ const downloadButtonState = getDownloadButtonState();
           <img 
             src={video.thumbnailUrl}
             alt={video.title}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+            className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 transition-opacity ${
+              isInlinePlaying && isPreviewReady ? 'opacity-0' : 'opacity-100'
+            }`}
             data-video-id={video.id}
             onContextMenu={(e) => {
               e.preventDefault();
