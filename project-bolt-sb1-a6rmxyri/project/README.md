@@ -1,18 +1,23 @@
 # ai-creativestock
 
-## Supabase Storage ã¸ã®ãƒ­ãƒ¼ã‚«ãƒ«å‹•ç”»ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰
+## Supabase Storage ‚Ö‚Ìƒ[ƒJƒ‹“®‰æƒAƒbƒvƒ[ƒh
+ƒ[ƒJƒ‹ŠJ”­—p‚Ì src/local-content ”z‰º‚Ì“®‰æ‚Í Git ŠÇ—‚É‚ÍŠÜ‚ß‚¸ASupabase Storage ‚ÉƒAƒbƒvƒ[ƒh‚µ‚Ä—˜—p‚µ‚Ü‚·B
 
-ãƒ­ãƒ¼ã‚«ãƒ«é–‹ç™ºç”¨ã«ç½®ã„ã¦ã„ã‚‹ `src/local-content` é…ä¸‹ã®å‹•ç”»ãƒ•ã‚¡ã‚¤ãƒ«ã¯ Git ç®¡ç†ã«å«ã‚ãšã€Supabase Storage ã«ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰ã—ã¦åˆ©ç”¨ã§ãã¾ã™ã€‚
+1. Supabase ƒvƒƒWƒFƒNƒg‚Å local-content ‚È‚Ç”CˆÓ‚ÌŒöŠJƒoƒPƒbƒg‚ğì¬‚µA“Ç‚İæ‚è‚ğ‹–‰Â‚µ‚Ü‚·B
+2. .env ‚È‚Ç‚É‰º‹L‚ğİ’è‚µ‚Ü‚·B
+   `ash
+   SUPABASE_URL=...
+   SUPABASE_SERVICE_ROLE_KEY=...
+   SUPABASE_STORAGE_BUCKET=local-content
+   SUPABASE_STORAGE_PREFIX=local-content
+   `
+3. 
+pm run upload:local-content ‚ğÀs‚·‚é‚ÆAsrc/local-content ˆÈ‰º‚Ì mp4 / webm / mov ‚ğƒAƒbƒvƒ[ƒh‚µAŒöŠJ URL ˆê——‚ğ src/local-content/remote-manifest.ts ‚É©“®¶¬‚µ‚Ü‚·B
+4. ƒtƒƒ“ƒgƒGƒ“ƒh‚Í¶¬‚³‚ê‚½ƒ}ƒjƒtƒFƒXƒg‚ğQÆ‚µASupabase ‚É‘¶İ‚·‚éê‡‚Í‚»‚Ì URL ‚ğ—Dæ‚µ‚ÄÄ¶‚µ‚Ü‚·B
 
-1. Supabase ãƒ—ãƒ­ã‚¸ã‚§ã‚¯ãƒˆã§ `local-content`ï¼ˆä»»æ„ï¼‰ã¨ã„ã†ãƒã‚±ãƒƒãƒˆã‚’ä½œæˆã—ã€å…¬é–‹ã‚¢ã‚¯ã‚»ã‚¹ã‚’è¨±å¯ã—ã¾ã™ã€‚
-2. `.env` ãªã©ã«ä»¥ä¸‹ã‚’è¨­å®šã—ã¾ã™ã€‚
-   ```bash
-   SUPABASE_URL=...               # ãƒ—ãƒ­ã‚¸ã‚§ã‚¯ãƒˆURL
-   SUPABASE_SERVICE_ROLE_KEY=...  # Service Role Keyï¼ˆã‚µãƒ¼ãƒãƒ¼ç”¨ï¼‰
-   SUPABASE_STORAGE_BUCKET=local-content        # ä»»æ„ã€‚çœç•¥æ™‚ã¯ local-content
-   SUPABASE_STORAGE_PREFIX=local-content         # ä»»æ„ã®ãƒ—ãƒ¬ãƒ•ã‚£ãƒƒã‚¯ã‚¹
-   ```
-3. `npm run upload:local-content` ã‚’å®Ÿè¡Œã™ã‚‹ã¨ã€`src/local-content` ä»¥ä¸‹ã® mp4 / webm / mov ãŒ Supabase Storage ã«ã‚¢ãƒƒãƒ—ã•ã‚Œã€å…¬é–‹URLã‚’ã¾ã¨ã‚ãŸ `src/local-content/remote-manifest.ts` ãŒè‡ªå‹•ç”Ÿæˆã•ã‚Œã¾ã™ã€‚
-4. ãƒ•ãƒ­ãƒ³ãƒˆã‚¨ãƒ³ãƒ‰ã¯ç”Ÿæˆã•ã‚ŒãŸãƒãƒ‹ãƒ•ã‚§ã‚¹ãƒˆã‚’å‚ç…§ã—ã€å­˜åœ¨ã™ã‚‹å ´åˆã¯ Supabase ã®URLã‚’å„ªå…ˆã—ã¦å†ç”Ÿã—ã¾ã™ã€‚
+> **Note**: ‚±‚ÌƒXƒNƒŠƒvƒg‚Í SUPABASE_SERVICE_ROLE_KEY ‚ğg—p‚·‚é‚½‚ßAM—Š‚Å‚«‚éƒ[ƒJƒ‹ŠÂ‹«‚©‚ç‚Ì‚İÀs‚µ‚Ä‚­‚¾‚³‚¢B
 
-> **Note**: ã“ã®ã‚¹ã‚¯ãƒªãƒ—ãƒˆã¯ `SUPABASE_SERVICE_ROLE_KEY` ã‚’ä½¿ç”¨ã™ã‚‹ãŸã‚ã€ãƒ­ãƒ¼ã‚«ãƒ«ç’°å¢ƒãªã©ä¿¡é ¼ã§ãã‚‹ç’°å¢ƒã®ã¿ã§å®Ÿè¡Œã—ã¦ãã ã•ã„ã€‚
+## ƒ_ƒbƒVƒ…ƒ{[ƒhƒ^ƒO‚Ì”½‰fƒ‹[ƒ‹
+- ƒ_ƒbƒVƒ…ƒ{[ƒh‚Ì“®‰æƒJ[ƒh‚É•\¦‚³‚ê‚éƒ^ƒO‚Í project/temp/dashboard-review-labeled.csv ‚É‹LÚ‚³‚ê‚½ inal_age / inal_gender / inal_tags ‚Ì“à—e‚Ì‚İ‚ğ—˜—p‚µ‚Ü‚·BSupabase ‚Ì ideo_assets.tags ‚â‚»‚Ì‘¼‚Ì©“®ƒ^ƒO‚Íg—p‚µ‚Ü‚¹‚ñB
+- CSV ‚ğXV‚µ‚½‚ç project ƒfƒBƒŒƒNƒgƒŠ‚Å 
+px tsx scripts/generate-dashboard-thumb-map.ts ‚ğÀs‚µAdashboardThumbMap.generated.ts ‚ğÄ¶¬‚µ‚Ä‚­‚¾‚³‚¢B¶¬•¨‚ğ’Ê‚¶‚Äƒ_ƒbƒVƒ…ƒ{[ƒh‚Íí‚É CSV —R—ˆ‚Ìƒ^ƒO‚Ì‚İ‚ğ“Ç‚İ‚İ‚Ü‚·B

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Heart, Download, Clock, Star, Eye, Zap, Lock, AlertTriangle } from 'lucide-react';
 import { VideoAsset } from '../types';
 import VideoPreviewModal from './VideoPreviewModal';
@@ -12,15 +12,43 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   const [isHovered, setIsHovered] = useState(false);
   const [isInlinePlaying, setIsInlinePlaying] = useState(false);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
+  const [shouldInlinePlay, setShouldInlinePlay] = useState(false);
+  const [hasFirstFrame, setHasFirstFrame] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   
+  const attemptInlinePlay = useCallback(() => {
+    if (!shouldInlinePlay) return;
+    const el = videoRef.current;
+    if (!el) return;
+    if (el.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+    el.play().catch(() => {
+      setShouldInlinePlay(false);
+    });
+  }, [shouldInlinePlay]);
+
+  const ensureFirstFrameVisible = useCallback(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    if (typeof (el as any).requestVideoFrameCallback === 'function') {
+      (el as any).requestVideoFrameCallback(() => setHasFirstFrame(true));
+    } else {
+      setHasFirstFrame(true);
+    }
+  }, []);
+
   useEffect(() => {
     setIsPreviewReady(false);
     setIsInlinePlaying(false);
+    setShouldInlinePlay(false);
+    setHasFirstFrame(false);
   }, [video.videoUrl]);
+ 
+  useEffect(() => {
+    attemptInlinePlay();
+  }, [attemptInlinePlay, isPreviewReady]);
   
   const { user } = useUser();
   const { usage, executeDownload, checkDownload, warningMessage } = useDownloadLimits(user?.id || '');
@@ -88,15 +116,10 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   };
 const downloadButtonState = getDownloadButtonState();
 
-  const startInline = async () => {
-    const el = videoRef.current;
-    if (!el || !video.videoUrl) return;
-    try {
-      await el.play();
-      setIsInlinePlaying(true);
-    } catch {
-      // ignore autoplay errors
-    }
+  const startInline = () => {
+    if (!video.videoUrl) return;
+    setShouldInlinePlay(true);
+    attemptInlinePlay();
   };
 
   const stopInline = () => {
@@ -107,6 +130,8 @@ const downloadButtonState = getDownloadButtonState();
       el.currentTime = 0;
     } catch {}
     setIsInlinePlaying(false);
+    setShouldInlinePlay(false);
+    setHasFirstFrame(false);
   };
 
   const handleHoverEnter = () => {
@@ -136,7 +161,7 @@ const downloadButtonState = getDownloadButtonState();
             src={video.thumbnailUrl}
             alt={video.title}
             className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 transition-opacity ${
-              isInlinePlaying && isPreviewReady ? 'opacity-0' : 'opacity-100'
+              hasFirstFrame ? 'opacity-0' : 'opacity-100'
             }`}
             data-video-id={video.id}
             onContextMenu={(e) => {
@@ -168,12 +193,18 @@ const downloadButtonState = getDownloadButtonState();
               poster={video.thumbnailUrl}
               onClick={handleTapToggle}
               onTouchStart={handleTapToggle}
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${isInlinePlaying && isPreviewReady ? 'opacity-100' : 'opacity-0'}`}
+              className={`absolute inset-0 w-full h-full object-cover bg-black transition-opacity duration-200 ${hasFirstFrame ? 'opacity-100' : 'opacity-0'}`}
               onLoadedData={() => {
                 setIsPreviewReady(true);
-                if (isHovered && videoRef.current && videoRef.current.paused) {
-                  void videoRef.current.play();
-                }
+                attemptInlinePlay();
+              }}
+              onPlay={() => {
+                setIsInlinePlaying(true);
+                ensureFirstFrameVisible();
+              }}
+              onPause={() => {
+                setIsInlinePlaying(false);
+                setHasFirstFrame(false);
               }}
               onContextMenu={(e) => { e.preventDefault(); return false; }}
             />
