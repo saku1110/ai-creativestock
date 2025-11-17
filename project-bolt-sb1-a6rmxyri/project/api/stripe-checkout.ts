@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import Stripe from 'stripe'
-import { supabaseAdmin } from './_supabaseAdmin'
+import { supabaseAdmin } from './_supabaseAdmin.js'
 
 const stripeSecret = process.env.STRIPE_SECRET_KEY
 if (!stripeSecret) {
