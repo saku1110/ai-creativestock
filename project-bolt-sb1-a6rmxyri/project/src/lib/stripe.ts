@@ -142,19 +142,22 @@ export class StripePaymentService {
       }
 
       // Vercel Functions経由でStripe APIを呼び出し
+      const payload = {
+        priceId,
+        userId,
+        billing,
+        planId,
+        successUrl,
+        cancelUrl
+      }
+      console.log('[Stripe] sending checkout payload', payload)
+
       const response = await fetch(`${window.location.origin}/api/stripe-checkout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          priceId,
-          userId,
-          billing,
-          planId,
-          successUrl,
-          cancelUrl,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const responseText = await response.text();
