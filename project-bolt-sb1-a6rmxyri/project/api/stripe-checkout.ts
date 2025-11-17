@@ -29,11 +29,16 @@ async function readJsonBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  console.log('stripe-checkout invoked', { method: req.method });
+  console.log('stripe-checkout invoked', {
+    method: req.method,
+    contentType: req.headers['content-type'],
+    userAgent: req.headers['user-agent']
+  })
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
     const body = await readJsonBody(req)
+    console.log('stripe-checkout parsed body keys', Object.keys(body || {}))
     const { priceId, userId, billing, planId, successUrl, cancelUrl } = body || {}
     if (!priceId || !userId) {
       return res.status(400).json({ error: 'priceId and userId are required' })
