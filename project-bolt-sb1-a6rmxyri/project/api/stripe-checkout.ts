@@ -2,17 +2,38 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import Stripe from 'stripe'
 import { supabaseAdmin } from './_supabaseAdmin.js'
 
+export const config = {
+  api: {
+    bodyParser: false
+  }
+}
+
 const stripeSecret = process.env.STRIPE_SECRET_KEY
 if (!stripeSecret) {
   throw new Error('Missing STRIPE_SECRET_KEY')
 }
 const stripe = new Stripe(stripeSecret, { apiVersion: '2024-06-20' })
 
+async function readJsonBody(req: VercelRequest) {
+  const chunks: Uint8Array[] = []
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
+  }
+  const raw = Buffer.concat(chunks).toString('utf8')
+  if (!raw.trim()) return {}
+  try {
+    return JSON.parse(raw)
+  } catch {
+    throw new Error('Invalid JSON payload')
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
-    const { priceId, userId, billing, planId, successUrl, cancelUrl } = req.body || {}
+    const body = await readJsonBody(req)
+    const { priceId, userId, billing, planId, successUrl, cancelUrl } = body || {}
     if (!priceId || !userId) {
       return res.status(400).json({ error: 'priceId and userId are required' })
     }
