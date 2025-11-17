@@ -24,6 +24,7 @@ async function readJsonBody(req: VercelRequest) {
   try {
     return JSON.parse(raw)
   } catch {
+    console.error('Invalid JSON payload received', { rawSnippet: raw.slice(0, 200), length: raw.length })
     throw new Error('Invalid JSON payload')
   }
 }
