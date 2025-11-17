@@ -127,6 +127,16 @@ export class StripePaymentService {
 
       const priceId = billing === 'yearly' ? plan.yearlyStripePriceId : plan.monthlyStripePriceId;
 
+      if (!priceId) {
+        console.error('[Stripe] priceId could not be resolved', { plan, billing });
+        return { error: '価格IDが設定されていません。管理者にお問い合わせください。' };
+      }
+
+      if (!userId) {
+        console.error('[Stripe] userId is missing when trying to create checkout session');
+        return { error: 'ユーザー情報が取得できませんでした。再ログインしてください。' };
+      }
+
       if (!STRIPE_ENABLED) {
         return { error: '現在、決済機能は一時的に無効化されています。後ほどお試しください。' };
       }
