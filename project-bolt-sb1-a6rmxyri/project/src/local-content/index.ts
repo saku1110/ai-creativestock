@@ -18,7 +18,7 @@ export interface LocalVideoItem {
 }
 
 const DASHBOARD_CATEGORIES = ['beauty', 'diet', 'healthcare', 'business', 'lifestyle', 'romance'] as const;
-type DashboardCategory = typeof DASHBOARD_CATEGORIES[number];
+export type DashboardCategory = typeof DASHBOARD_CATEGORIES[number];
 
 const normalizeDashboardCategory = (value?: string): DashboardCategory | undefined => {
   if (!value) return undefined;
@@ -252,6 +252,19 @@ export const findDashboardThumbnail = (identifier?: string): string | undefined 
   return undefined;
 };
 
+export const findDashboardReviewTags = (identifier?: string): string[] | undefined => {
+  const reviewKey = resolveReviewKey(identifier);
+  if (!reviewKey) return undefined;
+  const tags = DASHBOARD_REVIEW_HASHTAGS[reviewKey];
+  return tags ? [...tags] : undefined;
+};
+
+export const findDashboardReviewCategory = (identifier?: string): DashboardCategory | undefined => {
+  const reviewKey = resolveReviewKey(identifier);
+  if (!reviewKey) return undefined;
+  return DASHBOARD_REVIEW_CATEGORIES[reviewKey];
+};
+
 const applyReviewMetadata = (video: LocalVideoItem) => {
   if (!video?.fileName) return;
   const metaKey =
@@ -306,7 +319,6 @@ const registerDashboardVideo = (video: LocalVideoItem) => {
 };
 
 export const findLocalDashboardVideo = (identifier?: string): LocalVideoItem | undefined => {
-  if (!ENABLE_LOCAL_DASHBOARD) return undefined;
   const key = resolveReviewKey(identifier);
   if (key && DASHBOARD_VIDEO_LOOKUP.has(key)) {
     return DASHBOARD_VIDEO_LOOKUP.get(key);
