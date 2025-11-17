@@ -2,6 +2,7 @@ import { loadStripe, Stripe } from '@stripe/stripe-js';
 
 // Stripe公開可能キー（未設定でもアプリを落とさない）
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+console.log('[Stripe] VITE_STRIPE_PUBLISHABLE_KEY:', stripePublishableKey);
 const STRIPE_ENABLED = Boolean(stripePublishableKey);
 if (!STRIPE_ENABLED && import.meta.env.PROD) {
   // 本番でもキー未設定なら致命的エラーにせず警告に留める（UI側でハンドリング）
@@ -146,13 +147,23 @@ export class StripePaymentService {
         }),
       });
 
+      const responseText = await response.text();
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'チェックアウトセッションの作成に失敗しました');
+        try {
+          const errorData = JSON.parse(responseText || '{}');
+          throw new Error(errorData.error || 'チェックアウトセッションの作成に失敗しました');
+        } catch {
+          throw new Error(responseText || 'チェックアウトセッションの作成に失敗しました');
+        }
       }
 
-      const { sessionId } = await response.json();
-      return { sessionId };
+      try {
+        const { sessionId } = JSON.parse(responseText || '{}');
+        return { sessionId };
+      } catch (parseError) {
+        console.error('Failed to parse checkout session response:', responseText);
+        throw new Error('Stripe APIから不正なレスポンスが返されました');
+      }
     } catch (error) {
       console.error('Stripe checkout session creation error:', error);
       return { error: error instanceof Error ? error.message : '決済処理でエラーが発生しました' };
@@ -223,13 +234,23 @@ export class StripePaymentService {
       }),
     });
 
+      const responseText = await response.text();
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'カスタマーポータルセッションの作成に失敗しました');
+        try {
+          const errorData = JSON.parse(responseText || '{}');
+          throw new Error(errorData.error || 'カスタマーポータルセッションの作成に失敗しました');
+        } catch {
+          throw new Error(responseText || 'カスタマーポータルセッションの作成に失敗しました');
+        }
       }
 
-      const { url } = await response.json();
-      return { url };
+      try {
+        const { url } = JSON.parse(responseText || '{}');
+        return { url };
+      } catch (parseError) {
+        console.error('Failed to parse portal session response:', responseText);
+        throw new Error('Stripe APIから不正なレスポンスが返されました');
+      }
     } catch (error) {
       console.error('Customer portal session creation error:', error);
       return { error: error instanceof Error ? error.message : 'カスタマーポータルの作成に失敗しました' };
