@@ -54,13 +54,12 @@ const DEFAULT_CONFIG: WatcherConfig = {
   tagsManifest: undefined,
   categoryFolderMap: {
     beauty: 'beauty',
-    fitness: 'fitness',
-    haircare: 'haircare',
+    diet: 'diet',
     business: 'business',
     lifestyle: 'lifestyle',
     '美容': 'beauty',
-    'フィットネス': 'fitness',
-    'ヘアケア': 'haircare',
+    'フィットネス': 'diet',
+    'ヘアケア': 'beauty',
     'ビジネス': 'business',
     '暮らし': 'lifestyle',
     'ライフスタイル': 'lifestyle'

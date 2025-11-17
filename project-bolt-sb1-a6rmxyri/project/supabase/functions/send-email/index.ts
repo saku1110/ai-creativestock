@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { SmtpClient } from "https://deno.land/x/smtp@0.7.0/mod.ts"
 
 const buildCorsHeaders = (req: Request) => {
   const origin = req.headers.get('Origin') ?? '*'
@@ -316,14 +317,19 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const resendApiKey = Deno.env.get('RESEND_API_KEY')
+    const smtpHost = Deno.env.get('SMTP_HOST')
+    const smtpPort = Number(Deno.env.get('SMTP_PORT') ?? '465')
+    const smtpUser = Deno.env.get('SMTP_USER')
+    const smtpPass = Deno.env.get('SMTP_PASS')
+    const smtpSecure = (Deno.env.get('SMTP_SECURE') ?? 'true').toLowerCase() !== 'false'
+    const smtpFrom = Deno.env.get('SMTP_FROM_EMAIL') ?? smtpUser
 
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Missing Supabase configuration')
     }
 
-    if (!resendApiKey) {
-      throw new Error('Missing email service configuration')
+    if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
+      throw new Error('Missing SMTP configuration')
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
@@ -338,26 +344,42 @@ serve(async (req) => {
       throw new Error('Invalid email template')
     }
 
-    const emailResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'AI Creative Stock <noreply@ai-creativestock.com>',
-        to: [to],
-        subject: subject || emailTemplate.subject,
-        html: emailTemplate.html(data || {}),
-      }),
-    })
-
-    if (!emailResponse.ok) {
-      const errorData = await emailResponse.text()
-      throw new Error(`Email service error: ${errorData}`)
+    const smtpClient = new SmtpClient()
+    const connectionConfig = {
+      hostname: smtpHost,
+      port: smtpPort,
+      username: smtpUser,
+      password: smtpPass,
     }
 
-    const emailResult = await emailResponse.json()
+    const htmlBody = emailTemplate.html(data || {})
+    const plainText = htmlBody
+      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    try {
+      if (smtpSecure) {
+        await smtpClient.connectTLS(connectionConfig)
+      } else {
+        await smtpClient.connect(connectionConfig)
+      }
+
+      await smtpClient.send({
+        from: smtpFrom,
+        to,
+        subject: subject || emailTemplate.subject,
+        content: plainText || 'HTML content attached',
+        html: htmlBody,
+      })
+    } finally {
+      try {
+        await smtpClient.close()
+      } catch {
+        // ignore close errors
+      }
+    }
 
     await supabase.rpc('log_audit_event', {
       p_user_id: data?.user_id || null,
@@ -366,13 +388,13 @@ serve(async (req) => {
       p_details: {
         template,
         recipient: to,
-        email_id: emailResult.id,
+        email_id: crypto.randomUUID(),
       },
       p_severity: 'low',
     })
 
     return new Response(
-      JSON.stringify({ success: true, email_id: emailResult.id, template_used: template }),
+      JSON.stringify({ success: true, template_used: template }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
     )
   } catch (error) {

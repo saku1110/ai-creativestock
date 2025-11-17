@@ -1,7 +1,7 @@
 /**
  * AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.
  * Run `npx tsx scripts/generate-dashboard-thumb-map.ts` after updating dashboard-review-labeled.csv.
- * Last generated: 2025-11-09T07:17:11.062Z
+ * Last generated: 2025-11-15T18:24:03.622Z
  */
 /* eslint-disable */
 
@@ -469,7 +469,7 @@ export const DASHBOARD_REVIEW_HASHTAGS: Record<string, string[]> = {
   "90ee1d71-eded-4d80-8f8c-fa14f65bde40-wm-alpha200": ["#30代", "#男性", "#オーラルケア"],
   "927ef16e-1f20-4682-b5d3-b1bc9a55acbb-wm-alpha200": ["#20代", "#女性", "#睡眠"],
   "96cd8ad2-10bf-4b5c-9ab4-e377c2236e81-wm-alpha200": ["#20代", "#女性", "#ヘアケア"],
-  "9818c9fb-a22b-45dd-9704-ad4e2200ffd8-wm-alpha200": ["#20代", "#男性", "#スマホ", "#仕事"],
+  "9818c9fb-a22b-45dd-9704-ad4e2200ffd8-wm-alpha200": ["#20代", "#女性", "#ヘアケア"],
   "998a302e-eb19-4a62-a721-59efab8b44f7-wm-alpha200": ["#20代", "#女性", "#アダルト"],
   "99a1c776-c179-4e58-aed2-039c171297be-wm-alpha200": ["#20代", "#女性", "#スリム"],
   "9de39cb9-ee97-45e9-862f-67bcfc8bd6a9-wm-alpha200": ["#20代", "#男性", "#スマホ", "#仕事"],
@@ -771,7 +771,7 @@ export const DASHBOARD_REVIEW_CATEGORIES: Record<string, DashboardReviewCategory
   "90ee1d71-eded-4d80-8f8c-fa14f65bde40-wm-alpha200": "beauty",
   "927ef16e-1f20-4682-b5d3-b1bc9a55acbb-wm-alpha200": "lifestyle",
   "96cd8ad2-10bf-4b5c-9ab4-e377c2236e81-wm-alpha200": "beauty",
-  "9818c9fb-a22b-45dd-9704-ad4e2200ffd8-wm-alpha200": "business",
+  "9818c9fb-a22b-45dd-9704-ad4e2200ffd8-wm-alpha200": "beauty",
   "998a302e-eb19-4a62-a721-59efab8b44f7-wm-alpha200": "romance",
   "99a1c776-c179-4e58-aed2-039c171297be-wm-alpha200": "diet",
   "9de39cb9-ee97-45e9-862f-67bcfc8bd6a9-wm-alpha200": "business",

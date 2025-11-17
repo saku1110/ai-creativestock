@@ -7,7 +7,7 @@ interface VideoAsset {
   id: string;
   title: string;
   description: string;
-  category: 'beauty' | 'fitness' | 'haircare' | 'business' | 'lifestyle';
+  category: 'beauty' | 'diet' | 'business' | 'lifestyle' | 'romance' | 'pet';
   tags: string[];
   duration: number;
   resolution: string;
@@ -40,19 +40,22 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
-  
+  const [showPlayButton, setShowPlayButton] = useState(true);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const playButtonTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const { user, remainingDownloads, hasActiveSubscription } = useUser();
   const canDownload = Boolean(user && hasActiveSubscription);
 
-  const categories = {
-    'beauty': '美容',
-    'fitness': 'フィットネス', 
-    'haircare': 'ヘアケア',
-    'business': 'ビジネス',
-    'lifestyle': 'ライフスタイル'
+  const categories: Record<VideoAsset['category'], string> = {
+    beauty: '美容',
+    diet: 'ダイエット',
+    business: 'ビジネス',
+    lifestyle: 'ライフスタイル',
+    romance: '恋愛',
+    pet: 'ペット'
   };
 
   // モーダルが開いたときの初期化
@@ -68,7 +71,7 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
       
       // 自動再生（ミュート状態で）
       setTimeout(() => {
-        if (videoRef.current && canDownload) {
+        if (videoRef.current) {
           videoRef.current.play().catch(() => {
             setHasError(true);
           });
@@ -76,7 +79,7 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
         }
       }, 500);
     }
-  }, [isOpen, canDownload]);
+  }, [isOpen]);
 
   // お気に入り状態をチェック
   const checkFavoriteStatus = async () => {
@@ -149,14 +152,36 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
   }, [isOpen, onClose]);
 
   const togglePlay = () => {
-    if (!videoRef.current || !canDownload) return;
-    
+    if (!videoRef.current) return;
+
     if (isPlaying) {
       videoRef.current.pause();
+      setShowPlayButton(true);
+      if (playButtonTimeoutRef.current) {
+        clearTimeout(playButtonTimeoutRef.current);
+      }
     } else {
       videoRef.current.play().catch(() => setHasError(true));
+      setShowPlayButton(false);
+      // 再生中は3秒後にボタンを非表示
+      playButtonTimeoutRef.current = setTimeout(() => {
+        setShowPlayButton(false);
+      }, 3000);
     }
     setIsPlaying(!isPlaying);
+  };
+
+  const handleVideoClick = () => {
+    if (isPlaying) {
+      // 再生中にクリックしたらボタンを表示
+      setShowPlayButton(true);
+      if (playButtonTimeoutRef.current) {
+        clearTimeout(playButtonTimeoutRef.current);
+      }
+      playButtonTimeoutRef.current = setTimeout(() => {
+        setShowPlayButton(false);
+      }, 3000);
+    }
   };
 
   const toggleMute = () => {
@@ -167,8 +192,8 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!videoRef.current || !canDownload) return;
-    
+    if (!videoRef.current) return;
+
     const time = parseFloat(e.target.value);
     videoRef.current.currentTime = time;
     setCurrentTime(time);
@@ -265,63 +290,62 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
     >
       {/* オーバーレイ */}
       {!isFullscreen && (
-        <div 
-          className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+        <div
+          className="absolute inset-0 bg-black/10"
           onClick={onClose}
         />
       )}
-      
-      {/* モーダルコンテンツ */}
-      <div className={`relative w-full max-w-6xl glass-dark border border-white/20 overflow-hidden shadow-2xl ${
-        isFullscreen ? 'h-full rounded-none' : 'max-h-[95vh] rounded-3xl'
-      }`}>
-        
-        {/* ヘッダー */}
-        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-white mb-2 line-clamp-1">
-              {video.title}
-            </h2>
-            <div className="flex items-center space-x-4 text-sm text-gray-400">
-              <span className="bg-cyan-400/20 text-cyan-400 px-2 py-1 rounded text-xs">
-                {categories[video.category] || video.category}
-              </span>
-              <span>{video.resolution}</span>
-              <span>{formatTime(video.duration)}</span>
-              <span>{video.download_count}回DL</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-2 ml-4">
-            <button
-              onClick={() => setShowInfo(!showInfo)}
-              className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10"
-            >
-              <Info className="w-5 h-5" />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
 
-        <div className="flex flex-col lg:flex-row">
+      {/* モーダルコンテンツ */}
+      <div className={`relative w-full max-w-xl glass-dark border border-white/20 shadow-2xl flex flex-col overflow-hidden ${
+        isFullscreen ? 'h-full rounded-none' : 'max-h-[90vh] rounded-3xl'
+      }`}>
+
+        {/* 閉じるボタン（動画上に配置） */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 p-2 bg-black/60 hover:bg-black/80 text-gray-400 hover:text-white transition-all rounded-full backdrop-blur-sm"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="flex flex-col flex-1 overflow-hidden">
           {/* 動画プレイヤー */}
-          <div className="flex-1">
-            <div className="relative aspect-[9/16] bg-black overflow-hidden">
+          <div className="flex-1 flex items-center justify-center bg-black overflow-hidden">
+            <div className="relative max-h-full flex items-center justify-center">
+              <div
+                className="relative cursor-pointer"
+                onClick={handleVideoClick}
+              >
               {/* 動画要素 */}
               <video
                 ref={videoRef}
                 src={video.file_url}
                 poster={video.thumbnail_url}
-                className="w-full h-full object-cover"
+                className="max-h-[calc(90vh-80px)] w-auto object-contain"
                 muted={isMuted}
                 playsInline
                 loop
               />
+
+              {/* 中央再生ボタン */}
+              {showPlayButton && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePlay();
+                    }}
+                    className="pointer-events-auto w-20 h-20 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-sm border-2 border-white/30"
+                  >
+                    {isPlaying ? (
+                      <Pause className="w-10 h-10 text-white" />
+                    ) : (
+                      <Play className="w-10 h-10 text-white ml-1" />
+                    )}
+                  </button>
+                </div>
+              )}
               
               {/* ローディング */}
               {isLoading && (
@@ -339,28 +363,9 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
                   </div>
                 </div>
               )}
-              
-              {/* 未登録ユーザー用のオーバーレイ */}
-              {!canDownload && (
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-                  <div className="text-center p-6">
-                    <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-glow">
-                      <Play className="w-8 h-8 text-white ml-1" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-2">プレビュー制限</h3>
-                    <p className="text-gray-300 mb-4 text-sm">フル動画を視聴するには<br />サブスクリプションが必要です</p>
-                    <button 
-                      onClick={onClose}
-                      className="cyber-button text-white px-6 py-2 rounded-lg font-medium text-sm"
-                    >
-                      プランを見る
-                    </button>
-                  </div>
-                </div>
-              )}
-              
+
               {/* 再生コントロール */}
-              {canDownload && (
+              {(
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                   {/* プログレスバー */}
                   <div className="mb-3">
@@ -411,110 +416,49 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
                   </div>
                 </div>
               )}
+              </div>
             </div>
           </div>
 
-          {/* サイドパネル（詳細情報） */}
-          {(showInfo || !isFullscreen) && (
-            <div className="w-full lg:w-80 xl:w-96 p-4 sm:p-6 border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20">
-              <div className="space-y-6">
-                {/* 動画情報 */}
-                <div>
-                  <h3 className="text-lg font-bold text-white mb-3">動画詳細</h3>
-                  <p className="text-gray-300 mb-4 text-sm leading-relaxed">{video.description}</p>
-                  
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">カテゴリー</span>
-                      <span className="text-white">{categories[video.category]}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">解像度</span>
-                      <span className="text-white">{video.resolution}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">再生時間</span>
-                      <span className="text-white">{formatTime(video.duration)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">ダウンロード数</span>
-                      <span className="text-white">{video.download_count.toLocaleString()}回</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">アップロード日</span>
-                      <span className="text-white">{formatDate(video.created_at)}</span>
-                    </div>
-                  </div>
-                </div>
+          {/* アクションボタン */}
+          <div className="border-t border-white/10 bg-black/20 p-3 flex-shrink-0">
+            {canDownload ? (
+              <div className="flex gap-3 max-w-md mx-auto">
+                <button
+                  onClick={() => onDownload && onDownload(video)}
+                  disabled={!canDownload || remainingDownloads <= 0}
+                  className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-xl font-bold transition-all ${
+                    remainingDownloads > 0
+                      ? 'bg-cyan-400 hover:bg-cyan-500 text-black'
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <Download className="w-5 h-5" />
+                  <span>ダウンロード</span>
+                </button>
 
-                {/* タグ */}
-                {video.tags.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-bold text-white mb-2">タグ</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {video.tags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className="bg-gray-700/50 text-gray-300 px-2 py-1 rounded text-xs"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* アクションボタン */}
-                <div className="space-y-3">
-                  {canDownload ? (
-                    <>
-                      <button
-                        onClick={() => onDownload && onDownload(video)}
-                        disabled={!canDownload || remainingDownloads <= 0}
-                        className={`w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-xl font-bold transition-all ${
-                          remainingDownloads > 0
-                            ? 'bg-cyan-400 hover:bg-cyan-500 text-black'
-                            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        }`}
-                      >
-                        <Download className="w-4 h-4" />
-                        <span>ダウンロード ({remainingDownloads}回残り)</span>
-                      </button>
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={toggleFavorite}
-                          className={`flex items-center justify-center space-x-2 py-2 px-3 rounded-lg transition-all font-medium text-sm ${
-                            isFavorited 
-                              ? 'bg-pink-400/20 text-pink-400 border border-pink-400/30' 
-                              : 'bg-gray-700/50 text-gray-300 hover:text-white border border-white/20'
-                          }`}
-                        >
-                          <Heart className={`w-4 h-4 ${isFavorited ? 'fill-current' : ''}`} />
-                          <span>お気に入り</span>
-                        </button>
-                        <button 
-                          onClick={handleShare}
-                          className="flex items-center justify-center space-x-2 bg-gray-700/50 text-gray-300 hover:text-white py-2 px-3 rounded-lg transition-all font-medium text-sm border border-white/20"
-                        >
-                          <Share2 className="w-4 h-4" />
-                          <span>シェア</span>
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <button 
-                      onClick={onClose}
-                      className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 px-4 rounded-xl font-bold transition-all duration-300 flex items-center justify-center space-x-2"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>サブスクリプションに加入</span>
-                    </button>
-                  )}
-                </div>
+                <button
+                  onClick={toggleFavorite}
+                  className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-xl transition-all font-bold ${
+                    isFavorited
+                      ? 'bg-pink-400/20 text-pink-400 border-2 border-pink-400'
+                      : 'bg-gray-700/50 text-gray-300 hover:text-white border-2 border-white/20 hover:border-white/40'
+                  }`}
+                >
+                  <Heart className={`w-5 h-5 ${isFavorited ? 'fill-current' : ''}`} />
+                  <span>{isFavorited ? 'お気に入り解除' : 'お気に入り'}</span>
+                </button>
               </div>
-            </div>
-          )}
+            ) : (
+              <button
+                onClick={onClose}
+                className="w-full max-w-md mx-auto bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 px-4 rounded-xl font-bold transition-all duration-300 flex items-center justify-center space-x-2"
+              >
+                <Download className="w-5 h-5" />
+                <span>サブスクリプションに加入</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

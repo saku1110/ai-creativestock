@@ -7,8 +7,9 @@ interface VideoAsset {
   id: string;
   title: string;
   description: string;
-  category: 'beauty' | 'fitness' | 'haircare' | 'business' | 'lifestyle';
+  category: 'beauty' | 'diet' | 'business' | 'lifestyle' | 'romance' | 'pet';
   tags: string[];
+  final_tags?: string;
   duration: number;
   resolution: string;
   file_url: string;
@@ -40,12 +41,13 @@ const OptimizedVideoCard: React.FC<OptimizedVideoCardProps> = memo(({
   onUpgradeRequest
 }) => {
   const { isTrialUser, trialDownloadsRemaining } = useUser();
-  const categories = {
-    'beauty': '美容',
-    'fitness': 'フィットネス', 
-    'haircare': 'ヘアケア',
-    'business': 'ビジネス',
-    'lifestyle': 'ライフスタイル'
+  const categories: Record<VideoAsset['category'], string> = {
+    beauty: '美容',
+    diet: 'ダイエット',
+    business: 'ビジネス',
+    lifestyle: 'ライフスタイル',
+    romance: '恋愛',
+    pet: 'ペット'
   };
 
   const formatDuration = useCallback((seconds: number) => {
@@ -64,16 +66,38 @@ const OptimizedVideoCard: React.FC<OptimizedVideoCardProps> = memo(({
     onToggleFavorite(video.id);
   }, [onToggleFavorite, video.id]);
 
-  const getCategoryColor = useCallback((category: string) => {
+  const getCategoryColor = useCallback((category: VideoAsset['category']) => {
     switch (category) {
       case 'beauty': return 'bg-pink-500/20 text-pink-400';
-      case 'fitness': return 'bg-green-500/20 text-green-400';
-      case 'haircare': return 'bg-purple-500/20 text-purple-400';
+      case 'diet': return 'bg-green-500/20 text-green-400';
       case 'business': return 'bg-blue-500/20 text-blue-400';
       case 'lifestyle': return 'bg-yellow-500/20 text-yellow-400';
+      case 'romance': return 'bg-rose-500/20 text-rose-400';
+      case 'pet': return 'bg-amber-500/20 text-amber-400';
       default: return 'bg-gray-500/20 text-gray-400';
     }
   }, []);
+
+  const getAllHashtags = useCallback(() => {
+    const hashtags: string[] = [];
+
+    // tagsから追加
+    if (video.tags && Array.isArray(video.tags)) {
+      hashtags.push(...video.tags);
+    }
+
+    // final_tagsから追加
+    if (video.final_tags) {
+      const finalTagsArray = video.final_tags
+        .split(/[,、]/)
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0);
+      hashtags.push(...finalTagsArray);
+    }
+
+    // 重複を削除
+    return Array.from(new Set(hashtags));
+  }, [video.tags, video.final_tags]);
 
   return (
     <div
@@ -91,9 +115,23 @@ const OptimizedVideoCard: React.FC<OptimizedVideoCardProps> = memo(({
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
           <Eye className="w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-white" />
         </div>
-        <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1 rounded">
+        {/* 時間表記（スマホでは非表示） */}
+        <div className="hidden sm:block absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1 rounded">
           {formatDuration(video.duration)}
         </div>
+        {/* ハッシュタグ（グリッドビューかつスマホサイズのみ表示） */}
+        {viewMode === 'grid' && (
+          <div className="sm:hidden absolute bottom-1 left-1 right-1 flex flex-wrap gap-1">
+            {getAllHashtags().slice(0, 3).map((tag, index) => (
+              <span
+                key={index}
+                className="bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm"
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 動画情報 */}

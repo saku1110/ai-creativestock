@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Play, Pause, Volume2, VolumeX, Maximize2, Download, Heart, Share2 } from 'lucide-react';
-import { VideoAsset } from '../types';
+﻿import React, { useState, useRef, useEffect } from "react";
+import { X, Play, Pause, Volume2, VolumeX, Download, Heart, Share2 } from "lucide-react";
+import { VideoAsset } from "../types";
 
 interface VideoPreviewModalProps {
   video: VideoAsset;
@@ -10,10 +10,10 @@ interface VideoPreviewModalProps {
   onAuthRequest?: () => void;
 }
 
-const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({ 
-  video, 
-  isOpen, 
-  onClose, 
+const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
+  video,
+  isOpen,
+  onClose,
   isSubscribed = false,
   onAuthRequest
 }) => {
@@ -24,7 +24,8 @@ const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
   const [isLiked, setIsLiked] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // サンプル動画URL�E�実際のプロジェクトでは適刁E��動画URLを使用�E�E  const sampleVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+  const sampleVideoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+  const videoSource = video.videoUrl || sampleVideoUrl;
 
   useEffect(() => {
     if (isOpen && videoRef.current) {
@@ -35,271 +36,194 @@ const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
   }, [isOpen]);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    const el = videoRef.current;
+    if (!el) return;
 
-    const updateTime = () => setCurrentTime(video.currentTime);
-    const updateDuration = () => setDuration(video.duration);
+    const updateTime = () => setCurrentTime(el.currentTime);
+    const updateDuration = () => setDuration(el.duration);
+    const handleEnded = () => setIsPlaying(false);
 
-    video.addEventListener('timeupdate', updateTime);
-    video.addEventListener('loadedmetadata', updateDuration);
-    video.addEventListener('ended', () => setIsPlaying(false));
+    el.addEventListener("timeupdate", updateTime);
+    el.addEventListener("loadedmetadata", updateDuration);
+    el.addEventListener("ended", handleEnded);
 
     return () => {
-      video.removeEventListener('timeupdate', updateTime);
-      video.removeEventListener('loadedmetadata', updateDuration);
-      video.removeEventListener('ended', () => setIsPlaying(false));
+      el.removeEventListener("timeupdate", updateTime);
+      el.removeEventListener("loadedmetadata", updateDuration);
+      el.removeEventListener("ended", handleEnded);
     };
   }, []);
 
   const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        { const p = videoRef.current.play(); if (p && typeof (p as Promise<void>).catch === 'function') { (p as Promise<void>).catch(() => {}); } }
-      }
-      setIsPlaying(!isPlaying);
+    const el = videoRef.current;
+    if (!el) return;
+
+    if (isPlaying) {
+      el.pause();
+      setIsPlaying(false);
+    } else {
+      el.play().catch(() => {});
+      setIsPlaying(true);
     }
   };
 
   const toggleMute = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
-    }
+    const el = videoRef.current;
+    if (!el) return;
+    el.muted = !isMuted;
+    setIsMuted(!isMuted);
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const el = videoRef.current;
+    if (!el) return;
     const time = parseFloat(e.target.value);
-    if (videoRef.current) {
-      videoRef.current.currentTime = time;
-      setCurrentTime(time);
-    }
+    el.currentTime = time;
+    setCurrentTime(time);
   };
 
-  const formatTime = (time: number) => {
-    const seconds = Math.floor(time);
-    return `${seconds}秒`;
-  };
+  const formatTime = (time: number) => `${Math.floor(time)}秒`;
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('ja-JP', {
-      style: 'currency',
-      currency: 'JPY',
-      minimumFractionDigits: 0,
+  const formatPrice = (price: number) =>
+    new Intl.NumberFormat("ja-JP", {
+      style: "currency",
+      currency: "JPY",
+      minimumFractionDigits: 0
     }).format(price);
-  };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* オーバ�Eレイ */}
-      <div 
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-        onClick={onClose}
-        onAuthRequest={onAuthRequest}
-      />
-      
-      {/* モーダルコンチE��チE*/}
-      <div className="relative w-full max-w-4xl max-h-[90vh] glass-dark rounded-3xl border border-white/20 overflow-hidden shadow-2xl">
-        {/* ヘッダー */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+
+      <div className="relative w-full max-w-3xl max-h-[76vh] glass-dark rounded-2xl border border-white/20 shadow-2xl flex flex-col">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-white/10">
           <div className="flex-1">
-            <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">{video.title}</h2>
-            <div className="flex items-center space-x-4 text-sm text-gray-400">
-              <span className="glass-effect px-3 py-1 rounded-full border border-cyan-400/30 text-cyan-400">
+            <h2 className="text-lg sm:text-xl font-bold text-white">{video.title}</h2>
+            <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+              <span className="glass-effect px-2.5 py-0.5 rounded-full border border-cyan-400/30 text-cyan-200">
                 {video.category}
               </span>
               <span>{video.resolution}</span>
               <span>{formatTime(video.duration)}</span>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-3 text-gray-400 hover:text-white transition-colors rounded-xl hover:bg-white/10"
-          >
-            <X className="w-6 h-6" />
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-white/10">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* 動画プレイヤー */}
-        <div className="relative aspect-[9/16] max-h-[60vh] bg-black mx-6 mt-6 rounded-2xl overflow-hidden">
-          <video
-            ref={videoRef}
-            src={sampleVideoUrl}
-            className="w-full h-full object-cover"
-            muted={isMuted}
-            playsInline
-          />
-          
-          {/* 未加入ユーザー用のオーバ�Eレイ */}
-          {!isSubscribed && (
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-              <div className="text-center p-8">
-                <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-glow">
-                  <Play className="w-10 h-10 text-white ml-1" />
+        <div className="flex-1 px-4 sm:px-6 py-4 flex flex-col gap-4 md:flex-row">
+          <div className="flex-1 md:w-1/2 flex flex-col min-h-[0]">
+            <div className="relative aspect-[9/16] bg-black rounded-2xl overflow-hidden flex-1 min-h-[220px]">
+              <video ref={videoRef} src={videoSource} className="w-full h-full object-contain" muted={isMuted} playsInline />
+
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent px-3 py-2">
+                <input
+                  type="range"
+                  min="0"
+                  max={duration || 0}
+                  value={currentTime}
+                  onChange={handleSeek}
+                  className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer slider mb-2"
+                  disabled={!isSubscribed}
+                />
+
+                <div className="flex items-center justify-between text-xs text-white">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={togglePlay}
+                      className="p-2 bg-white/20 hover:bg-white/30 rounded-full"
+                      disabled={!isSubscribed}
+                    >
+                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                    </button>
+                    <button
+                      onClick={toggleMute}
+                      className="p-2 hover:text-cyan-400"
+                      disabled={!isSubscribed}
+                    >
+                      {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+                    <span>
+                      {formatTime(currentTime)} / {formatTime(duration)}
+                    </span>
+                  </div>
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-2">プレビュー制陁E/h3>
-                <p className="text-gray-300 mb-6">フル動画を視�Eするには<br />料��プランへの加入が忁E��でぁE/p>
-                <button 
-                  onClick={onAuthRequest}
-                  className="cyber-button text-white px-8 py-3 rounded-xl font-bold"
-                >
-                  プランを見る
-                </button>
-              </div>
-            </div>
-          )}
-          
-          {/* 再生コントロール */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-            {/* プログレスバ�E */}
-            <div className="mb-4">
-              <input
-                type="range"
-                min="0"
-                max={duration || 0}
-                value={currentTime}
-                onChange={handleSeek}
-                className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer slider"
-                disabled={!isSubscribed}
-              />
-            </div>
-            
-            {/* コントロールボタン */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={togglePlay}
-                  className="p-3 bg-white/20 hover:bg-white/30 rounded-full transition-all"
-                  disabled={!isSubscribed}
-                >
-                  {isPlaying ? (
-                    <Pause className="w-6 h-6 text-white" />
-                  ) : (
-                    <Play className="w-6 h-6 text-white ml-1" />
-                  )}
-                </button>
-                <button
-                  onClick={toggleMute}
-                  className="p-2 text-white hover:text-cyan-400 transition-colors"
-                  disabled={!isSubscribed}
-                >
-                  {isMuted ? (
-                    <VolumeX className="w-5 h-5" />
-                  ) : (
-                    <Volume2 className="w-5 h-5" />
-                  )}
-                </button>
-                <span className="text-white text-sm">
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </span>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <button className="p-2 text-white hover:text-cyan-400 transition-colors">
-                  <Maximize2 className="w-5 h-5" />
-                </button>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* 動画惁E��とアクション */}
-        <div className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 動画詳細 */}
-            <div>
-              <h3 className="text-lg font-bold text-white mb-3">動画詳細</h3>
-              <p className="text-gray-300 mb-4 leading-relaxed">{video.description}</p>
-              
-              <div className="space-y-3">
+          <div className="flex-1 md:w-1/2 flex flex-col justify-between gap-3 text-sm">
+            <div className="space-y-2">
+              <h3 className="text-base font-semibold text-white">動画詳細</h3>
+              <p className="text-gray-300 text-xs leading-relaxed line-clamp-3">{video.description}</p>
+              <div className="space-y-1 text-gray-300">
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-400">カチE��リー</span>
+                  <span>カテゴリ</span>
                   <span className="text-white font-medium">{video.category}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-400">解像度</span>
+                  <span>解像度</span>
                   <span className="text-white font-medium">{video.resolution}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-400">再生時間</span>
+                  <span>再生時間</span>
                   <span className="text-white font-medium">{formatTime(video.duration)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-400">ダウンロード数</span>
-                  <span className="text-white font-medium">{video.downloads.toLocaleString()}囁E/span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">評価</span>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-yellow-400">☁E/span>
-                    <span className="text-white font-medium">{video.rating.toFixed(1)}</span>
-                  </div>
+                  <span>ダウンロード数</span>
+                  <span className="text-white font-medium">{video.downloads.toLocaleString()}件</span>
                 </div>
               </div>
             </div>
 
-            {/* アクションエリア */}
-            <div>
-              <h3 className="text-lg font-bold text-white mb-3">アクション</h3>
-              
-              {/* 価格表示 */}
-              <div className="glass-effect rounded-2xl p-4 mb-6 border border-cyan-400/30">
-                <div className="text-center">
-                  <div className="text-3xl font-black text-white mb-2">
-                    {formatPrice(video.price)}
-                  </div>
-                  <p className="text-gray-400 text-sm">標準ライセンス</p>
-                </div>
+            <div className="space-y-3">
+              <div className="glass-effect rounded-xl p-3 border border-cyan-400/30 text-center">
+                <div className="text-2xl font-black text-white">{formatPrice(video.price)}</div>
+                <p className="text-gray-400 text-xs">標準ライセンス</p>
               </div>
 
-              {/* アクションボタン */}
-              <div className="space-y-3">
-                {!isSubscribed ? (
-                  <>
-                    <button 
-                      onClick={onAuthRequest}
-                      className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 px-6 rounded-xl font-bold transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-orange-500/25"
+              {!isSubscribed ? (
+                <>
+                  <button
+                    onClick={onAuthRequest}
+                    className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>プランに加入してダウンロード</span>
+                  </button>
+                  <button
+                    onClick={onAuthRequest}
+                    className="w-full glass-effect border border-orange-400/30 text-orange-400 hover:text-white py-3 rounded-xl font-semibold text-sm"
+                  >
+                    有料プランを見る
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="w-full cyber-button text白 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 text-sm">
+                    <Download className="w-4 h-4" />
+                    <span>ダウンロード</span>
+                  </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setIsLiked(!isLiked)}
+                      className={`flex items-center justify-center gap-1 py-2.5 rounded-xl text-sm ${
+                        isLiked ? "bg-gradient-to-r from-pink-500 to-red-500 text-white" : "glass-effect border border-white/20 text-gray-300 hover:text-white"
+                      }`}
                     >
-                      <Download className="w-5 h-5" />
-                      <span>プランに加入してダウンローチE/span>
+                      <Heart className={`w-4 h-4 ${isLiked ? "fill-current" : ""}`} />
+                      <span>お気に入り</span>
                     </button>
-                    <button 
-                      onClick={onAuthRequest}
-                      className="w-full glass-effect border border-orange-400/30 text-orange-400 hover:text-white py-4 px-6 rounded-xl transition-all duration-300 font-bold hover:bg-orange-400/10"
-                    >
-                      料��プランを見る
+                    <button className="flex items-center justify-center gap-1 py-2.5 rounded-xl glass-effect border border-white/20 text-gray-300 hover:text-white text-sm">
+                      <Share2 className="w-4 h-4" />
+                      <span>シェア</span>
                     </button>
-                  </>
-                ) : (
-                  <>
-                    <button className="w-full cyber-button text-white py-4 px-6 rounded-xl font-bold transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-cyan-500/25">
-                      <Download className="w-5 h-5" />
-                      <span>ダウンローチE/span>
-                    </button>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => setIsLiked(!isLiked)}
-                        className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-xl transition-all font-medium ${
-                          isLiked 
-                            ? 'bg-gradient-to-r from-pink-500 to-red-500 text-white' 
-                            : 'glass-effect border border-white/20 text-gray-300 hover:text-white'
-                        }`}
-                      >
-                        <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-                        <span>お気に入めE/span>
-                      </button>
-                      <button className="flex items-center justify-center space-x-2 glass-effect border border-white/20 text-gray-300 hover:text-white py-3 px-4 rounded-xl transition-all font-medium">
-                        <Share2 className="w-4 h-4" />
-                        <span>シェア</span>
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -219,9 +219,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
             <h3 className="text-2xl font-bold text-white mb-4">
               ログイン
             </h3>
-            <p className="text-gray-400 mb-8 leading-relaxed">
-              Googleでログイン
-            </p>
 
             {/* ソーシャルログインボタン */}
             <div className="space-y-4 mb-8">

@@ -313,7 +313,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
           </h1>
 
           <p className="text-xl sm:text-2xl text-gray-300 max-w-4xl mx-auto mb-8 leading-relaxed">
-            月額6,800円で実写級の高品質AI動画素材が手に入る
+            月額9,800円から実写級の高品質AI動画素材が手に入る
             <br className="hidden sm:block" />
             モデル・撮影不要。即ダウンロードで商用利用OK
           </p>

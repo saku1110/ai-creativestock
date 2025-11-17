@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { X, CheckCircle, XCircle } from 'lucide-react';
 import { useUser } from '../hooks/useUser';
-import { supabase } from '../lib/supabase';
 
 interface VideoRequestModalProps {
   open: boolean;
@@ -45,56 +44,56 @@ const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose }) 
     event.preventDefault();
     if (isSubmitting) return;
 
+    const hasAnyInput = Object.values(formData).some((value) => value.trim().length > 0);
+    if (!hasAnyInput) {
+      setFeedback({
+        type: 'error',
+        message: '少なくとも1項目以上ご入力ください。',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     setFeedback(null);
 
     try {
       const requestedAt = new Date().toLocaleString('ja-JP');
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      if (!supabaseUrl || !anonKey) {
-        throw new Error('メール送信設定が不足しています (Supabase URL / Anon Key)。');
-      }
-
-      const functionUrl = `${supabaseUrl}/functions/v1/send-email`;
-
-      const response = await fetch(functionUrl, {
+      const response = await fetch('/api/video-request', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
-          'apikey': anonKey
-        },
-        mode: 'cors',
-        credentials: 'omit',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
-          to: 'request@ai-creativestock.com',
-          subject: `動画リクエスト - ${formData.scene || '新規リクエスト'}`,
-          template: 'video_request',
-          data: {
-            user_id: user?.id ?? null,
-            user_email: user?.email ?? null,
-            age: formData.age,
-            gender: formData.gender,
-            body_type: formData.bodyType,
-            background: formData.background,
-            scene: formData.scene,
-            face_detail: formData.faceDetail,
-            notes: formData.notes,
-            requested_at: requestedAt
-          }
-        })
+          age: formData.age,
+          gender: formData.gender,
+          bodyType: formData.bodyType,
+          background: formData.background,
+          scene: formData.scene,
+          faceDetail: formData.faceDetail,
+          notes: formData.notes,
+          userEmail: user?.email ?? null,
+          userId: user?.id ?? null,
+          requestedAt,
+        }),
       });
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        throw new Error(errorText || '送信に失敗しました');
+        let serverMsg = '';
+        try {
+          const data = await response.json();
+          serverMsg = data?.error || JSON.stringify(data);
+        } catch {
+          try {
+            serverMsg = await response.text();
+          } catch {
+            serverMsg = '';
+          }
+        }
+        throw new Error(serverMsg || '送信に失敗しました');
       }
 
       setFeedback({
         type: 'success',
-        message: 'リクエストを送信しました。担当者よりご連絡いたします。'
+        message: 'リクエストを送信しました。担当者よりご連絡いたします。',
       });
       resetForm();
 
@@ -102,51 +101,15 @@ const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose }) 
         setFeedback(null);
         onClose();
       }, 1800);
-    } catch (err) {
-      console.error('動画リクエスト送信エラー (fetch):', err);
-
-      try {
-        const { error } = await supabase.functions.invoke('send-email', {
-          body: {
-            to: 'request@ai-creativestock.com',
-            subject: `動画リクエスト - ${formData.scene || '新規リクエスト'}`,
-            template: 'video_request',
-            data: {
-              user_id: user?.id ?? null,
-              user_email: user?.email ?? null,
-              age: formData.age,
-              gender: formData.gender,
-              body_type: formData.bodyType,
-              background: formData.background,
-              scene: formData.scene,
-              face_detail: formData.faceDetail,
-              notes: formData.notes,
-              requested_at: new Date().toLocaleString('ja-JP')
-            }
-          }
-        });
-
-        if (error) {
-          throw error;
-        }
-
-        setFeedback({
-          type: 'success',
-          message: 'リクエストを送信しました。担当者よりご連絡いたします。'
-        });
-        resetForm();
-
-        setTimeout(() => {
-          setFeedback(null);
-          onClose();
-        }, 1800);
-      } catch (fallbackError) {
-        console.error('動画リクエスト送信エラー (fallback):', fallbackError);
-        setFeedback({
-          type: 'error',
-          message: '送信に失敗しました。時間をおいて再度お試しください。'
-        });
-      }
+    } catch (error) {
+      console.error('動画リクエスト送信エラー:', error);
+      setFeedback({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? `送信に失敗しました：${error.message}`
+            : '送信に失敗しました。時間をおいて再度お試しください。',
+      });
     } finally {
       setIsSubmitting(false);
     }

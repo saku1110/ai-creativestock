@@ -15,13 +15,16 @@ export default defineConfig(({ mode }) => {
   return {
   plugins: [
     react(),
-    // 開発時のみ /api/contact をViteで受ける簡易API（vercel dev なしでも送信可）
+    // 開発時のみ /api/contact /api/video-request をViteで受ける簡易API
     {
       name: 'dev-contact-api',
       configureServer(server) {
-        server.middlewares.use(async (req, res, next) => {
+        server.middlewares.use((req, res, next) => {
           const url = req.url || '';
-          if (!url.startsWith('/api/contact')) return next();
+          const handledRoute = ['/api/contact', '/api/video-request'].find((route) =>
+            url.startsWith(route),
+          );
+          if (!handledRoute) return next();
 
           // CORS
           res.setHeader('Access-Control-Allow-Origin', '*');
@@ -41,10 +44,23 @@ export default defineConfig(({ mode }) => {
               try {
                 const bodyStr = Buffer.concat(chunks).toString('utf8') || '{}';
                 const body = JSON.parse(bodyStr);
-                const { name, from_email, subject, message } = body || {};
-                if (!name || !from_email || !subject || !message) {
-                  res.statusCode = 400; res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ error: 'Missing required fields' })); return;
+                if (handledRoute === '/api/contact') {
+                  const { name, from_email, subject, message } = body || {};
+                  if (!name || !from_email || !subject || !message) {
+                    res.statusCode = 400; res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: 'Missing required fields' })); return;
+                  }
+                } else {
+                  const detailKeys = ['age', 'gender', 'bodyType', 'background', 'scene', 'faceDetail', 'notes'];
+                  const hasAnyField = detailKeys.some((key) => {
+                    const rawValue = (body || {})[key];
+                    const value = typeof rawValue === 'string' ? rawValue : '';
+                    return value.trim().length > 0;
+                  });
+                  if (!hasAnyField) {
+                    res.statusCode = 400; res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: 'Missing request details' })); return;
+                  }
                 }
                 res.statusCode = 200; res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({ ok: true, dev: true }));

@@ -114,22 +114,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     fetchUserData();
 
     let authSubscription: { unsubscribe: () => void } | undefined;
-    if (!(import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development')) {
-      const { data: { subscription: authSub } } = auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          setUser(session.user);
-          await fetchUserData();
-        } else if (event === 'SIGNED_OUT') {
-          if (!isMounted) return;
-          setUser(null);
-          setProfile(null);
-          setSubscription(null);
-          setMonthlyDownloads(0);
-          setLoading(false);
-        }
-      });
-      authSubscription = authSub;
-    }
+    const { data: { subscription: authSub } } = auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        setUser(session.user);
+        await fetchUserData();
+      } else if (event === 'SIGNED_OUT') {
+        if (!isMounted) return;
+        setUser(null);
+        setProfile(null);
+        setSubscription(null);
+        setMonthlyDownloads(0);
+        setLoading(false);
+      }
+    });
+    authSubscription = authSub;
 
     return () => {
       isMounted = false;

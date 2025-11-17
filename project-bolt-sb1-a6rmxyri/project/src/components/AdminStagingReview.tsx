@@ -30,11 +30,9 @@ interface EditState {
 
 const CATEGORY_OPTIONS = [
   { id: 'beauty', label: '美容' },
-  { id: 'fitness', label: 'フィットネス' },
-  { id: 'haircare', label: 'ヘアケア' },
+  { id: 'diet', label: 'ダイエット' },
   { id: 'business', label: 'ビジネス' },
   { id: 'lifestyle', label: 'ライフスタイル' },
-  { id: 'oralcare', label: 'オーラルケア' },
   { id: 'romance', label: '恋愛' },
   { id: 'pet', label: 'ペット' }
 ];

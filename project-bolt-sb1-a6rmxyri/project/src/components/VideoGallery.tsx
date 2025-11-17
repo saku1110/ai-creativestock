@@ -138,18 +138,6 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
             </div>
           ))}
         </div>
-
-        <div className="text-center mt-16">
-          <button
-            onClick={onTrialRequest}
-            className="bg-gradient-to-r from-cyan-500 to-purple-600 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all duration-300 hover:scale-105 shadow-2xl hover:shadow-cyan-500/25"
-          >
-            1000+の動画素材を見る
-          </button>
-          <p className="text-gray-400 text-sm mt-4">
-            AI動画素材一覧を見る
-          </p>
-        </div>
       </div>
     </section>
   );

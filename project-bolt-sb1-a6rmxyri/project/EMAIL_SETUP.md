@@ -1,110 +1,89 @@
-# メール通知システム セットアップガイド
+# メール配信セットアップ（お名前メール・SMTP）
 
-## 📧 メール通知機能の概要
+## 1. 送信するメールの種類
 
-AI Creative Stockでは、以下のタイミングで自動メール通知が送信されます：
+| テンプレート | 用途 |
+| --- | --- |
+| `subscription_created` | 新規サブスク開始通知 |
+| `subscription_updated` | プラン変更通知 |
+| `subscription_cancelled` | 解約完了通知 |
+| `payment_succeeded` | 決済成功通知 |
+| `payment_failed` | 決済失敗／再試行の案内 |
+| `video_request` | 動画リクエスト受付（フロント側モーダル） |
+| `contact` | お問い合わせフォーム |
 
-### 🎯 **送信されるメール通知**
+上記はすべて SMTP（お名前メール）経由で送信します。外部メール API には依存しません。
 
-1. **サブスクリプション開始** (`subscription_created`)
-   - 新規プラン登録時の歓迎メール
-   - プラン詳細、ダウンロード制限、次回請求日の案内
+## 2. 必要情報の整理
 
-2. **プラン変更** (`subscription_updated`)
-   - プラン変更完了時の確認メール
-   - 新プランの詳細と適用日の案内
+| 項目 | 例 |
+| --- | --- |
+| `SMTP_HOST` | `smtp01.onamae.com` |
+| `SMTP_PORT` | `465`（SSL/TLS） |
+| `SMTP_SECURE` | `true` |
+| `SMTP_USER` | `info@ai-creativestock.com` |
+| `SMTP_PASS` | お名前メールで発行したアプリパスワード |
+| `SMTP_FROM_EMAIL` | `noreply@ai-creativestock.com` |
+| `CONTACT_TO_EMAIL` | `support@ai-creativestock.com` |
 
-3. **サブスクリプション解約** (`subscription_cancelled`)
-   - 解約完了時の確認メール
-   - サービス終了日と残りダウンロード数の案内
+> **メモ**  
+> - From ドメインは SPF / DKIM を DNS に登録しておくと迷惑メールに入りづらくなります。  
+> - お名前メールは 587/STARTTLS も使えますが、465/TLS の方が安定しています。
 
-4. **支払い成功** (`payment_succeeded`)
-   - 月次/年次請求処理完了時のレシート
-   - 請求書ダウンロードリンク付き
+## 3. 環境変数
 
-5. **支払い失敗** (`payment_failed`)
-   - 決済エラー時のアラート
-   - 支払い方法更新へのリンク
+### 3-1. Vite / Vercel 用 `.env`
 
-## 🛠️ セットアップ手順
-
-### 1. Resend Email Serviceの設定（推奨）
-
-#### Resendアカウント作成
-1. [Resend](https://resend.com)にアクセス
-2. アカウント作成・ログイン
-3. **API Keys**から新しいキーを作成
-
-#### 環境変数設定
-```bash
-# .envファイルに追加
-RESEND_API_KEY=re_your_actual_resend_api_key
-VITE_APP_URL=https://your-domain.com
-
-# Supabase Edge Functions用
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```env
+SMTP_HOST=smtp01.onamae.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=info@ai-creativestock.com
+SMTP_PASS=your_app_password
+SMTP_FROM_EMAIL=noreply@ai-creativestock.com
+CONTACT_TO_EMAIL=request@ai-creativestock.com
+CONTACT_FROM_EMAIL=noreply@ai-creativestock.com
+SUPPORT_EMAIL=support@ai-creativestock.com
+VIDEO_REQUEST_TO_EMAIL=request@ai-creativestock.com
+VIDEO_REQUEST_FROM_EMAIL=noreply@ai-creativestock.com
+VIDEO_REQUEST_SLACK_WEBHOOK_URL=
 ```
 
-#### Resendダッシュボードでドメイン設定
-1. **Domains**セクションでカスタムドメイン追加
-2. DNS設定でMXレコード、SPF、DKIMを設定
-3. ドメイン認証完了後、送信元アドレス設定
+`VIDEO_REQUEST_*` を設定しておくと、Vercel の `/api/video-request` から直接お名前メール SMTP で送信できます。未設定の場合は `CONTACT_TO_EMAIL` / `CONTACT_FROM_EMAIL` が自動的に使われます。
 
-### 2. Supabase Edge Functions環境変数設定
+### 3-2. Supabase Edge Functions の secrets
 
 ```bash
-# Supabase CLIで環境変数を設定
-supabase secrets set RESEND_API_KEY=re_your_actual_api_key
-supabase secrets set VITE_APP_URL=https://your-domain.com
+supabase secrets set SMTP_HOST=smtp01.onamae.com
+supabase secrets set SMTP_PORT=465
+supabase secrets set SMTP_SECURE=true
+supabase secrets set SMTP_USER=info@ai-creativestock.com
+supabase secrets set SMTP_PASS=your_app_password
+supabase secrets set SMTP_FROM_EMAIL=noreply@ai-creativestock.com
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-# 設定確認
 supabase secrets list
 ```
 
-### 3. Edge Functionsのデプロイ
+## 4. デプロイ手順
 
 ```bash
-# メール送信機能をデプロイ
+# Edge Function（メール送信）をデプロイ
 supabase functions deploy send-email
 
-# Webhook関数を再デプロイ（メール送信機能追加のため）
+# Stripe Webhook も同じ secrets を参照するため再デプロイ
 supabase functions deploy stripe-webhook
-
-# デプロイ確認
-supabase functions list
 ```
 
-### 4. メールテンプレートのカスタマイズ
+フロントエンド／API 側は Vercel に push すれば自動デプロイされます。必要に応じて `vercel env pull` / `vercel env add` で同じ SMTP 系の環境変数を登録してください。
 
-`supabase/functions/send-email/index.ts`のテンプレートを編集：
+## 5. 動作確認
 
-```typescript
-const EMAIL_TEMPLATES = {
-  subscription_created: {
-    subject: 'カスタムタイトル',
-    html: (data: any) => `
-      <!-- カスタムHTMLテンプレート -->
-      <h1>${data.user_name}様</h1>
-      <!-- ... -->
-    `
-  },
-  // その他のテンプレート...
-}
-```
-
-## 🧪 テスト方法
-
-### 1. ローカルテスト
+### 5-1. Supabase ローカル
 
 ```bash
-# Supabase Local Development
 supabase start
+supabase functions serve --env-file ./supabase/.env
 
-# Edge Functions ローカル実行
-supabase functions serve
-
-# テストメール送信
 curl -X POST 'http://localhost:54321/functions/v1/send-email' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer your_anon_key' \
@@ -118,111 +97,48 @@ curl -X POST 'http://localhost:54321/functions/v1/send-email' \
   }'
 ```
 
-### 2. Stripe Webhookテスト
+### 5-2. Stripe CLI
 
 ```bash
-# Stripe CLI使用
 stripe listen --forward-to localhost:54321/functions/v1/stripe-webhook
-
-# テストイベント送信
 stripe trigger checkout.session.completed
 stripe trigger customer.subscription.created
 ```
 
-### 3. 本番環境テスト
-
-1. Stripeダッシュボードで実際のテスト決済実行
-2. Supabase Logs機能でメール送信ログ確認
-3. Resendダッシュボードで送信統計確認
-
-## 📊 監視・ログ
-
-### Supabase Logsでの確認
+### 5-3. Vercel Functions
 
 ```bash
-# Edge Functions ログ確認
-supabase functions logs send-email
-supabase functions logs stripe-webhook
-
-# エラーログフィルタ
-supabase functions logs send-email --filter "ERROR"
+curl -X POST 'https://<your-vercel-domain>/api/contact' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"テスト","from_email":"user@example.com","subject":"動作確認","message":"Hello"}'
 ```
 
-### Resend Dashboard
+## 6. トラブルシューティング
 
-1. **Logs**セクションで送信履歴確認
-2. **Analytics**で開封率・クリック率分析
-3. **Suppressions**で配信停止リスト管理
+| 症状 | 確認ポイント |
+| --- | --- |
+| `Missing SMTP configuration` | Supabase / Vercel の環境変数に `SMTP_*` が入っているか |
+| `SMTP error: Authentication failed` | お名前メールのパスワード / 2段階認証用アプリパスワードを再発行 |
+| タイムアウトする | ポートを 465 → 587 に変えて `SMTP_SECURE=false` + `STARTTLS`（nodemailer は自動判定） |
+| 受信できない | SPF / DKIM / DMARC が正しく設定されているか、迷惑メールフォルダを確認 |
 
-## ⚠️ トラブルシューティング
-
-### よくあるエラー
-
-1. **Email service error: Forbidden**
-   - ResendのAPIキーが無効
-   - ドメイン認証未完了
-
-2. **Missing email service configuration**
-   - `RESEND_API_KEY`環境変数未設定
-   - Supabase secretsに設定されていない
-
-3. **メールが届かない**
-   - SPAMフィルタに分類されている
-   - 送信元ドメインの認証設定を確認
-
-### ログ確認コマンド
+ログ確認コマンド:
 
 ```bash
-# Edge Functions詳細ログ
-supabase functions logs send-email --level debug
-
-# Webhook処理ログ
-supabase functions logs stripe-webhook --follow
+supabase functions logs send-email --follow
+supabase functions logs stripe-webhook --filter "ERROR"
 ```
 
-## 🔧 カスタマイズオプション
+Vercel 側は `vercel logs <deployment-url>` を参照してください。
 
-### 1. 他のメールサービスプロバイダー使用
+## 7. チェックリスト
 
-SendGrid、Mailgun、Amazon SESなども利用可能：
+- [ ] SMTP 資格情報をお名前.com で確認
+- [ ] `.env` と Supabase secrets に `SMTP_*` を登録
+- [ ] `CONTACT_TO_EMAIL` / `CONTACT_FROM_EMAIL` / `SUPPORT_EMAIL` を設定
+- [ ] Supabase `send-email` / `stripe-webhook` を再デプロイ
+- [ ] Vercel API（`/api/contact` など）でテスト送信
+- [ ] SPF / DKIM / DMARC を DNS に追加
+- [ ] 本番ドメインで実送信テスト
 
-```typescript
-// SendGrid例
-const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${sendgridApiKey}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify(emailData),
-})
-```
-
-### 2. メール配信設定
-
-```typescript
-// 配信時間設定
-const sendAtTime = new Date(Date.now() + 5 * 60 * 1000) // 5分後
-
-// 一括送信
-const recipients = ['user1@example.com', 'user2@example.com']
-```
-
-### 3. A/Bテスト
-
-```typescript
-// テンプレートバリエーション
-const template = Math.random() > 0.5 ? 'subscription_created_v2' : 'subscription_created'
-```
-
-## 🚀 本番環境チェックリスト
-
-- [ ] Resendドメイン認証完了
-- [ ] SPF/DKIM設定完了
-- [ ] 環境変数本番用に更新
-- [ ] メールテンプレート最終確認
-- [ ] 送信制限・レート制限設定
-- [ ] 監視・アラート設定
-- [ ] 法的要件（配信停止リンク等）確認
-
-メール通知システムの完全なセットアップにより、ユーザーエクスペリエンスが大幅に向上します！
+これで外部メール API への依存を完全に排除し、お名前メール（SMTP）のみで全ての通知メールを送れる状態になります。

@@ -279,6 +279,30 @@ export const database = {
     return { data, error: null }
   },
 
+  getDownloadCounts: async () => {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return { data: null, error: new Error('Missing Supabase environment variables') }
+    }
+
+    const url = new URL(`${supabaseUrl}/rest/v1/download_history`)
+    url.searchParams.set('select', 'video_id,count=video_id')
+    url.searchParams.set('group', 'video_id')
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`
+      }
+    })
+
+    if (!response.ok) {
+      return { data: null, error: new Error(`Supabase REST error ${response.status}`) }
+    }
+
+    const data = await response.json()
+    return { data, error: null }
+  },
+
   // サブスクリプション情報取得
   getUserSubscription: async (userId: string) => {
     const { data, error } = await supabase

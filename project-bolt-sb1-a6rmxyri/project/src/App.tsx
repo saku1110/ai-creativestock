@@ -57,8 +57,15 @@ function App() {
 
   // Public pages that don't require authentication
   const PUBLIC_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
+  const isPublicPage = (page?: string | null) => {
+    if (!page) {
+      return true;
+    }
+    return PUBLIC_PAGES.includes(page);
+  };
 
   const [currentPage, setCurrentPage] = useState(initialVariant);
+  const currentPageRef = useRef(currentPage);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
@@ -68,6 +75,21 @@ function App() {
   const [isNewUserRegistration, setIsNewUserRegistration] = useState(false);
   const isNewUserRegistrationRef = useRef(false); // 同期フラグ管理用
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
+
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
+
+  // ページ遷移時に最上部にスクロール
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (!isLoggedIn && !isPublicPage(currentPage)) {
+      setCurrentPage('landing');
+    }
+  }, [isLoggedIn, currentPage]);
 
   // 認証プロバイダーチェック関数
   const checkAuthProvider = (user: User): boolean => {
@@ -200,12 +222,13 @@ function App() {
           setIsNewUserRegistration(false); // 初期化時は既存ユーザーとして扱う
 
           if (validProvider) {
+            const activePage = currentPageRef.current;
             // Only redirect to dashboard if not on a public page
-            if (!PUBLIC_PAGES.includes(currentPage)) {
+            if (!isPublicPage(activePage)) {
               setCurrentPage('dashboard');
               console.log('初期化: 認証済みユーザー - ダッシュボードに移動 - ref:', isNewUserRegistrationRef.current);
             } else {
-              console.log('初期化: 認証済みユーザー - 公開ページを維持:', currentPage);
+              console.log('初期化: 認証済みユーザー - 公開ページを維持:', activePage);
             }
           } else {
             // 無効な認証プロバイダーの場合はログアウト
@@ -214,12 +237,13 @@ function App() {
             handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
           }
         } else {
+          const activePage = currentPageRef.current;
           // 未ログイン: パスが公開ページなら維持、そうでなければLPへ
-          if (!PUBLIC_PAGES.includes(currentPage)) {
+          if (!isPublicPage(activePage)) {
             setCurrentPage('landing');
             console.log('初期化: 未認証ユーザー - ランディングページに移動');
           } else {
-            console.log('初期化: 未認証ユーザー - 公開ページを維持:', currentPage);
+            console.log('初期化: 未認証ユーザー - 公開ページを維持:', activePage);
           }
         }
       } catch (error) {
@@ -258,6 +282,7 @@ function App() {
             timestamp: new Date().toISOString()
           });
           
+          const activePage = currentPageRef.current;
           if (session?.user) {
             const validProvider = checkAuthProvider(session.user);
             setIsValidAuthProvider(validProvider);
@@ -276,11 +301,11 @@ function App() {
               } else {
                 console.log('既存ユーザー認証成功');
                 // Only redirect to dashboard if not on a public page
-                if (!PUBLIC_PAGES.includes(currentPage)) {
+                if (!isPublicPage(activePage)) {
                   console.log('ダッシュボードに移動');
                   setCurrentPage('dashboard');
                 } else {
-                  console.log('公開ページを維持:', currentPage);
+                  console.log('公開ページを維持:', activePage);
                 }
               }
             } else {
@@ -294,11 +319,11 @@ function App() {
             setIsLoggedIn(false);
             setIsValidAuthProvider(false);
             // ログアウト時: 公開ページにいるなら維持、そうでなければLPへ
-            if (!PUBLIC_PAGES.includes(currentPage)) {
+            if (!isPublicPage(activePage)) {
               setCurrentPage('landing');
               console.log('ログアウト: ランディングページに移動');
             } else {
-              console.log('ログアウト: 公開ページを維持:', currentPage);
+              console.log('ログアウト: 公開ページを維持:', activePage);
             }
           }
           setIsLoading(false);

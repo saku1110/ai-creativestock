@@ -87,12 +87,21 @@ const CTASection: React.FC<CTASectionProps> = ({ onAuthRequest, onContactRequest
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3">{cta.title}</h3>
                 <p className="text-gray-400 mb-6">{cta.description}</p>
-                <button 
-                  onClick={cta.action === 'contact' ? onContactRequest : onAuthRequest}
-                  className="w-full glass-effect border border-cyan-600/30 text-cyan-400 hover:text-white py-3 px-6 rounded-xl transition-all duration-300 font-bold hover:bg-cyan-600/10 bg-gray-800/50"
-                >
-                  詳細を見る
-                </button>
+                {cta.action === 'contact' ? (
+                  <a
+                    href="/contact"
+                    className="block w-full glass-effect border border-cyan-600/30 text-cyan-400 hover:text-white py-3 px-6 rounded-xl transition-all duration-300 font-bold hover:bg-cyan-600/10 bg-gray-800/50 text-center"
+                  >
+                    詳細を見る
+                  </a>
+                ) : (
+                  <button
+                    onClick={onAuthRequest}
+                    className="w-full glass-effect border border-cyan-600/30 text-cyan-400 hover:text-white py-3 px-6 rounded-xl transition-all duration-300 font-bold hover:bg-cyan-600/10 bg-gray-800/50"
+                  >
+                    詳細を見る
+                  </button>
+                )}
               </div>
             );
           })}

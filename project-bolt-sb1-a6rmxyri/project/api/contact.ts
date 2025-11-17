@@ -6,7 +6,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     hasSMTP: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
     hasTo: Boolean(process.env.CONTACT_TO_EMAIL || process.env.SUPPORT_EMAIL),
   });
-  // CORS headers for all responses
+
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: `お問い合わせが届きました\n名前: ${name}\nメール: ${from_email}\n件名: ${subject}\n---\n${message}`,
+            text: `縺雁撫縺・粋繧上○縺悟ｱ翫″縺ｾ縺励◆\n蜷榊燕: ${name}\n繝｡繝ｼ繝ｫ: ${from_email}\n莉ｶ蜷・ ${subject}\n---\n${message}`,
           }),
         } as any);
       } catch {
@@ -42,43 +42,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Email delivery: try Resend first, then SMTP
+    // お名前メール（SMTP）での送信
     const toEmail = process.env.CONTACT_TO_EMAIL || process.env.SUPPORT_EMAIL;
-    const fromSystemEmail = process.env.CONTACT_FROM_EMAIL || process.env.SYSTEM_FROM_EMAIL;
+    const fromSystemEmail = process.env.CONTACT_FROM_EMAIL || process.env.SYSTEM_FROM_EMAIL || process.env.SMTP_USER;
 
-    const emailSubject = `[お問い合わせ] ${subject}`;
+    const emailSubject = `[縺雁撫縺・粋繧上○] ${subject}`;
     const emailText = [
-      '以下の内容でお問い合わせを受け付けました。',
+      '莉･荳九・蜀・ｮｹ縺ｧ縺雁撫縺・粋繧上○繧貞女縺台ｻ倥￠縺ｾ縺励◆縲・,
       '',
-      `名前: ${name}`,
-      `メール: ${from_email}`,
-      `件名: ${subject}`,
+      `蜷榊燕: ${name}`,
+      `繝｡繝ｼ繝ｫ: ${from_email}`,
+      `莉ｶ蜷・ ${subject}`,
       '---',
       message,
     ].join('\n');
 
     if (!toEmail) {
       console.error('[contact] missing CONTACT_TO_EMAIL');
-      return res.status(500).json({ error: 'CONTACT_TO_EMAIL (または SUPPORT_EMAIL) が未設定です。' });
-    }
-
-    if (process.env.RESEND_API_KEY) {
-      try {
-        const { Resend } = await import('resend');
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        await resend.emails.send({
-          from: fromSystemEmail || 'no-reply@ai-creative-stock.com',
-          to: [toEmail],
-          subject: emailSubject,
-          text: emailText,
-          reply_to: from_email,
-        } as any);
-        console.log('[contact] sent via Resend');
-        return res.status(200).json({ ok: true, provider: 'resend' });
-      } catch (e: any) {
-        console.warn('[contact] Resend failed, fallback to SMTP', e?.message);
-        // fallback to SMTP
-      }
+      return res.status(500).json({ error: 'CONTACT_TO_EMAIL (縺ｾ縺溘・ SUPPORT_EMAIL) 縺梧悴險ｭ螳壹〒縺吶・ });
     }
 
     const smtpHost = process.env.SMTP_HOST;
@@ -95,37 +76,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           port: smtpPort || (smtpSecure ? 465 : 587),
           secure: smtpSecure,
           auth: { user: smtpUser, pass: smtpPass },
+        } as any;
+
+        await transporter.sendMail({
+          from: fromSystemEmail || smtpUser,
+          to: toEmail,
+          subject: emailSubject,
+          text: emailText,
+          replyTo: from_email,
+          envelope: { from: smtpUser, to: toEmail },
         } as any);
 
-        try {
-          await transporter.sendMail({
-            from: fromSystemEmail || smtpUser,
-            to: toEmail,
-            subject: emailSubject,
-            text: emailText,
-            replyTo: from_email,
-            envelope: { from: smtpUser, to: toEmail },
-          } as any);
-        } catch (firstErr: any) {
-          await transporter.sendMail({
-            from: smtpUser,
-            to: toEmail,
-            subject: emailSubject,
-            text: emailText,
-            replyTo: from_email,
-            envelope: { from: smtpUser, to: toEmail },
-          } as any);
-        }
         console.log('[contact] sent via SMTP');
         return res.status(200).json({ ok: true, provider: 'smtp' });
       } catch (e: any) {
         console.error('[contact] SMTP error', e);
-        return res.status(500).json({ error: `メール送信に失敗しました: ${e?.message || 'unknown error'}` });
+        return res.status(500).json({ error: `繝｡繝ｼ繝ｫ騾∽ｿ｡縺ｫ螟ｱ謨励＠縺ｾ縺励◆: ${e?.message || 'unknown error'}` });
       }
     }
 
     console.error('[contact] no email provider configured');
-    return res.status(500).json({ error: 'メール送信の設定がありません。RESEND_API_KEY または SMTP_* と CONTACT_TO_EMAIL を設定してください。' });
+    return res.status(500).json({ error: 'SMTP_* 縺ｨ CONTACT_TO_EMAIL (縺ｾ縺溘・ SUPPORT_EMAIL) 繧定ｨｭ螳壹＠縺ｦ縺上□縺輔＞縲・ });
   } catch (e: any) {
     console.error('[contact] unhandled error', e);
     return res.status(500).json({ error: e?.message || 'unknown error' });

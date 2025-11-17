@@ -56,13 +56,13 @@ const parseArgs = (): CliOptions => {
 
 const DEFAULT_CATEGORY_MAP: Record<string, string> = {
   beauty: 'beauty',
-  fitness: 'fitness',
-  haircare: 'haircare',
+  diet: 'diet',
   business: 'business',
   lifestyle: 'lifestyle',
+  romance: 'romance',
   '美容': 'beauty',
-  'フィットネス': 'fitness',
-  'ヘアケア': 'haircare',
+  'フィットネス': 'diet',
+  'ヘアケア': 'beauty',
   'ビジネス': 'business',
   '暮らし': 'lifestyle',
   'ライフスタイル': 'lifestyle'
@@ -83,7 +83,7 @@ const run = async () => {
   const categoryMap: Record<string, VideoCategory> = {};
   for (const [folder, value] of Object.entries(rawMap)) {
     const normalizedValue = value?.toLowerCase();
-    if (normalizedValue && ['beauty', 'fitness', 'haircare', 'business', 'lifestyle'].includes(normalizedValue)) {
+    if (normalizedValue && ['beauty', 'diet', 'business', 'lifestyle', 'romance', 'pet'].includes(normalizedValue)) {
       categoryMap[folder] = normalizedValue as VideoCategory;
     }
   }

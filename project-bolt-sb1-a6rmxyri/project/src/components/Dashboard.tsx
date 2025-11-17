@@ -3,6 +3,7 @@ import { Search, Download, Heart, X, ChevronLeft, Eye, Bookmark, Crown, Zap, Sta
 import { useUser } from '../hooks/useUser';
 import { useAdmin } from '../hooks/useAdmin';
 import { database, supabase } from '../lib/supabase';
+import ImprovedVideoPreview from './ImprovedVideoPreview';
 import { useDebounce } from '../hooks/useDebounce';
 import {
   localDashboardVideos,
@@ -25,6 +26,7 @@ interface VideoAsset {
   description: string;
   category: 'beauty' | 'diet' | 'healthcare' | 'business' | 'lifestyle' | 'romance';
   tags: string[];
+  final_tags?: string;
   duration: number;
   resolution: string;
   file_url: string;
@@ -47,6 +49,7 @@ type RawSupabaseVideo = {
   description?: string | null;
   category?: string | null;
   tags?: string[] | null;
+  final_tags?: string | null;
   duration?: number | null;
   resolution?: string | null;
   file_url: string;
@@ -146,6 +149,7 @@ const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
       });
     }
   }
+  const reviewTags = Array.from(reviewTagSet);
 
   const ensureThumbnail = () => {
     if (!video.thumbnail_url) {
@@ -159,15 +163,7 @@ const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
     }
   };
 
-  const combinedTags = new Set<string>(
-    Array.isArray(video.tags) ? video.tags.filter(Boolean) : []
-  );
-  if (reviewTagSet.size > 0) {
-    reviewTagSet.forEach(tag => combinedTags.add(tag));
-  }
-  if (combinedTags.size > 0) {
-    video.tags = Array.from(combinedTags);
-  }
+  video.tags = reviewTags;
 
   if (!video.category || video.category === 'lifestyle') {
     for (const candidate of identifiers) {
@@ -321,6 +317,7 @@ const mapSupabaseRowToAsset = (
     description: row.description ?? '',
     category: normalizedCategory,
     tags,
+    final_tags: row.final_tags,
     duration: row.duration ?? 0,
     resolution: row.resolution ?? '1080x1920',
     file_url: row.file_url,
@@ -353,6 +350,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'category' | 'videoRequest'>('dashboard');
   const [selectedVideoForModal, setSelectedVideoForModal] = useState<VideoAsset | null>(null);
+
+  // ページ遷移時に最上部にスクロール
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentPage]);
 
   const {
     user,
@@ -518,8 +520,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     const next = new Set<string>();
     if (categoryId === 'all') {
       next.add('all');
+      // 「すべて」の場合はダッシュボードに戻る
+      setCurrentPage('dashboard');
     } else {
       next.add(categoryId);
+      // 特定のカテゴリの場合はカテゴリページに遷移
+      setCurrentPage('category');
     }
     setSelectedCategories(next);
   }, []);
@@ -545,24 +551,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
         let downloadCountMap: Record<string, number> = {};
 
         try {
-          const { data: downloadStats, error: statsError } = await supabase
-            .from('download_history')
-            .select('video_id, count=video_id', { head: false })
-            .group('video_id');
+          const { data: downloadStats, error: statsError } = await database.getDownloadCounts();
 
           if (!statsError && Array.isArray(downloadStats)) {
             downloadCountMap = downloadStats.reduce<Record<string, number>>((acc, stat: any) => {
               if (stat?.video_id) {
+                const rawCount = 'count' in stat ? stat.count : (stat as any)?.count_video_id;
                 acc[stat.video_id] =
-                  typeof stat.count === 'number' ? stat.count : Number(stat.count) || 0;
+                  typeof rawCount === 'number' ? rawCount : Number(rawCount) || 0;
               }
               return acc;
             }, {});
           }
         } catch (statsError) {
-          console.error('ダウンロード履歴の取得に失敗しました:', statsError);
+          console.error('ダウンロード統計の取得に失敗しました:', statsError);
         }
-
         const transformed = data.map((row: RawSupabaseVideo) =>
           mapSupabaseRowToAsset(row, downloadCountMap)
         );
@@ -835,6 +838,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   }, [videos, selectedCategories, selectedAges, selectedGenders, showOnlyFavorites, userFavorites, sortBy, debouncedSearchQuery]);
   const spotlightVideos = useMemo(() => filteredVideos.slice(0, 12), [filteredVideos]);
   const spotlightIds = useMemo(() => new Set(spotlightVideos.map(video => video.id)), [spotlightVideos]);
+  const newestVideos = useMemo(
+    () =>
+      [...videos]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 12),
+    [videos]
+  );
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-slate-900">
@@ -1071,7 +1081,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                   showOnlyFavorites ||
                                   Boolean(debouncedSearchQuery)
                                 ) ? (
-                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2.5 sm:gap-3 lg:gap-4 xl:gap-5">
+                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4 xl:gap-5">
                                     {filteredVideos.map((video) => (
                                       <VideoCard
                                         key={video.id}
@@ -1090,8 +1100,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                 ) : (
                                   <div className="space-y-10">
                                     <VideoSection
-                                    title="新着動画"
-                                      videos={filteredVideos.slice(0, 12)}
+                                      title="新着動画"
+                                      videos={newestVideos}
                                       onVideoClick={setSelectedVideoForModal}
                                       userFavorites={userFavorites}
                                       downloadingVideos={downloadingVideos}
@@ -1104,7 +1114,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                     {categories
                                       .filter(cat => cat.id !== 'all')
                                       .map((category) => {
-                                        const categoryVideos = filteredVideos.filter(video => video.category === category.id).slice(0, 10);
+                                        const categoryVideos = filteredVideos.filter(video => video.category === category.id).slice(0, 8);
                                         if (categoryVideos.length === 0) return null;
                                         return (
                                           <VideoSection
@@ -1121,7 +1131,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                             canDownload={canDownloadVideos}
                                             onShowAll={() => {
                                               handleCategoryClick(category.id);
-                                              setCurrentPage('category');
                                             }}
                                           />
                                         );
@@ -1158,13 +1167,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
           </main>
 
       {selectedVideoForModal && (
-        <VideoModal 
-          video={selectedVideoForModal} 
+        <ImprovedVideoPreview
+          video={selectedVideoForModal}
+          isOpen={true}
           onClose={() => setSelectedVideoForModal(null)}
           onDownload={() => handleDownload(selectedVideoForModal)}
-          onToggleFavorite={() => toggleFavorite(selectedVideoForModal.id)}
-          isFavorited={userFavorites.has(selectedVideoForModal.id)}
-          canDownload={canDownloadVideos}
         />
       )}
     </div>
@@ -1219,13 +1226,13 @@ const CategoryDetailPage: React.FC<{
         <h1 className="text-3xl font-bold text-slate-900">
           {categoryNames[categoryName as keyof typeof categoryNames] || categoryName}動画一覧
         </h1>
-        <p className="mt-2 text-sm text-slate-500">
+        {/* <p className="mt-2 text-sm text-slate-500">
           {categoryVideos.length}件の動画が見つかりました。最新のUGC素材を活用して広告制作を加速させましょう。
-        </p>
+        </p> */}
       </div>
       
       {/* 動画グリッド */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2 sm:gap-2.5 md:gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-2.5 md:gap-3">
         {currentVideos.map((video) => (
           <div key={video.id} className="h-full">
             <VideoCard
@@ -1329,7 +1336,7 @@ const VideoSection: React.FC<{
         )}
       </div>
 
-      <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2.5 sm:gap-3 lg:gap-4 xl:gap-5">
+      <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4 xl:gap-5">
         {videos.map((video) => (
           <VideoCard
             key={video.id}
@@ -1537,7 +1544,7 @@ const VideoModal: React.FC<{
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-2xl max-h-screen overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-xl max-h-[75vh] overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
         
         {/* モーツルヘッダー */}
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
@@ -1649,11 +1656,28 @@ const VideoCard: React.FC<{
 
   const durationLabel = formatDuration(video.duration);
   const subCategoryLabel = video.beautySubCategory ? BEAUTY_SUBCATEGORY_DATA[video.beautySubCategory]?.label : undefined;
-  const tagList = subCategoryLabel ? [subCategoryLabel, ...(video.tags || [])] : video.tags || [];
+
+  // final_tagsを含めたtagListを作成
+  const finalTagsArray = video.final_tags
+    ? video.final_tags.split(/[,、]/).map(tag => tag.trim()).filter(tag => tag.length > 0)
+    : [];
+  const allTags = [...(video.tags || []), ...finalTagsArray];
+  const uniqueTags = Array.from(new Set(allTags)); // 重複削除
+  const tagList = subCategoryLabel ? [subCategoryLabel, ...uniqueTags] : uniqueTags;
+
+  // デバッグ用ログ
+  console.log('Video ID:', video.id);
+  console.log('video.final_tags:', video.final_tags);
+  console.log('video.tags:', video.tags);
+  console.log('finalTagsArray:', finalTagsArray);
+  console.log('tagList:', tagList);
+
   const primaryCategoryLabel = categoryNames[video.category];
   const mobileTagList = tagList
     .filter(tag => typeof tag === 'string' && !tag.includes(':') && tag.toLowerCase() !== video.category)
-    .slice(0, 2);
+    .slice(0, 3); // 2から3に変更してテスト
+
+  console.log('mobileTagList:', mobileTagList);
   const formatTag = (value: string) => {
     const trimmed = (value || '').trim();
     if (!trimmed) return '';
@@ -1690,12 +1714,6 @@ const VideoCard: React.FC<{
         />
 
         <div className="pointer-events-none absolute inset-0 hidden bg-gradient-to-b from-transparent via-black/10 to-black/70 opacity-0 transition-opacity duration-500 md:block md:group-hover:opacity-100" />
-
-        {durationLabel && (
-          <span className="absolute left-3 top-3 inline-flex items-center rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-semibold text-white shadow-md md:left-4 md:top-4 md:px-3 md:py-1 md:text-[11px]">
-            {durationLabel}
-          </span>
-        )}
 
         <div className="absolute top-4 left-4 hidden flex-col gap-2 md:flex">
           <button
@@ -1770,7 +1788,7 @@ const VideoCard: React.FC<{
       </div>
 
       <div className="flex flex-1 flex-col px-4 py-3.5 md:px-5 md:py-4">
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="hidden md:flex flex-wrap gap-2 mb-3">
           {tagList.slice(0, 3).map((tag, index) => (
             <button
               key={`${tag}-${index}`}
@@ -1830,6 +1848,7 @@ const VideoCard: React.FC<{
 
 
 export default Dashboard;
+
 
 
 

@@ -22,7 +22,7 @@ const AdminUpload: React.FC = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    category: 'beauty' as 'beauty' | 'fitness' | 'haircare' | 'business' | 'lifestyle',
+    category: 'beauty' as 'beauty' | 'diet' | 'business' | 'lifestyle' | 'romance' | 'pet',
     beautySubCategory: 'skincare' as BeautySubCategory,
     tags: '',
     duration: 10,
@@ -35,10 +35,11 @@ const AdminUpload: React.FC = () => {
 
   const categories = [
     { id: 'beauty', name: '美容' },
-    { id: 'fitness', name: 'フィットネス' },
-    { id: 'haircare', name: 'ヘアケア' },
+    { id: 'diet', name: 'ダイエット' },
     { id: 'business', name: 'ビジネス' },
-    { id: 'lifestyle', name: 'ライフスタイル' }
+    { id: 'lifestyle', name: 'ライフスタイル' },
+    { id: 'romance', name: '恋愛' },
+    { id: 'pet', name: 'ペット' }
   ];
 
   const beautySubCategories: Array<{ id: BeautySubCategory; name: string }> = [
@@ -222,7 +223,7 @@ const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const sanitizedValue = typeof value === 'string' ? sanitizeInput(value) : value;
 
     if (name === 'category') {
-      const nextCategory = sanitizedValue as 'beauty' | 'fitness' | 'haircare' | 'business' | 'lifestyle';
+      const nextCategory = sanitizedValue as 'beauty' | 'diet' | 'business' | 'lifestyle' | 'romance' | 'pet';
       setFormData(prev => ({
         ...prev,
         category: nextCategory,

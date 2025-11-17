@@ -56,10 +56,11 @@ const AutoUpload: React.FC = () => {
   // カテゴリマッピング
   const categoryLabels: Record<string, string> = {
     beauty: '美容',
-    fitness: 'フィットネス',
-    haircare: 'ヘアケア',
+    diet: 'ダイエット',
     business: 'ビジネス',
-    lifestyle: 'ライフスタイル'
+    lifestyle: 'ライフスタイル',
+    romance: '恋愛',
+    pet: 'ペット'
   };
 
   // ドラッグ&ドロップハンドラ
