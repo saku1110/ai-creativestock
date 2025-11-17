@@ -29,6 +29,7 @@ async function readJsonBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('stripe-checkout invoked', { method: req.method });
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
