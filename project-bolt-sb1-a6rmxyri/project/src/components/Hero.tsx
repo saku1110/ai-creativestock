@@ -120,6 +120,7 @@ type RegisteredItem = {
 const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRequest }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const speedPerMsRef = useRef<number>(0.02);
+  const scrollProgressRef = useRef<number>(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const itemsRef = useRef<Map<Element, RegisteredItem>>(new Map());
   const [remoteVideos, setRemoteVideos] = useState<HeroVideoItem[] | null>(null);
@@ -152,7 +153,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
     const cardRect = cards[0].getBoundingClientRect();
     const cardWidth = cardRect.width;
     const distance = container.clientWidth + cardWidth;
-    speedPerMsRef.current = distance / 9000; // 9秒で通過
+    speedPerMsRef.current = distance / 7500; // 約7.5秒(従来比1.2倍速)で通過
   };
 
   const registerVideo = React.useCallback(
@@ -262,18 +263,34 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
     computeSpeed();
     let animationFrame: number;
     let lastTimestamp: number | null = null;
+    const MAX_DELTA = 120;
     const tick = (timestamp: number) => {
       const el = scrollContainerRef.current; if (!el) return;
-      if (!isReadyRef.current) { lastTimestamp = null; animationFrame = requestAnimationFrame(tick); return; }
-      const track = el.querySelector<HTMLDivElement>('[data-hero-track]'); if (!track) return;
+      const track = el.querySelector<HTMLDivElement>('[data-hero-track]'); if (!track) {
+        lastTimestamp = timestamp;
+        animationFrame = requestAnimationFrame(tick);
+        return;
+      }
       const maxShift = track.scrollWidth / 2;
-      if (maxShift > el.clientWidth) {
-        if (lastTimestamp === null) lastTimestamp = timestamp;
-        const delta = timestamp - lastTimestamp; lastTimestamp = timestamp;
-        if (delta < 100) { // tab switching guard
-          el.scrollLeft += speedPerMsRef.current * delta;
-          if (el.scrollLeft >= maxShift) el.scrollLeft -= maxShift;
+      if (!isReadyRef.current || maxShift <= el.clientWidth) {
+        lastTimestamp = timestamp;
+        scrollProgressRef.current = 0;
+        el.scrollLeft = 0;
+        animationFrame = requestAnimationFrame(tick);
+        return;
+      }
+      if (lastTimestamp === null) {
+        lastTimestamp = timestamp;
+      }
+      let delta = timestamp - lastTimestamp;
+      lastTimestamp = timestamp;
+      delta = Math.max(0, Math.min(delta, MAX_DELTA));
+      if (delta > 0) {
+        scrollProgressRef.current += speedPerMsRef.current * delta;
+        if (scrollProgressRef.current >= maxShift) {
+          scrollProgressRef.current %= maxShift;
         }
+        el.scrollLeft = scrollProgressRef.current;
       }
       animationFrame = requestAnimationFrame(tick);
     };
@@ -283,7 +300,7 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
 
   useEffect(() => {
     const observer = new ResizeObserver(() => {
-      const el = scrollContainerRef.current; if (el) { el.scrollLeft = 0; }
+      const el = scrollContainerRef.current; if (el) { el.scrollLeft = 0; scrollProgressRef.current = 0; }
       computeSpeed();
     });
     const container = scrollContainerRef.current; if (container) observer.observe(container);
