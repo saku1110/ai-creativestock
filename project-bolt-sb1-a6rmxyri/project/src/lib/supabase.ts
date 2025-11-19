@@ -250,33 +250,20 @@ export const database = {
 
   // 動画アセット取得
   getVideoAssets: async (category?: string, limit = defaultVideoFetchLimit) => {
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return { data: null, error: new Error('Missing Supabase environment variables') }
-    }
-
     const safeLimit = Math.max(25, Math.min(limit, 2000))
 
-    const url = new URL(`${supabaseUrl}/rest/v1/video_assets`)
-    url.searchParams.set('select', '*')
-    url.searchParams.set('order', 'created_at.desc')
-    url.searchParams.set('limit', String(safeLimit))
+    let query = supabase
+      .from('video_assets')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(safeLimit)
+
     if (category) {
-      url.searchParams.set('category', `eq.${category}`)
+      query = query.eq('category', category)
     }
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`
-      }
-    })
-
-    if (!response.ok) {
-      return { data: null, error: new Error(`Supabase REST error ${response.status}`) }
-    }
-
-    const data = await response.json()
-    return { data, error: null }
+    const { data, error } = await query
+    return { data, error }
   },
 
   getDownloadCounts: async () => {
@@ -337,11 +324,19 @@ export const database = {
 
     const { data, error } = await supabase
       .from('download_history')
-      .select('id')
+      .select('video_id')
       .eq('user_id', userId)
       .gte('downloaded_at', startOfMonth.toISOString())
 
-    return { count: data?.length || 0, error }
+    const downloadedVideoIds = Array.from(
+      new Set(
+        (data || [])
+          .map(record => record.video_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      )
+    )
+
+    return { count: downloadedVideoIds.length, videoIds: downloadedVideoIds, error }
   },
 
   // 動画ファイルアップロード
