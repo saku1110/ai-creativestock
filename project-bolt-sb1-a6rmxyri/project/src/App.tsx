@@ -158,9 +158,10 @@ function App() {
       try {
         // URLパラメータを確認
         const urlParams = new URLSearchParams(window.location.search);
-        const accessToken = urlParams.get('access_token');
-        const refreshToken = urlParams.get('refresh_token');
-        const mode = urlParams.get('mode');
+        const hashParams = new URLSearchParams(window.location.hash?.replace(/^#/, '') || '');
+        const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
+        const refreshToken = urlParams.get('refresh_token') || hashParams.get('refresh_token');
+        const mode = urlParams.get('mode') || hashParams.get('mode');
         
         console.log('=== 초기화 処理開始 ===');
         console.log('URLパラメータ詳細:', { 
