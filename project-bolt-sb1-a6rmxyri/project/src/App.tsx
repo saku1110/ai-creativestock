@@ -100,7 +100,7 @@ function App() {
 
     // ユーザーの認証プロバイダーをチェック
     const authProvider = user.app_metadata?.provider;
-    const validProviders = ['google'];
+    const validProviders = ['google', 'email'];
     
     console.log('Auth provider check:', { 
       provider: authProvider, 
