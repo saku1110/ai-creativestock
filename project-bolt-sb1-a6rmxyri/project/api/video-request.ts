@@ -37,7 +37,17 @@ const formatTimestamp = () =>
     minute: '2-digit'
   }).format(new Date());
 
-const getSmtpConfig = () => {
+interface VideoSmtpConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+  fromEmail: string;
+  toEmail: string;
+}
+
+const getSmtpConfig = (): VideoSmtpConfig => {
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
@@ -65,7 +75,15 @@ const getSmtpConfig = () => {
     process.env.SYSTEM_FROM_EMAIL ||
     user;
 
-  return { host, user, pass, port: port || (secure ? 465 : 587), secure, toEmail, fromEmail };
+  return {
+    host,
+    user,
+    pass,
+    port: port || (secure ? 465 : 587),
+    secure,
+    toEmail,
+    fromEmail
+  };
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -101,15 +119,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing request details' });
     }
 
-    const smtp = getSmtpConfig();
-    const { default: nodemailer } = (await import('nodemailer')) as any;
-    const transporter = nodemailer.createTransport({
-      host: smtp.host,
-      port: smtp.port,
-      secure: smtp.secure,
-      auth: { user: smtp.user, pass: smtp.pass }
-    } as any);
-
     const lines = [
       'AI Creative Stock received a new video request.',
       '',
@@ -126,6 +135,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `Requested at: ${requestData.requestedAt}`
     ];
 
+    const smtp = getSmtpConfig();
+    const { default: nodemailer } = (await import('nodemailer')) as {
+      default: typeof import('nodemailer');
+    };
+    const transporter = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      auth: { user: smtp.user, pass: smtp.pass }
+    });
+
     await transporter.sendMail({
       from: smtp.fromEmail,
       to: smtp.toEmail,
@@ -133,7 +153,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       text: lines.join('\n'),
       replyTo: requestData.userEmail || undefined,
       envelope: { from: smtp.user, to: smtp.toEmail }
-    } as any);
+    });
 
     console.log('[video-request] sent via SMTP');
     return res.status(200).json({ ok: true });

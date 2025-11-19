@@ -4,6 +4,7 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "dev": "npm --prefix project-bolt-sb1-a6rmxyri/project run dev",
         "build": "tsc -p tsconfig.json",
         "test": "vitest",
         "test:run": "vitest run",

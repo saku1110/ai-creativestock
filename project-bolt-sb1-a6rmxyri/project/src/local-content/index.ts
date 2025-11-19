@@ -181,6 +181,14 @@ const dashboardVideoModules = ENABLE_LOCAL_DASHBOARD
     }) as Record<string, string>)
   : buildRemoteEntryMap('dashboard');
 
+const originalBackupModules = ENABLE_LOCAL_DASHBOARD
+  ? (import.meta.glob('./dashboard/**/_backup/**/*.{mp4,MP4,webm,WEBM}', {
+      eager: true,
+      import: 'default',
+      query: '?url'
+    }) as Record<string, string>)
+  : {};
+
 const dashboardThumbModules = ENABLE_LOCAL_DASHBOARD
   ? (import.meta.glob('./dashboard-thumbs/**/*.{jpg,jpeg,png,JPG,JPEG,PNG}', {
       eager: true,
@@ -193,6 +201,7 @@ const DASHBOARD_THUMB_LOOKUP = new Map<string, string>();
 const DASHBOARD_STEM_LOOKUP = new Map<string, string>();
 const DASHBOARD_CORE_LOOKUP = new Map<string, string>();
 const DASHBOARD_VIDEO_LOOKUP = new Map<string, LocalVideoItem>();
+const ORIGINAL_BACKUP_LOOKUP = new Map<string, string>();
 
 const stripWatermarkToken = (value: string) =>
   value.replace(/-wm-[a-z0-9]+$/i, '').replace(/-wm$/i, '');
@@ -259,6 +268,10 @@ export const findDashboardReviewTags = (identifier?: string): string[] | undefin
   return tags ? [...tags] : undefined;
 };
 
+export const findDashboardReviewRawTags = (identifier?: string): string[] | undefined => {
+  return findDashboardReviewTags(identifier);
+};
+
 export const findDashboardReviewCategory = (identifier?: string): DashboardCategory | undefined => {
   const reviewKey = resolveReviewKey(identifier);
   if (!reviewKey) return undefined;
@@ -300,6 +313,47 @@ const applyReviewMetadata = (video: LocalVideoItem) => {
     });
     video.beautySubCategory = beautyResult.subCategory;
   }
+};
+
+const registerOriginalBackup = (key: string, url?: string) => {
+  if (!key || !url) return;
+  const { fileName } = sanitizeName(key);
+  const normalizedFile = fileName?.replace(/\.[^/.]+$/, '').toLowerCase();
+  const normalizedStem = normalizeStem(fileName || '');
+  const candidates = [
+    resolveReviewKey(fileName),
+    normalizedFile,
+    normalizedFile ? stripWatermarkToken(normalizedFile) : undefined,
+    normalizedStem,
+    normalizedStem ? stripWatermarkToken(normalizedStem) : undefined
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    if (!ORIGINAL_BACKUP_LOOKUP.has(candidate)) {
+      ORIGINAL_BACKUP_LOOKUP.set(candidate, url);
+    }
+  }
+};
+
+Object.entries(originalBackupModules).forEach(([key, url]) => registerOriginalBackup(key, url));
+
+export const findOriginalBackupUrl = (identifier?: string): string | undefined => {
+  if (!identifier) return undefined;
+  const reviewKey = resolveReviewKey(identifier);
+  if (reviewKey && ORIGINAL_BACKUP_LOOKUP.has(reviewKey)) {
+    return ORIGINAL_BACKUP_LOOKUP.get(reviewKey);
+  }
+  const normalized = normalizeStem(identifier || '');
+  if (normalized) {
+    if (ORIGINAL_BACKUP_LOOKUP.has(normalized)) {
+      return ORIGINAL_BACKUP_LOOKUP.get(normalized);
+    }
+    const stripped = stripWatermarkToken(normalized);
+    if (ORIGINAL_BACKUP_LOOKUP.has(stripped)) {
+      return ORIGINAL_BACKUP_LOOKUP.get(stripped);
+    }
+  }
+  return undefined;
 };
 
 const registerDashboardVideo = (video: LocalVideoItem) => {
