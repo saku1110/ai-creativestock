@@ -1873,9 +1873,8 @@ const VideoCard: React.FC<{
       ...finalTagsArray,
       ...(video.tags || [])
     ];
-
     const normalizedSet = new Set<string>();
-    const dedupedTags: string[] = [];
+    const deduped: string[] = [];
 
     source.forEach(tag => {
       if (typeof tag !== 'string') return;
@@ -1884,10 +1883,10 @@ const VideoCard: React.FC<{
       const normalized = trimmed.replace(/^#/, '').toLowerCase();
       if (normalizedSet.has(normalized)) return;
       normalizedSet.add(normalized);
-      dedupedTags.push(trimmed);
+      deduped.push(trimmed.replace(/^#/, ''));
     });
 
-    return dedupedTags;
+    return deduped;
   }, [subCategoryLabel, finalTagsArray, video.tags]);
 
   const primaryCategoryLabel = categoryNames[video.category];
