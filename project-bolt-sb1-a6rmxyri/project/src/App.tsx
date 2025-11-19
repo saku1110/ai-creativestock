@@ -25,6 +25,7 @@ import AdminUpload from './components/AdminUpload';
 import AdminStagingReview from './components/AdminStagingReview';
 import AutoUpload from './components/AutoUpload';
 import AuthModal from './components/AuthModal';
+import RegistrationModal from './components/RegistrationModal';
 import ContactModal from './components/ContactModal';
 import PricingPage from './components/PricingPage';
 import PaymentSuccess from './components/PaymentSuccess';
@@ -47,16 +48,54 @@ import { User } from '@supabase/supabase-js';
 function App() {
   // URLとクエリから初期ページを判定（/contact 等のパス優先）
   const urlParams = new URLSearchParams(window.location.search);
-  const pathSegment = (typeof window !== 'undefined'
-    ? window.location.pathname.split('/').filter(Boolean)[0]
-    : '') || '';
-  const PATH_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
-  const initialVariant = (PATH_PAGES.includes(pathSegment)
-    ? pathSegment
-    : (urlParams.get('variant') || 'landing'));
+  const pathSegments = (typeof window !== 'undefined'
+    ? window.location.pathname.split('/').filter(Boolean)
+    : []);
+  const primarySegment = pathSegments[0] || '';
+  const secondarySegment = pathSegments[1] || '';
+
+  const PATH_PAGES = [
+    'terms',
+    'privacy',
+    'refund',
+    'commercial',
+    'contact',
+    'pricing',
+    'landing',
+    'simple-landing',
+    'white-landing',
+    'payment-success',
+    'payment-cancel'
+  ];
+
+  const specialPath = primarySegment === 'payment'
+    ? (secondarySegment === 'success'
+        ? 'payment-success'
+        : secondarySegment === 'cancel'
+          ? 'payment-cancel'
+          : null)
+    : null;
+
+  const initialVariant = specialPath
+    ? specialPath
+    : (PATH_PAGES.includes(primarySegment)
+        ? primarySegment
+        : (urlParams.get('variant') || 'landing'));
 
   // Public pages that don't require authentication
-  const PUBLIC_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
+  const PUBLIC_PAGES = [
+    'terms',
+    'privacy',
+    'refund',
+    'commercial',
+    'contact',
+    'pricing',
+    'landing',
+    'simple-landing',
+    'white-landing',
+    'payment-success',
+    'payment-cancel'
+  ];
   const isPublicPage = (page?: string | null) => {
     if (!page) {
       return true;
@@ -68,6 +107,7 @@ function App() {
   const currentPageRef = useRef(currentPage);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [userData, setUserData] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,6 +140,7 @@ function App() {
 
     // ユーザーの認証プロバイダーをチェック
     const authProvider = user.app_metadata?.provider;
+    // Allow both Google OAuth and email/password users in production
     const validProviders = ['google', 'email'];
     
     console.log('Auth provider check:', { 
@@ -223,8 +264,8 @@ function App() {
 
           if (validProvider) {
             const activePage = currentPageRef.current;
-            // Only redirect to dashboard if not on a public page
-            if (!isPublicPage(activePage)) {
+            // Force dashboard after login unless already there
+            if (activePage !== 'dashboard') {
               setCurrentPage('dashboard');
               console.log('初期化: 認証済みユーザー - ダッシュボードに移動 - ref:', isNewUserRegistrationRef.current);
             } else {
@@ -300,8 +341,8 @@ function App() {
                 setIsNewUserRegistration(false);
               } else {
                 console.log('既存ユーザー認証成功');
-                // Only redirect to dashboard if not on a public page
-                if (!isPublicPage(activePage)) {
+                // Force dashboard unless already viewing it
+                if (activePage !== 'dashboard') {
                   console.log('ダッシュボードに移動');
                   setCurrentPage('dashboard');
                 } else {
@@ -402,12 +443,12 @@ function App() {
   };
 
   const handleRegistrationRequest = () => {
-    // ログインしていない場合は認証モーダルを表示
+    // ログインしていない場合は新規登録モーダルを表示
     if (!isLoggedIn) {
       isNewUserRegistrationRef.current = true; // refを先に設定
       setIsNewUserRegistration(true); // 新規登録なのでフラグをtrueに
       console.log('handleRegistrationRequest: 新規登録フラグを設定 - ref:', isNewUserRegistrationRef.current);
-      setShowAuthModal(true);
+      setShowRegistrationModal(true); // 新規登録モーダルを表示
       return;
     }
     // ログイン済みの場合は料金ページへ
@@ -424,7 +465,7 @@ function App() {
   const handlePurchaseRequest = () => {
     // ログインしていない場合は認証モーダルを表示
     if (!isLoggedIn) {
-      setShowAuthModal(true);
+      handleRegistrationRequest();
       return;
     }
     // ログイン済みの場合は料金ページへ
@@ -492,7 +533,16 @@ function App() {
     console.log('renderContent called:', { isLoggedIn, currentPage, isLoading });
 
     // Public pages accessible without login
-    const publicPages = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing'];
+    const publicPages = [
+      'terms',
+      'privacy',
+      'refund',
+      'commercial',
+      'contact',
+      'pricing',
+      'payment-success',
+      'payment-cancel'
+    ];
     if (publicPages.includes(currentPage)) {
       switch (currentPage) {
         case 'terms':
@@ -506,7 +556,16 @@ function App() {
         case 'contact':
           return <Contact onPageChange={handlePageChange} />;
         case 'pricing':
-          return <PricingPage onPageChange={handlePageChange} />;
+          return (
+            <PricingPage
+              onPageChange={handlePageChange}
+              onRequireRegistration={handleRegistrationRequest}
+            />
+          );
+        case 'payment-success':
+          return <PaymentSuccess />;
+        case 'payment-cancel':
+          return <PaymentCancel />;
       }
     }
 
@@ -588,7 +647,13 @@ function App() {
       case 'auto-upload':
         return <AutoUpload />;
       case 'pricing':
-        return <PricingPage onPageChange={handlePageChange} isNewUser={isNewUserRegistration} />;
+        return (
+          <PricingPage
+            onPageChange={handlePageChange}
+            isNewUser={isNewUserRegistration}
+            onRequireRegistration={handleRegistrationRequest}
+          />
+        );
       case 'payment-success':
         return <PaymentSuccess />;
       case 'payment-cancel':
@@ -625,7 +690,15 @@ function App() {
   // SEOデータを取得
   const pageType = getPageType(currentPage);
   const seoData = pageType ? pageSEOData[pageType] : pageSEOData.dashboard;
-  const pathname = isLoggedIn ? `/${currentPage}` : '/';
+  const pagePathMap: Record<string, string> = {
+    landing: '/',
+    'simple-landing': '/simple-landing',
+    'white-landing': '/white-landing',
+    'payment-success': '/payment/success',
+    'payment-cancel': '/payment/cancel'
+  };
+  const resolvedPath = pagePathMap[currentPage] || `/${currentPage}`;
+  const pathname = (isLoggedIn || PUBLIC_PAGES.includes(currentPage)) ? resolvedPath : '/';
 
   return (
     <HelmetProvider>
@@ -687,6 +760,17 @@ function App() {
               isOpen={showAuthModal}
               onClose={() => setShowAuthModal(false)}
               onAuthSuccess={handleAuthSuccess}
+            />
+
+            <RegistrationModal
+              isOpen={showRegistrationModal}
+              onClose={() => {
+                setShowRegistrationModal(false);
+                // モーダルを閉じる時にフラグもリセット
+                isNewUserRegistrationRef.current = false;
+                setIsNewUserRegistration(false);
+              }}
+              onRegistrationSuccess={handleAuthSuccess}
             />
 
             <ContactModal
