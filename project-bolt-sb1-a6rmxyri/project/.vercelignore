@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+temp
+src/local-content/hero
+src/local-content/lp-grid
+src/local-content/dashboard
+src/local-content/dashboard-thumbs
+src/local-content/originals
+src/local-content/hero-thumbs
