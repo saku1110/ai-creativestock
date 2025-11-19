@@ -13,11 +13,15 @@ import {
   isLocalDashboardEnabled,
   fetchRemoteDashboardVideos,
   findDashboardReviewTags,
-  findDashboardReviewCategory
+  findDashboardReviewCategory,
+  findDashboardReviewRawTags,
+  findOriginalBackupUrl
 } from '../local-content';
+import { DASHBOARD_REVIEW_ORDER } from '../local-content/dashboardThumbMap.generated';
 import type { LocalVideoItem } from '../local-content';
 import type { BeautySubCategory } from '../utils/categoryInference';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
+import { downloadFileFromUrl } from '../utils/downloadFile';
 import { assetsMatchByFilename, dedupeVideoAssets } from '../utils/videoAssetTools';
 
 interface VideoAsset {
@@ -36,6 +40,7 @@ interface VideoAsset {
   download_count: number;
   created_at: string;
   beautySubCategory?: BeautySubCategory;
+  original_file_url?: string;
 }
 
 interface DashboardProps {
@@ -101,8 +106,37 @@ const BEAUTY_SUBCATEGORY_DATA: Record<BeautySubCategory, { label: string; tag: s
   oralcare: { label: 'オーラルケア', tag: 'beauty:oralcare' }
 };
 
+const BEAUTY_SUBCATEGORY_KEYWORDS: Record<BeautySubCategory, string[]> = {
+  skincare: ['skin', 'スキン', 'skincare', 'skn', '美肌', 'スキンケア'],
+  haircare: ['hair', 'ヘア', 'aga', '薄毛', '育毛', 'haircare', 'haicare', 'ヘアケア'],
+  oralcare: ['oral', 'オーラル', 'dental', 'teeth', '歯', 'oralcare', 'オーラルケア']
+};
+
 const WHITE_THUMBNAIL =
   'data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\" width=\"240\" height=\"426\" viewBox=\"0 0 240 426\"%3E%3Crect width=\"100%25\" height=\"100%25\" fill=\"%23ffffff\"/%3E%3C/svg%3E';
+
+const REVIEW_ORDER_BASE = Date.parse('2024-01-01T00:00:00Z');
+const REVIEW_ORDER_STEP_MS = 60 * 60 * 1000;
+
+const stripWatermarkSuffix = (value: string) => value.replace(/-wm-[a-z0-9]+$/i, '').replace(/-wm$/i, '');
+
+const findReviewOrder = (identifier?: string): number | undefined => {
+  if (!identifier) return undefined;
+  const normalizedPath = identifier.replace(/\\/g, '/').replace(/^\.\//, '');
+  const fileName = normalizedPath.split('/').pop() ?? normalizedPath;
+  const lower = fileName.toLowerCase();
+  const withoutExt = lower.replace(/\.[^/.]+$/, '');
+  const stripped = stripWatermarkSuffix(withoutExt);
+  return (
+    DASHBOARD_REVIEW_ORDER[withoutExt] ??
+    DASHBOARD_REVIEW_ORDER[stripped] ??
+    DASHBOARD_REVIEW_ORDER[lower] ??
+    DASHBOARD_REVIEW_ORDER[stripWatermarkSuffix(lower)]
+  );
+};
+
+const computeCreatedAtFromOrder = (order?: number) =>
+  new Date(REVIEW_ORDER_BASE + (typeof order === 'number' ? order : 0) * REVIEW_ORDER_STEP_MS).toISOString();
 
 const isImageLikeUrl = (value?: string) => {
   if (!value) return false;
@@ -175,19 +209,48 @@ const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
     }
   }
 
-  const canUseLocalSources =
-    !hasWatermarkSignature(video.file_url) && isLocalDashboardEnabled && hasLocalDashboardVideos;
-
-  if (!canUseLocalSources) {
-    video.preview_url = video.file_url;
-    ensureThumbnail();
-    return video;
+  if (!video.original_file_url) {
+    for (const candidate of identifiers) {
+      const remoteOriginal = findOriginalBackupUrl(candidate);
+      if (remoteOriginal) {
+        video.original_file_url = remoteOriginal;
+        break;
+      }
+    }
   }
 
   const lookupSource = identifiers.find(Boolean);
-  const localAsset = findLocalDashboardVideo(lookupSource);
-  if (!localAsset) {
+  const localAsset = lookupSource ? findLocalDashboardVideo(lookupSource) : undefined;
+
+  if (localAsset?.originalUrl) {
+    video.original_file_url = localAsset.originalUrl;
+  }
+
+  if (!video.original_file_url) {
+    video.original_file_url =
+      (!hasWatermarkSignature(video.file_url) && video.file_url) ||
+      video.file_url;
+  }
+
+  const manifestRawTags =
+    findDashboardReviewRawTags(video.file_url) ||
+    findDashboardReviewRawTags(video.preview_url) ||
+    findDashboardReviewRawTags(video.title) ||
+    findDashboardReviewRawTags(video.id);
+  if (manifestRawTags?.length) {
+    video.final_tags = JSON.stringify(manifestRawTags);
+  }
+
+  const canUseLocalSources =
+    Boolean(localAsset) &&
+    !hasWatermarkSignature(video.file_url) &&
+    isLocalDashboardEnabled &&
+    hasLocalDashboardVideos;
+
+  if (!canUseLocalSources || !localAsset) {
+    video.preview_url = video.preview_url || video.file_url;
     ensureThumbnail();
+    video.original_file_url = video.original_file_url || video.file_url;
     return video;
   }
 
@@ -212,21 +275,50 @@ const hydrateWithLocalWatermark = (video: VideoAsset): VideoAsset | null => {
   return video;
 };
 
-const formatDuration = (seconds?: number | null) => {
-  if (seconds === undefined || seconds === null || Number.isNaN(seconds)) return null;
-  const totalSeconds = Math.max(0, Math.floor(seconds));
-  const mins = Math.floor(totalSeconds / 60);
-  const secs = totalSeconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-};
+const normalizeTagToken = (tag: string) =>
+  tag
+    .replace(/[#\s\u3000]/g, '')
+    .toLowerCase();
 
 const deriveBeautySubCategoryFromTags = (tags: string[]): BeautySubCategory | undefined => {
-  const normalizedTags = tags.map(tag => tag.toLowerCase());
+  const normalizedTags = tags.map(normalizeTagToken);
+
   for (const [key, value] of Object.entries(BEAUTY_SUBCATEGORY_DATA)) {
     const subCategory = key as BeautySubCategory;
     if (normalizedTags.includes(value.tag)) return subCategory;
   }
+
+  for (const [subCategory, keywords] of Object.entries(BEAUTY_SUBCATEGORY_KEYWORDS)) {
+    if (keywords.some((keyword) => normalizedTags.some((tag) => tag.includes(keyword)))) {
+      return subCategory as BeautySubCategory;
+    }
+  }
+
   return undefined;
+};
+
+const parseFinalTagString = (value?: string | null): string[] => {
+  if (!value) return [];
+  const raw = value.trim();
+  if (!raw) return [];
+
+  if (raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map(tag => (typeof tag === 'string' ? tag.trim().replace(/^["']|["']$/g, '') : ''))
+          .filter(Boolean);
+      }
+    } catch {
+      // fall back to manual split
+    }
+  }
+
+  return raw
+    .split(/[,、]/)
+    .map(tag => tag.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
 };
 
 const mapLocalVideoToAsset = (video: LocalVideoItem, index: number): VideoAsset => {
@@ -238,6 +330,14 @@ const mapLocalVideoToAsset = (video: LocalVideoItem, index: number): VideoAsset 
   const tagSet = new Set<string>(
     Array.isArray(video.extraTags) ? video.extraTags.filter(Boolean) : []
   );
+  if (Array.isArray(video.finalTags)) {
+    for (const tag of video.finalTags) {
+      if (typeof tag !== 'string') continue;
+      const trimmed = tag.trim();
+      if (!trimmed) continue;
+      tagSet.add(trimmed);
+    }
+  }
 
   let beautySubCategory: BeautySubCategory | undefined =
     category === 'beauty'
@@ -262,20 +362,30 @@ const mapLocalVideoToAsset = (video: LocalVideoItem, index: number): VideoAsset 
     deriveThumbnailFromFileUrl(video.url) ??
     WHITE_THUMBNAIL;
 
+  const downloadSource = video.originalUrl || video.url;
+  const reviewOrder =
+    findReviewOrder(video.fileName) ||
+    findReviewOrder(video.id) ||
+    findReviewOrder(video.title);
+  const createdAt = computeCreatedAtFromOrder(reviewOrder);
+
   return {
     id: video.id,
     title: baseTitle,
     description: baseTitle + ' (ローカルコンテンツ)',
     category,
     tags,
+    final_tags: video.finalTags?.length ? JSON.stringify(video.finalTags) : undefined,
     duration: 30,
     resolution: '1080x1920',
-    file_url: video.url,
+    file_url: downloadSource,
+    preview_url: video.url,
     thumbnail_url: localThumbnail,
     is_featured: index < 3,
     download_count: 0,
-    created_at: new Date().toISOString(),
-    beautySubCategory
+    created_at: createdAt,
+    beautySubCategory,
+    original_file_url: downloadSource
   };
 };
 
@@ -310,6 +420,12 @@ const mapSupabaseRowToAsset = (
     WHITE_THUMBNAIL;
 
   const safeId = row.id || row.file_url || row.title || `video-${Date.now()}`;
+  const manifestOriginal =
+    findOriginalBackupUrl(row.file_url) ||
+    findOriginalBackupUrl(row.title || '') ||
+    findOriginalBackupUrl(row.id || '') ||
+    findOriginalBackupUrl(row.description || '');
+  const originalDownloadUrl = manifestOriginal || row.file_url;
 
   return {
     id: safeId,
@@ -321,13 +437,21 @@ const mapSupabaseRowToAsset = (
     duration: row.duration ?? 0,
     resolution: row.resolution ?? '1080x1920',
     file_url: row.file_url,
+    preview_url: row.preview_url || row.file_url || undefined,
     thumbnail_url: derivedThumbnail,
     is_featured: !!row.is_featured,
     download_count: downloadCountMap[safeId] ?? row.download_count ?? 0,
     created_at: row.created_at ?? new Date().toISOString(),
-    beautySubCategory
+    beautySubCategory,
+    original_file_url: originalDownloadUrl
   };
 };
+
+const resolveReviewOrderForAsset = (video: VideoAsset) =>
+  findReviewOrder(video.file_url) ||
+  findReviewOrder(video.preview_url) ||
+  findReviewOrder(video.id) ||
+  findReviewOrder(video.title);
 
 const LOCAL_DASHBOARD_ASSETS: VideoAsset[] = hasLocalDashboardVideos
   ? dedupeVideoAssets(localDashboardVideos.map((video, index) => mapLocalVideoToAsset(video, index)))
@@ -350,6 +474,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'category' | 'videoRequest'>('dashboard');
   const [selectedVideoForModal, setSelectedVideoForModal] = useState<VideoAsset | null>(null);
+  const [downloadFeedback, setDownloadFeedback] = useState<string | null>(null);
+  const downloadFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ページ遷移時に最上部にスクロール
   useEffect(() => {
@@ -368,7 +494,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     refreshUserData
   } = useUser();
   const { isAdmin } = useAdmin();
-  const canDownloadVideos = Boolean(user && hasActiveSubscription);
 
   // プラン判定
   const resolvedPlanType = useMemo(() => {
@@ -399,6 +524,29 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   );
   const limitDisplay = hasDownloadCap ? downloadLimit.toLocaleString() : '制限なし';
   const remainingDisplay = hasDownloadCap ? safeRemaining.toLocaleString() : '制限なし';
+  const canDownloadVideos = Boolean(
+    user &&
+    hasActiveSubscription &&
+    (!hasDownloadCap || safeRemaining > 0)
+  );
+
+  const showDownloadFeedback = useCallback((message: string) => {
+    setDownloadFeedback(message);
+    if (downloadFeedbackTimeoutRef.current) {
+      clearTimeout(downloadFeedbackTimeoutRef.current);
+    }
+    downloadFeedbackTimeoutRef.current = setTimeout(() => {
+      setDownloadFeedback(null);
+    }, 6000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (downloadFeedbackTimeoutRef.current) {
+        clearTimeout(downloadFeedbackTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const planTheme = useMemo(() => {
     if (isTrialUser) {
@@ -573,6 +721,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
           .map((video) => hydrateWithLocalWatermark(video))
           .filter((video): video is VideoAsset => Boolean(video));
         const uniqueTransformed = dedupeVideoAssets(hydrated);
+        uniqueTransformed.sort((a, b) => {
+          const orderA = resolveReviewOrderForAsset(a);
+          const orderB = resolveReviewOrderForAsset(b);
+          if (orderA !== undefined || orderB !== undefined) {
+            return (orderA ?? Number.MAX_SAFE_INTEGER) - (orderB ?? Number.MAX_SAFE_INTEGER);
+          }
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
 
         return applyVideoList(uniqueTransformed);
       } catch (error) {
@@ -660,14 +816,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   }, [user, userFavorites]);
 
   const handleDownload = useCallback(async (video: VideoAsset) => {
-    const triggerDownload = () => {
-      const link = document.createElement('a');
-      link.href = video.file_url;
-      link.download = getNextDownloadFilename(video.file_url);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    };
+    const downloadUrl = video.original_file_url || video.file_url;
+    if (!downloadUrl) {
+      alert('ダウンロードURLを取得できませんでした。');
+      return;
+    }
 
     if (!user) {
       alert('\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u6a5f\u80fd\u3092\u5229\u7528\u3059\u308b\u306b\u306f\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059');
@@ -679,32 +832,71 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       return;
     }
 
-    if ((isTrialUser && trialDownloadsRemaining <= 0) || (!isTrialUser && remainingDownloads <= 0)) {
+    if (hasDownloadCap && safeRemaining <= 0) {
       alert('\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u5236\u9650\u306b\u9054\u3057\u307e\u3057\u305f\u3002\u30d7\u30e9\u30f3\u3092\u30a2\u30c3\u30d7\u30b0\u30ec\u30fc\u30c9\u3057\u3066\u304f\u3060\u3055\u3044\u3002');
       return;
     }
 
+    setDownloadingVideos(prev => new Set(prev).add(video.id));
+
     try {
-      setDownloadingVideos(prev => new Set(prev).add(video.id));
-      await database.addDownloadHistory(user.id, video.id);
-      triggerDownload();
-      void refreshUserData();
-      setTimeout(() => {
-        setDownloadingVideos(prev => {
-          const next = new Set(prev);
-          next.delete(video.id);
-          return next;
-        });
-      }, 1200);
+      await downloadFileFromUrl(downloadUrl, getNextDownloadFilename(downloadUrl));
     } catch (error) {
       console.error('ダウンロードエラー:', error);
+      alert('ダウンロードに失敗しました。時間をおいて再試行してください。');
       setDownloadingVideos(prev => {
         const next = new Set(prev);
         next.delete(video.id);
         return next;
       });
+      return;
     }
-  }, [user, isTrialUser, trialDownloadsRemaining, remainingDownloads, hasActiveSubscription, refreshUserData]);
+
+    let historyRecorded = false;
+    try {
+      await database.addDownloadHistory(user.id, video.id);
+      historyRecorded = true;
+    } catch (error) {
+      console.error('ダウンロード履歴の記録に失敗しました:', error);
+    }
+
+    if (historyRecorded) {
+      setVideos((prev) =>
+        prev.map((entry) =>
+          entry.id === video.id
+            ? { ...entry, download_count: entry.download_count + 1 }
+            : entry
+        )
+      );
+      setSelectedVideoForModal((prev) =>
+        prev && prev.id === video.id
+          ? { ...prev, download_count: prev.download_count + 1 }
+          : prev
+      );
+    }
+
+    await refreshUserData();
+
+    const usageBefore = hasDownloadCap
+      ? Math.max(0, downloadLimit - safeRemaining)
+      : monthlyDownloads;
+    const usageAfter = usageBefore + 1;
+
+    if (hasDownloadCap && downloadLimit > 0) {
+      const cappedUsage = Math.min(usageAfter, downloadLimit);
+      const remainingAfter = Math.max(downloadLimit - cappedUsage, 0);
+      showDownloadFeedback(`現在のダウンロード数: ${cappedUsage}/${downloadLimit}本（残り${remainingAfter}本）`);
+    } else {
+      showDownloadFeedback(`今月のダウンロード数: ${usageAfter}本になりました`);
+    }
+    setTimeout(() => {
+      setDownloadingVideos(prev => {
+        const next = new Set(prev);
+        next.delete(video.id);
+        return next;
+      });
+    }, 1200);
+  }, [user, hasActiveSubscription, hasDownloadCap, safeRemaining, downloadLimit, monthlyDownloads, refreshUserData, showDownloadFeedback]);
 
   const handleClearFilters = useCallback(() => {
     setSelectedCategories(new Set(['all']));
@@ -962,24 +1154,25 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                       お気に入りのみ表示
                     </label>
                   </div>
+
+                  {downloadFeedback && (
+                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-semibold text-emerald-700">
+                      {downloadFeedback}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="rounded-3xl border border-[#ececf5] bg-white p-6 shadow-[0_25px_60px_rgba(18,26,53,0.08)]">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500">現在のプラン</p>
-                    <div className="mt-2 flex flex-col gap-1">
-                      <span className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold ${planTheme.badgeClass}`}>
-                        {planTheme.label}
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        {subscription?.status ? `ステータス: ${subscription.status}` : 'ステータス: 未設定'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl ${planTheme.iconBg}`}>
-                    <PlanIcon className={`h-5 w-5 ${planTheme.iconColor}`} />
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">現在のプラン</p>
+                  <div className="mt-2 flex flex-col gap-1">
+                    <span className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold ${planTheme.badgeClass}`}>
+                      {planTheme.label}
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {subscription?.status ? `ステータス: ${subscription.status}` : 'ステータス: 未設定'}
+                    </span>
                   </div>
                 </div>
 
@@ -1317,23 +1510,25 @@ const VideoSection: React.FC<{
   onCategoryClick?: (categoryId: string) => void;
   canDownload: boolean;
   onShowAll?: () => void;
-}> = ({ title, videos, onVideoClick, userFavorites, downloadingVideos, onDownload, onToggleFavorite, onTagClick, onCategoryClick, onShowAll }) => {
+}> = ({
+  title,
+  videos,
+  onVideoClick,
+  userFavorites,
+  downloadingVideos,
+  onDownload,
+  onToggleFavorite,
+  onTagClick,
+  onCategoryClick,
+  canDownload,
+  onShowAll,
+}) => {
   if (videos.length === 0) return null;
 
   return (
     <section className="rounded-[32px] border border-gray-100 bg-white p-6 shadow-[0_35px_65px_-40px_rgba(15,23,42,0.5)]">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 className="text-xl font-bold lg:text-2xl section-heading">{title}</h2>
-        </div>
-        {onShowAll && (
-          <button
-            onClick={onShowAll}
-            className="self-start rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-800 lg:self-center"
-          >
-            すべてを見る
-          </button>
-        )}
+      <div>
+        <h2 className="text-xl font-bold lg:text-2xl section-heading">{title}</h2>
       </div>
 
       <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4 xl:gap-5">
@@ -1348,9 +1543,24 @@ const VideoSection: React.FC<{
             onToggleFavorite={() => onToggleFavorite(video.id)}
             onTagClick={onTagClick}
             onCategoryClick={onCategoryClick}
+            canDownload={canDownload}
           />
         ))}
       </div>
+
+      {onShowAll && (
+        <div className="mt-6 flex justify-end">
+          <button
+            onClick={onShowAll}
+            className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-800"
+          >
+            <span>すべてを見る</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m9 18 6-6-6-6"/>
+            </svg>
+          </button>
+        </div>
+      )}
     </section>
   );
 };
@@ -1560,7 +1770,7 @@ const VideoModal: React.FC<{
         {/* 動画部分 */}
         <div className="relative p-5 text-center">
           <video 
-            src={video.file_url} 
+            src={video.preview_url || video.file_url} 
             controls 
             className="w-full max-w-md rounded-2xl bg-black mx-auto"
             style={{ aspectRatio: '9/16' }}
@@ -1654,30 +1864,37 @@ const VideoCard: React.FC<{
     romance: '恋愛'
   };
 
-  const durationLabel = formatDuration(video.duration);
   const subCategoryLabel = video.beautySubCategory ? BEAUTY_SUBCATEGORY_DATA[video.beautySubCategory]?.label : undefined;
 
-  // final_tagsを含めたtagListを作成
-  const finalTagsArray = video.final_tags
-    ? video.final_tags.split(/[,、]/).map(tag => tag.trim()).filter(tag => tag.length > 0)
-    : [];
-  const allTags = [...(video.tags || []), ...finalTagsArray];
-  const uniqueTags = Array.from(new Set(allTags)); // 重複削除
-  const tagList = subCategoryLabel ? [subCategoryLabel, ...uniqueTags] : uniqueTags;
+  const finalTagsArray = useMemo(() => parseFinalTagString(video.final_tags), [video.final_tags]);
+  const tagList = useMemo(() => {
+    const source = [
+      ...(subCategoryLabel ? [subCategoryLabel] : []),
+      ...finalTagsArray,
+      ...(video.tags || [])
+    ];
 
-  // デバッグ用ログ
-  console.log('Video ID:', video.id);
-  console.log('video.final_tags:', video.final_tags);
-  console.log('video.tags:', video.tags);
-  console.log('finalTagsArray:', finalTagsArray);
-  console.log('tagList:', tagList);
+    const normalizedSet = new Set<string>();
+    const dedupedTags: string[] = [];
+
+    source.forEach(tag => {
+      if (typeof tag !== 'string') return;
+      const trimmed = tag.trim();
+      if (!trimmed) return;
+      const normalized = trimmed.replace(/^#/, '').toLowerCase();
+      if (normalizedSet.has(normalized)) return;
+      normalizedSet.add(normalized);
+      dedupedTags.push(trimmed);
+    });
+
+    return dedupedTags;
+  }, [subCategoryLabel, finalTagsArray, video.tags]);
 
   const primaryCategoryLabel = categoryNames[video.category];
   const mobileTagList = tagList
     .filter(tag => typeof tag === 'string' && !tag.includes(':') && tag.toLowerCase() !== video.category)
-    .slice(0, 3); // 2から3に変更してテスト
+    .slice(0, 4);
 
-  console.log('mobileTagList:', mobileTagList);
   const formatTag = (value: string) => {
     const trimmed = (value || '').trim();
     if (!trimmed) return '';
@@ -1789,7 +2006,7 @@ const VideoCard: React.FC<{
 
       <div className="flex flex-1 flex-col px-4 py-3.5 md:px-5 md:py-4">
         <div className="hidden md:flex flex-wrap gap-2 mb-3">
-          {tagList.slice(0, 3).map((tag, index) => (
+          {tagList.slice(0, 4).map((tag, index) => (
             <button
               key={`${tag}-${index}`}
               type="button"
@@ -1803,7 +2020,6 @@ const VideoCard: React.FC<{
             </button>
           ))}
         </div>
-
         <div className="mt-auto pt-3 border-t border-slate-100 flex flex-col gap-2">
           <button
             type="button"
@@ -1848,7 +2064,3 @@ const VideoCard: React.FC<{
 
 
 export default Dashboard;
-
-
-
-

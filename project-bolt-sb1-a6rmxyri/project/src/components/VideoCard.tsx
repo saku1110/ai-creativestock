@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Heart, Download, Clock, Star, Eye, Zap, Lock, AlertTriangle } from 'lucide-react';
 import { VideoAsset } from '../types';
 import VideoPreviewModal from './VideoPreviewModal';
@@ -6,7 +6,7 @@ import { useDownloadLimits } from '../lib/downloadLimits';
 import { useUser } from '../hooks/useUser';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
 
-interface VideoCardProps {  minimal?: boolean; // LP�O���b�h�p�̊ȈՕ\��\n}
+interface VideoCardProps {  minimal?: boolean; // LP�E�O�E��E��E�b�E�h�E�p�E�̊ȈՕ\�E��E�\n}
 
 const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAuthRequest, minimal = false }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -18,6 +18,8 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const attemptInlinePlay = useCallback(() => {
     if (!shouldInlinePlay) return;
@@ -53,6 +55,24 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   const { user } = useUser();
   const { usage, executeDownload, checkDownload, warningMessage } = useDownloadLimits(user?.id || '');
 
+  const showDownloadStatus = useCallback((message: string) => {
+    setDownloadStatus(message);
+    if (statusTimeoutRef.current) {
+      clearTimeout(statusTimeoutRef.current);
+    }
+    statusTimeoutRef.current = setTimeout(() => {
+      setDownloadStatus(null);
+    }, 6000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
+      }
+    };
+  }, []);
+
 
   const formatDuration = (seconds: number) => {
     return `${seconds}秒`;
@@ -87,17 +107,20 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
       const result = await executeDownload(video.id);
       
       if (result.success && result.downloadUrl) {
-        // ダウンロードURLを使用してファイルをダウンローチE        const link = document.createElement('a');
+        // �_�E�����[�hURL���g�p���ăt�@�C�����_�E�����[�h
+        const link = document.createElement('a');
         link.href = result.downloadUrl;
         link.download = getNextDownloadFilename(result.downloadUrl);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         
-        // 成功メチE��ージを表示
-        alert('ダウンロードが開始されました');
+        const usageText = result.usage
+          ? `���݂̃_�E�����[�h��: ${result.usage.currentUsage}/${result.usage.monthlyLimit}�{`
+          : '�_�E�����[�h���J�n����܂���';
+        showDownloadStatus(usageText);
       } else {
-        alert(result.error || 'ダウンロードに失敗しました');
+        alert(result.error || '�_�E�����[�h�Ɏ��s���܂���');
       }
     } catch (error) {
       console.error('Download error:', error);
@@ -262,26 +285,11 @@ const downloadButtonState = getDownloadButtonState();
         <div className="p-3 sm:p-4 lg:p-6">
           <p className="text-gray-400 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2 leading-relaxed">{video.description}</p>
           
-          {/* メタ惁E�� */}
+          {/* メタ惁E�E��E� */}
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <span className="glass-effect text-cyan-400 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-bold border border-cyan-400/30">
               {video.category}
             </span>
-            <div className="flex items-center space-x-2 sm:space-x-3">
-              <span className="text-gray-400 text-xs font-bold bg-gray-800/50 px-2 py-1 rounded-full">{video.resolution}</span>
-              <div className="glass-dark text-white px-2 py-1 rounded-full text-xs flex items-center space-x-1 border border-white/20">
-                <Clock className="w-3 sm:w-4 h-3 sm:h-4" />
-                <span>{formatDuration(video.duration)}</span>
-              </div>
-            </div>
-          </div>
-          
-          {/* 統計情報 */}
-          <div className="flex items-center justify-between text-xs sm:text-sm text-gray-400 mb-4 sm:mb-6">
-            <div className="flex items-center space-x-2">
-              <Star className="w-4 h-4 fill-current text-yellow-400" />
-              <span className="font-bold text-white">{video.rating.toFixed(1)}</span>
-            </div>
           </div>
           
           {/* ダウンロード制限警呁E*/}
@@ -291,6 +299,12 @@ const downloadButtonState = getDownloadButtonState();
                 <AlertTriangle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
                 <p className="text-yellow-400 text-xs">{warningMessage}</p>
               </div>
+            </div>
+          )}
+
+          {downloadStatus && (
+            <div className="mb-3 p-2 bg-emerald-900/30 border border-emerald-500/30 rounded-lg">
+              <p className="text-emerald-200 text-xs font-semibold">{downloadStatus}</p>
             </div>
           )}
 
@@ -316,7 +330,7 @@ const downloadButtonState = getDownloadButtonState();
                 />
               </div>
               <div className="text-xs text-gray-400 mt-1">
-                リセチE��: {usage.resetDate.toLocaleDateString()}
+                リセチE�E��E�: {usage.resetDate.toLocaleDateString()}
               </div>
             </div>
           )}
@@ -379,5 +393,7 @@ const downloadButtonState = getDownloadButtonState();
 };
 
 export default VideoCard;
+
+
 
 

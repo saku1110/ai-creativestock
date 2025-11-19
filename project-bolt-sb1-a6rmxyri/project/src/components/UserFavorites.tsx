@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import { useUser } from '../hooks/useUser';
 import { database } from '../lib/supabase';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
+import { downloadFileFromUrl } from '../utils/downloadFile';
 
 interface VideoAsset {
   id: string;
@@ -14,6 +15,8 @@ interface VideoAsset {
   duration: number;
   resolution: string;
   file_url: string;
+  preview_url?: string;
+  original_file_url?: string;
   thumbnail_url: string;
   download_count: number;
   created_at: string;
@@ -68,7 +71,16 @@ const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
 
 const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }) => {
-  const { user, remainingDownloads, hasActiveSubscription } = useUser();
+  const {
+    user,
+    subscription,
+    remainingDownloads,
+    hasActiveSubscription,
+    isTrialUser,
+    trialDownloadsRemaining,
+    monthlyDownloads,
+    refreshUserData
+  } = useUser();
   const [favorites, setFavorites] = useState<FavoriteRecord[]>([]);
   const [stats, setStats] = useState<FavoriteStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,6 +88,16 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('newest');
+  const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
+  const trialLimit = subscription?.trial_downloads_limit ?? 0;
+  const downloadLimit = isTrialUser ? trialLimit : subscription?.monthly_download_limit ?? 0;
+  const hasDownloadCap = downloadLimit > 0;
+  const safeRemaining = Math.max(0, isTrialUser ? trialDownloadsRemaining : remainingDownloads);
+  const canDownloadFromFavorites = Boolean(
+    user &&
+    hasActiveSubscription &&
+    (!hasDownloadCap || safeRemaining > 0)
+  );
 
   useEffect(() => {
     if (!user) {
@@ -88,6 +110,12 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
     void fetchFavorites();
     void fetchStats();
   }, [user]);
+
+  useEffect(() => {
+    if (!downloadMessage) return;
+    const timer = setTimeout(() => setDownloadMessage(null), 5000);
+    return () => clearTimeout(timer);
+  }, [downloadMessage]);
 
   const fetchFavorites = async () => {
     if (!user) return;
@@ -204,32 +232,55 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
     }
   };
 
-  const downloadVideo = (video: VideoAsset) => {
+  const downloadVideo = async (video: VideoAsset) => {
+    if (!user) {
+      alert('ダウンロード機能を利用するにはログインが必要です。');
+      return;
+    }
+
     if (!hasActiveSubscription) {
       alert('ダウンロードには有料プランが必要です。');
       return;
     }
 
-    if (remainingDownloads !== null && remainingDownloads <= 0) {
+    if (hasDownloadCap && safeRemaining <= 0) {
       alert('今月のダウンロード上限に達しています。');
       return;
     }
 
-    if (!video.file_url) {
+    const downloadUrl = video.original_file_url || video.file_url;
+    if (!downloadUrl) {
       alert('ダウンロード可能なファイルが見つかりません。');
       return;
     }
 
     try {
-      const anchor = document.createElement('a');
-      anchor.href = video.file_url;
-      anchor.download = getNextDownloadFilename(video.file_url);
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
+      await downloadFileFromUrl(downloadUrl, getNextDownloadFilename(downloadUrl));
     } catch (err) {
       console.error('Download error:', err);
       alert('ダウンロードに失敗しました。もう一度お試しください。');
+      return;
+    }
+
+    try {
+      await database.addDownloadHistory(user.id, video.id);
+    } catch (err) {
+      console.error('ダウンロード履歴の記録に失敗しました:', err);
+    }
+
+    await refreshUserData();
+
+    const usageBefore = hasDownloadCap
+      ? Math.max(0, downloadLimit - safeRemaining)
+      : monthlyDownloads;
+    const usageAfter = usageBefore + 1;
+
+    if (hasDownloadCap && downloadLimit > 0) {
+      const cappedUsage = Math.min(usageAfter, downloadLimit);
+      const remainingAfter = Math.max(downloadLimit - cappedUsage, 0);
+      setDownloadMessage(`現在のダウンロード数: ${cappedUsage}/${downloadLimit}本（残り${remainingAfter}本）`);
+    } else {
+      setDownloadMessage(`今月のダウンロード数: ${usageAfter}本になりました`);
     }
   };
 
@@ -300,6 +351,12 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
               </section>
             )}
           </header>
+
+          {downloadMessage && (
+            <div className="rounded-3xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+              {downloadMessage}
+            </div>
+          )}
 
           <section className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative w-full lg:max-w-sm">
@@ -412,8 +469,13 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
 
                     <div className="flex items-center justify-between">
                       <button
-                        className="text-sm text-cyan-400 hover:text-cyan-200"
+                        className={`text-sm inline-flex items-center font-semibold transition-colors ${
+                          canDownloadFromFavorites
+                            ? 'text-cyan-400 hover:text-cyan-200'
+                            : 'text-gray-500 cursor-not-allowed opacity-60'
+                        }`}
                         onClick={() => downloadVideo(favorite.video)}
+                        disabled={!canDownloadFromFavorites}
                       >
                         <Download className="w-4 h-4 inline mr-2" />
                         Download
@@ -468,8 +530,13 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
                       <div className="text-xs text-gray-500">{formatDate(favorite.created_at)}</div>
                       <div className="flex gap-2">
                         <button
-                          className="inline-flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-200"
+                          className={`inline-flex items-center gap-2 text-sm font-semibold transition-colors ${
+                            canDownloadFromFavorites
+                              ? 'text-cyan-400 hover:text-cyan-200'
+                              : 'text-gray-500 cursor-not-allowed opacity-60'
+                          }`}
                           onClick={() => downloadVideo(favorite.video)}
+                          disabled={!canDownloadFromFavorites}
                         >
                           <Download className="w-4 h-4" />
                           Download
