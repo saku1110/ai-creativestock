@@ -17,7 +17,7 @@ import {
   findDashboardReviewRawTags,
   findOriginalBackupUrl
 } from '../local-content';
-import { DASHBOARD_REVIEW_ORDER } from '../local-content/dashboardThumbMap.generated';
+import * as dashboardThumbMeta from '../local-content/dashboardThumbMap.generated';
 import type { LocalVideoItem } from '../local-content';
 import type { BeautySubCategory } from '../utils/categoryInference';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
@@ -117,6 +117,8 @@ const WHITE_THUMBNAIL =
 
 const REVIEW_ORDER_BASE = Date.parse('2024-01-01T00:00:00Z');
 const REVIEW_ORDER_STEP_MS = 60 * 60 * 1000;
+
+const DASHBOARD_REVIEW_ORDER: Record<string, number> = dashboardThumbMeta.DASHBOARD_REVIEW_ORDER ?? {};
 
 const stripWatermarkSuffix = (value: string) => value.replace(/-wm-[a-z0-9]+$/i, '').replace(/-wm$/i, '');
 

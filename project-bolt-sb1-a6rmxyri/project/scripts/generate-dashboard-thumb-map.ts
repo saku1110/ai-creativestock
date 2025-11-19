@@ -152,6 +152,53 @@ const rows = parseCsv(csvRaw);
 const thumbMap = new Map<string, string>();
 const hashtagMap = new Map<string, string[]>();
 const categoryMap = new Map<string, DashboardCategory>();
+const reviewOrderMap = new Map<string, number>();
+
+const REVIEW_ORDER_FIELD_CANDIDATES = [
+  'review_order',
+  'reviewOrder',
+  'review_index',
+  'reviewIndex',
+  'display_order',
+  'displayOrder',
+  'sort_order',
+  'sortOrder',
+  'order',
+  'priority',
+  'index',
+  'position'
+] as const;
+
+const parseOrderValue = (value?: string) => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const numeric = Number(trimmed);
+  if (Number.isFinite(numeric)) {
+    return numeric;
+  }
+  const match = trimmed.match(/-?\d+(?:\.\d+)?/);
+  if (match) {
+    const fallback = Number(match[0]);
+    if (Number.isFinite(fallback)) {
+      return fallback;
+    }
+  }
+  return undefined;
+};
+
+let sequentialOrder = 0;
+
+const resolveReviewOrder = (row: Record<string, string>): number | undefined => {
+  for (const field of REVIEW_ORDER_FIELD_CANDIDATES) {
+    const value = row[field];
+    const parsed = parseOrderValue(value);
+    if (parsed !== undefined) {
+      return parsed;
+    }
+  }
+  return undefined;
+};
 
 for (const row of rows) {
   const relPath = row['rel_path']?.trim();
@@ -197,6 +244,12 @@ for (const row of rows) {
   if (tagSet.size > 0) {
     hashtagMap.set(baseName, Array.from(tagSet));
   }
+
+  if (!reviewOrderMap.has(baseName)) {
+    const explicit = resolveReviewOrder(row);
+    const assigned = explicit ?? sequentialOrder++;
+    reviewOrderMap.set(baseName, assigned);
+  }
 }
 
 if (thumbMap.size === 0 && hashtagMap.size === 0) {
@@ -218,6 +271,13 @@ const hashtagLines = Array.from(hashtagMap.entries())
 const categoryLines = Array.from(categoryMap.entries())
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([key, category]) => `  "${key}": "${category}",`);
+
+const orderLines = Array.from(reviewOrderMap.entries())
+  .sort(([nameA, orderA], [nameB, orderB]) => {
+    if (orderA === orderB) return nameA.localeCompare(nameB);
+    return orderA - orderB;
+  })
+  .map(([key, order]) => `  "${key}": ${order},`);
 
 const banner = [
   '/**',
@@ -243,6 +303,10 @@ ${hashtagLines.join('\n')}
 
 export const DASHBOARD_REVIEW_CATEGORIES: Record<string, DashboardReviewCategory> = {
 ${categoryLines.join('\n')}
+};
+
+export const DASHBOARD_REVIEW_ORDER: Record<string, number> = {
+${orderLines.join('\n')}
 };
 `;
 
