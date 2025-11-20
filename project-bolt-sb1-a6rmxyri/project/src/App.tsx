@@ -257,11 +257,16 @@ function App() {
         }
       } catch (error) {
         console.error('認証初期化エラー:', error);
-        // 開発環境ではエラーを表示せず、ランディングページに移動
-        if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-          console.log('開発環境: 認証エラーを無視してランディングページに移動');
+        const msg = (error as Error)?.message?.toLowerCase?.() || '';
+        const isTimeout = msg.includes('timeout') || msg.includes('タイムアウト');
+        if (isTimeout) {
+          console.warn('認証確認がタイムアウトしたためLPにフォールバックします');
         } else {
-          handleApiError(error, '認証システムの初期化');
+          if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
+            console.log('開発モード: 認証エラーを無視してLPへ遷移');
+          } else {
+            handleApiError(error, '認証システムの初期化');
+          }
         }
         setCurrentPage('landing');
       } finally {
