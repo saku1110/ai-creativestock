@@ -142,8 +142,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const { count } = await database.getMonthlyDownloadCount(currentUser.id);
-        if (isMounted) {
-          setMonthlyDownloads(count);
+        if (isMounted && typeof count === 'number') {
+          setMonthlyDownloads((prev) => Math.max(prev, count));
         }
       } catch (error) {
         console.error('ユーザーデータ取得エラー:', error);
@@ -187,7 +187,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       try {
         const { count } = await database.getMonthlyDownloadCount(user.id);
         if (isActive && typeof count === 'number') {
-          setMonthlyDownloads(count);
+          setMonthlyDownloads((prev) => Math.max(prev, count));
         }
       } catch (error) {
         console.error('月次ダウンロード数同期エラー:', error);
@@ -265,7 +265,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setSubscription(resolveTestSubscription(subscriptionData));
 
       const { count } = await database.getMonthlyDownloadCount(user.id);
-      setMonthlyDownloads(count);
+      setMonthlyDownloads((prev) => Math.max(prev, count));
     } catch (error) {
       console.error('ユーザーデータ再取得エラー:', error);
     }
