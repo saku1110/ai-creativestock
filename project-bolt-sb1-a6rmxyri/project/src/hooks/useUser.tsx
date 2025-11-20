@@ -37,6 +37,8 @@ interface UserContextValue {
   trialDaysRemaining: number;
   trialDownloadsRemaining: number;
   loading: boolean;
+  // Record a download locally to keep UI in sync while server updates propagate
+  recordDownload: () => void;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ data?: UserProfile | null; error?: unknown }>;
   refreshUserData: () => Promise<void>;
 }
@@ -281,6 +283,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     ? Math.max(0, subscription.trial_downloads_limit - subscription.trial_downloads_used)
     : 0;
 
+  const recordDownload = () => {
+    setMonthlyDownloads((prev) => prev + 1);
+  };
+
   const contextValue: UserContextValue = {
     user,
     profile,
@@ -292,6 +298,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     trialDaysRemaining,
     trialDownloadsRemaining,
     loading,
+    recordDownload,
     updateProfile,
     refreshUserData
   };

@@ -474,8 +474,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'category' | 'videoRequest'>('dashboard');
   const [selectedVideoForModal, setSelectedVideoForModal] = useState<VideoAsset | null>(null);
-  const [downloadFeedback, setDownloadFeedback] = useState<string | null>(null);
-  const downloadFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ページ遷移時に最上部にスクロール
   useEffect(() => {
@@ -491,7 +489,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     trialDownloadsRemaining,
     monthlyDownloads,
     hasActiveSubscription,
-    refreshUserData
+    refreshUserData,
+    recordDownload
   } = useUser();
   const { isAdmin } = useAdmin();
 
@@ -529,24 +528,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     hasActiveSubscription &&
     (!hasDownloadCap || safeRemaining > 0)
   );
-
-  const showDownloadFeedback = useCallback((message: string) => {
-    setDownloadFeedback(message);
-    if (downloadFeedbackTimeoutRef.current) {
-      clearTimeout(downloadFeedbackTimeoutRef.current);
-    }
-    downloadFeedbackTimeoutRef.current = setTimeout(() => {
-      setDownloadFeedback(null);
-    }, 6000);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (downloadFeedbackTimeoutRef.current) {
-        clearTimeout(downloadFeedbackTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const planTheme = useMemo(() => {
     if (isTrialUser) {
@@ -873,6 +854,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
           ? { ...prev, download_count: prev.download_count + 1 }
           : prev
       );
+      recordDownload();
     }
 
     await refreshUserData();
@@ -882,13 +864,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       : monthlyDownloads;
     const usageAfter = usageBefore + 1;
 
-    if (hasDownloadCap && downloadLimit > 0) {
-      const cappedUsage = Math.min(usageAfter, downloadLimit);
-      const remainingAfter = Math.max(downloadLimit - cappedUsage, 0);
-      showDownloadFeedback(`現在のダウンロード数: ${cappedUsage}/${downloadLimit}本（残り${remainingAfter}本）`);
-    } else {
-      showDownloadFeedback(`今月のダウンロード数: ${usageAfter}本になりました`);
-    }
     setTimeout(() => {
       setDownloadingVideos(prev => {
         const next = new Set(prev);
@@ -896,7 +871,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
         return next;
       });
     }, 1200);
-  }, [user, hasActiveSubscription, hasDownloadCap, safeRemaining, downloadLimit, monthlyDownloads, refreshUserData, showDownloadFeedback]);
+  }, [user, hasActiveSubscription, hasDownloadCap, safeRemaining, downloadLimit, monthlyDownloads, refreshUserData, recordDownload]);
 
   const handleClearFilters = useCallback(() => {
     setSelectedCategories(new Set(['all']));
@@ -1155,11 +1130,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                     </label>
                   </div>
 
-                  {downloadFeedback && (
-                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-semibold text-emerald-700">
-                      {downloadFeedback}
-                    </div>
-                  )}
                 </div>
               </div>
 
