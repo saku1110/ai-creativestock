@@ -205,12 +205,19 @@ function App() {
           setUserData(null);
           // localStorageもクリア
           localStorage.removeItem('dev_user');
-          localStorage.removeItem('dev_logged_in');
-          setIsLoading(false);
-          return;
-        }
+        localStorage.removeItem('dev_logged_in');
+        setIsLoading(false);
+        return;
+      }
 
-        const { user } = await auth.getCurrentUser();
+      // 未ログインのLP表示では Supabase 認証フェッチをスキップ
+      if (!accessToken) {
+        console.log('アクセストークンなし: 認証フェッチをスキップしてLPを表示');
+        setIsLoading(false);
+        return;
+      }
+
+      const { user } = await auth.getCurrentUser();
         console.log('初期化時のユーザー状態:', user ? '認証済み' : '未認証');
         
         if (user) {
