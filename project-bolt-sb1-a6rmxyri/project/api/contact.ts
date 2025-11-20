@@ -1,54 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const sanitize = (value?: string | null) =>
-  typeof value === 'string' ? value.trim() : '';
-
-interface ContactSmtpConfig {
-  host: string;
-  port: number;
-  secure: boolean;
-  user: string;
-  pass: string;
-  fromEmail: string;
-  toEmail: string;
-}
-
-const getSmtpConfig = (): ContactSmtpConfig => {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
-  const secure =
-    (process.env.SMTP_SECURE || '').toLowerCase() === 'true' || port === 465;
-
-  if (!host || !user || !pass) {
-    throw new Error('SMTP_HOST/USER/PASS must be configured');
-  }
-
-  const toEmail =
-    process.env.CONTACT_TO_EMAIL || process.env.SUPPORT_EMAIL || null;
-
-  if (!toEmail) {
-    throw new Error('CONTACT_TO_EMAIL or SUPPORT_EMAIL must be configured');
-  }
-
-  const fromEmail =
-    process.env.CONTACT_FROM_EMAIL ||
-    process.env.SYSTEM_FROM_EMAIL ||
-    user;
-
-  return {
-    host,
-    user,
-    pass,
-    port: port || (secure ? 465 : 587),
-    secure,
-    toEmail,
-    fromEmail
-  };
-};
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('[contact] start', {
+    region: process.env.VERCEL_REGION,
+    hasSMTP: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+    hasTo: Boolean(process.env.CONTACT_TO_EMAIL || process.env.SUPPORT_EMAIL),
+  });
+
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -65,49 +23,82 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { name, from_email, subject, message } = (req.body || {}) as Record<string, string>;
 
-    const safeName = sanitize(name);
-    const safeFrom = sanitize(from_email);
-    const safeSubject = sanitize(subject);
-    const safeMessage = sanitize(message);
-
-    if (!safeName || !safeFrom || !safeSubject || !safeMessage) {
+    if (!name || !from_email || !subject || !message) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const body = [
-      'You have received a new contact request from AI Creative Stock.',
+    const slackWebhook = process.env.SLACK_WEBHOOK_URL || process.env.CONTACT_SLACK_WEBHOOK_URL;
+    if (slackWebhook) {
+      try {
+        await fetch(slackWebhook, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: `縺雁撫縺・粋繧上○縺悟ｱ翫″縺ｾ縺励◆\n蜷榊燕: ${name}\n繝｡繝ｼ繝ｫ: ${from_email}\n莉ｶ蜷・ ${subject}\n---\n${message}`,
+          }),
+        } as any);
+      } catch {
+        // ignore webhook failure
+      }
+    }
+
+    // お名前メール（SMTP）での送信
+    const toEmail = process.env.CONTACT_TO_EMAIL || process.env.SUPPORT_EMAIL;
+    const fromSystemEmail = process.env.CONTACT_FROM_EMAIL || process.env.SYSTEM_FROM_EMAIL || process.env.SMTP_USER;
+
+    const emailSubject = `[縺雁撫縺・粋繧上○] ${subject}`;
+    const emailText = [
+      '莉･荳九・蜀・ｮｹ縺ｧ縺雁撫縺・粋繧上○繧貞女縺台ｻ倥￠縺ｾ縺励◆縲・,
       '',
-      `Name: ${safeName}`,
-      `Email: ${safeFrom}`,
-      `Subject: ${safeSubject}`,
-      '',
-      safeMessage
+      `蜷榊燕: ${name}`,
+      `繝｡繝ｼ繝ｫ: ${from_email}`,
+      `莉ｶ蜷・ ${subject}`,
+      '---',
+      message,
     ].join('\n');
 
-    const smtp = getSmtpConfig();
-    const { default: nodemailer } = (await import('nodemailer')) as {
-      default: typeof import('nodemailer');
-    };
-    const transporter = nodemailer.createTransport({
-      host: smtp.host,
-      port: smtp.port,
-      secure: smtp.secure,
-      auth: { user: smtp.user, pass: smtp.pass }
-    });
+    if (!toEmail) {
+      console.error('[contact] missing CONTACT_TO_EMAIL');
+      return res.status(500).json({ error: 'CONTACT_TO_EMAIL (縺ｾ縺溘・ SUPPORT_EMAIL) 縺梧悴險ｭ螳壹〒縺吶・ });
+    }
 
-    await transporter.sendMail({
-      from: smtp.fromEmail,
-      to: smtp.toEmail,
-      subject: `[Contact] ${safeSubject}`,
-      text: body,
-      replyTo: safeFrom,
-      envelope: { from: smtp.user, to: smtp.toEmail }
-    });
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const smtpSecure = (process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;
 
-    console.log('[contact] sent via SMTP');
-    return res.status(200).json({ ok: true });
-  } catch (error: any) {
-    console.error('[contact] error', error);
-    return res.status(500).json({ error: error?.message || 'unknown error' });
+    if (smtpHost && smtpUser && smtpPass) {
+      try {
+        const { default: nodemailer } = (await import('nodemailer')) as any;
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort || (smtpSecure ? 465 : 587),
+          secure: smtpSecure,
+          auth: { user: smtpUser, pass: smtpPass },
+        } as any;
+
+        await transporter.sendMail({
+          from: fromSystemEmail || smtpUser,
+          to: toEmail,
+          subject: emailSubject,
+          text: emailText,
+          replyTo: from_email,
+          envelope: { from: smtpUser, to: toEmail },
+        } as any);
+
+        console.log('[contact] sent via SMTP');
+        return res.status(200).json({ ok: true, provider: 'smtp' });
+      } catch (e: any) {
+        console.error('[contact] SMTP error', e);
+        return res.status(500).json({ error: `繝｡繝ｼ繝ｫ騾∽ｿ｡縺ｫ螟ｱ謨励＠縺ｾ縺励◆: ${e?.message || 'unknown error'}` });
+      }
+    }
+
+    console.error('[contact] no email provider configured');
+    return res.status(500).json({ error: 'SMTP_* 縺ｨ CONTACT_TO_EMAIL (縺ｾ縺溘・ SUPPORT_EMAIL) 繧定ｨｭ螳壹＠縺ｦ縺上□縺輔＞縲・ });
+  } catch (e: any) {
+    console.error('[contact] unhandled error', e);
+    return res.status(500).json({ error: e?.message || 'unknown error' });
   }
 }
