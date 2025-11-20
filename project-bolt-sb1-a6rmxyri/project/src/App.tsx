@@ -481,10 +481,7 @@ function App() {
     setShowAuthModal(false);
 
     if (validProvider) {
-      // Only redirect to dashboard if not on a public page
-      if (!PUBLIC_PAGES.includes(currentPage)) {
-        setCurrentPage('dashboard');
-      }
+      setCurrentPage('dashboard');
     } else {
       setCurrentPage('landing');
       handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
