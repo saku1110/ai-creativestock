@@ -274,10 +274,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const remainingDownloads = subscription
-    ? Math.max(0, monthlyDownloadLimit - monthlyDownloads)
-    : 0;
-
   const hasActiveSubscription = Boolean(
     subscription &&
     (subscription.status === 'active' || subscription.status === 'trial') &&
@@ -295,6 +291,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     : 0;
 
   const monthlyDownloadLimit = subscription ? resolvePlanLimit(subscription) : 0;
+
+  const remainingDownloads = subscription
+    ? Math.max(0, monthlyDownloadLimit - monthlyDownloads)
+    : 0;
 
   const recordDownload = () => {
     setMonthlyDownloads((prev) => prev + 1);
