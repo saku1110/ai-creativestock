@@ -75,6 +75,7 @@ function App() {
   const [isNewUserRegistration, setIsNewUserRegistration] = useState(false);
   const isNewUserRegistrationRef = useRef(false); // 同期フラグ管理用
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
+  const AUTH_CHECK_TIMEOUT_MS = 20000;
   // 応答しない非同期処理でロードが解除されないのを防ぐための簡易タイムアウト
   const runWithTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
     return await Promise.race([
@@ -219,7 +220,7 @@ function App() {
           return;
         }
 
-        const { user } = await runWithTimeout(auth.getCurrentUser(), 10000, '認証状態の確認');
+        const { user } = await runWithTimeout(auth.getCurrentUser(), AUTH_CHECK_TIMEOUT_MS, '認証状態の確認');
         console.log('初期化時のユーザー状態:', user ? '認証済み' : '未認証');
         
         if (user) {
@@ -255,13 +256,14 @@ function App() {
             console.log('初期化: 未認証ユーザー - 公開ページを維持:', activePage);
           }
         }
+        const msg = (error as Error)?.message?.toLowerCase?.() || '';
       } catch (error) {
-        console.error('認証初期化エラー:', error);
         const msg = (error as Error)?.message?.toLowerCase?.() || '';
         const isTimeout = msg.includes('timeout') || msg.includes('タイムアウト');
         if (isTimeout) {
           console.warn('認証確認がタイムアウトしたためLPにフォールバックします');
         } else {
+          console.error('認証初期化エラー:', error);
           if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
             console.log('開発モード: 認証エラーを無視してLPへ遷移');
           } else {
@@ -724,3 +726,4 @@ function App() {
 }
 
 export default App;
+
