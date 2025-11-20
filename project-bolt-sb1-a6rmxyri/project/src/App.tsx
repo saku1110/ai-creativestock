@@ -45,7 +45,7 @@ import { pageSEOData, getPageType } from './utils/seoUtils';
 import { User } from '@supabase/supabase-js';
 
 function App() {
-  // URL‚ÆƒNƒGƒŠ‚©‚ç‰Šúƒy[ƒW‚ğ”»’èi/contact “™‚ÌƒpƒX—Dæj
+  // URLã¨ã‚¯ã‚¨ãƒªã‹ã‚‰åˆæœŸãƒšãƒ¼ã‚¸ã‚’åˆ¤å®šï¼ˆ/contact ç­‰ã®ãƒ‘ã‚¹å„ªå…ˆï¼‰
   const urlParams = new URLSearchParams(window.location.search);
   const pathSegment = (typeof window !== 'undefined'
     ? window.location.pathname.split('/').filter(Boolean)[0]
@@ -73,51 +73,14 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isValidAuthProvider, setIsValidAuthProvider] = useState(false);
   const [isNewUserRegistration, setIsNewUserRegistration] = useState(false);
-  const isNewUserRegistrationRef = useRef(false); // “¯Šúƒtƒ‰ƒOŠÇ——p
+  const isNewUserRegistrationRef = useRef(false); // åŒæœŸãƒ•ãƒ©ã‚°ç®¡ç†ç”¨
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
-  const AUTH_CHECK_TIMEOUT_MS = 20000;
-
-  const getAuthParams = () => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const pick = (key: string) => searchParams.get(key) || hashParams.get(key);
-    return {
-      accessToken: pick('access_token'),
-      refreshToken: pick('refresh_token'),
-      mode: pick('mode')
-    };
-  };
-  // Supabase??Z?b?V???????[?^??localStorage??i?[??????????m?F
-  const hasStoredAuthSession = () => {
-    try {
-      if (typeof window === 'undefined') return false;
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i) || '';
-        if (key.startsWith('sb-') && key.includes('auth-token')) {
-          const raw = localStorage.getItem(key);
-          if (raw) return true;
-        }
-      }
-    } catch (error) {
-      console.warn('??@?Z?b?V?????m?F????s:', error);
-    }
-    return false;
-  };
-  // ‰“š‚µ‚È‚¢”ñ“¯Šúˆ—‚Åƒ[ƒh‚ª‰ğœ‚³‚ê‚È‚¢‚Ì‚ğ–h‚®‚½‚ß‚ÌŠÈˆÕƒ^ƒCƒ€ƒAƒEƒg
-  const runWithTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error(`${label} ‚ªƒ^ƒCƒ€ƒAƒEƒg‚µ‚Ü‚µ‚½`)), ms)
-      )
-    ]);
-  };
 
   useEffect(() => {
     currentPageRef.current = currentPage;
   }, [currentPage]);
 
-  // ƒy[ƒW‘JˆÚ‚ÉÅã•”‚ÉƒXƒNƒ[ƒ‹
+  // ãƒšãƒ¼ã‚¸é·ç§»æ™‚ã«æœ€ä¸Šéƒ¨ã«ã‚¹ã‚¯ãƒ­ãƒ¼ãƒ«
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentPage]);
@@ -128,14 +91,14 @@ function App() {
     }
   }, [isLoggedIn, currentPage]);
 
-  // ”FØƒvƒƒoƒCƒ_[ƒ`ƒFƒbƒNŠÖ”
+  // èªè¨¼ãƒ—ãƒ­ãƒã‚¤ãƒ€ãƒ¼ãƒã‚§ãƒƒã‚¯é–¢æ•°
   const checkAuthProvider = (user: User): boolean => {
-    // ŠJ”­ŠÂ‹«‚Å‚Íƒ‚ƒbƒNƒ†[ƒU[‚ğ‹–‰Â
+    // é–‹ç™ºç’°å¢ƒã§ã¯ãƒ¢ãƒƒã‚¯ãƒ¦ãƒ¼ã‚¶ãƒ¼ã‚’è¨±å¯
     if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
       return true;
     }
 
-    // ƒ†[ƒU[‚Ì”FØƒvƒƒoƒCƒ_[‚ğƒ`ƒFƒbƒN
+    // ãƒ¦ãƒ¼ã‚¶ãƒ¼ã®èªè¨¼ãƒ—ãƒ­ãƒã‚¤ãƒ€ãƒ¼ã‚’ãƒã‚§ãƒƒã‚¯
     const authProvider = user.app_metadata?.provider;
     const validProviders = ['google'];
     
@@ -148,16 +111,18 @@ function App() {
     return validProviders.includes(authProvider);
   };
 
-  // ”FØó‘Ô‚Ì‰Šú‰»‚ÆŠÄ‹
+  // èªè¨¼çŠ¶æ…‹ã®åˆæœŸåŒ–ã¨ç›£è¦–
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // URLƒpƒ‰ƒ[ƒ^‚ğŠm”F
-        const { accessToken, refreshToken, mode } = getAuthParams();
-        const hasStoredSession = hasStoredAuthSession();
+        // URLãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ç¢ºèª
+        const urlParams = new URLSearchParams(window.location.search);
+        const accessToken = urlParams.get('access_token');
+        const refreshToken = urlParams.get('refresh_token');
+        const mode = urlParams.get('mode');
         
-        console.log('=== ??? ˆ—ŠJn ===');
-        console.log('URLƒpƒ‰ƒ[ƒ^Ú×:', { 
+        console.log('=== ì´ˆê¸°í™” å‡¦ç†é–‹å§‹ ===');
+        console.log('URLãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿è©³ç´°:', { 
           hasAccessToken: !!accessToken, 
           mode,
           currentPage,
@@ -166,25 +131,25 @@ function App() {
           url: window.location.href
         });
         
-        // URL‚ÉƒAƒNƒZƒXƒg[ƒNƒ“‚ªŠÜ‚Ü‚ê‚Ä‚¢‚éê‡iOAuth ƒR[ƒ‹ƒoƒbƒNj
+        // URLã«ã‚¢ã‚¯ã‚»ã‚¹ãƒˆãƒ¼ã‚¯ãƒ³ãŒå«ã¾ã‚Œã¦ã„ã‚‹å ´åˆï¼ˆOAuth ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ï¼‰
         if (accessToken) {
-          console.log('OAuthƒR[ƒ‹ƒoƒbƒNŒŸo: ƒg[ƒNƒ“‚©‚çƒZƒbƒVƒ‡ƒ“‚ğİ’è');
+          console.log('OAuthã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯æ¤œå‡º: ãƒˆãƒ¼ã‚¯ãƒ³ã‹ã‚‰ã‚»ãƒƒã‚·ãƒ§ãƒ³ã‚’è¨­å®š');
           
-          // modeƒpƒ‰ƒ[ƒ^‚ÉŠî‚Ã‚¢‚Äƒtƒ‰ƒO‚ğİ’è
+          // modeãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã«åŸºã¥ã„ã¦ãƒ•ãƒ©ã‚°ã‚’è¨­å®š
           if (mode === 'registration') {
-            console.log('V‹K“o˜^ƒ‚[ƒh‚ğŒŸo');
-            isNewUserRegistrationRef.current = true; // ref‚ğæ‚Éİ’è
+            console.log('æ–°è¦ç™»éŒ²ãƒ¢ãƒ¼ãƒ‰ã‚’æ¤œå‡º');
+            isNewUserRegistrationRef.current = true; // refã‚’å…ˆã«è¨­å®š
             setIsNewUserRegistration(true);
-            console.log('V‹Kƒ†[ƒU[ƒtƒ‰ƒOİ’èŠ®—¹ - ref:', isNewUserRegistrationRef.current);
+            console.log('æ–°è¦ãƒ¦ãƒ¼ã‚¶ãƒ¼ãƒ•ãƒ©ã‚°è¨­å®šå®Œäº† - ref:', isNewUserRegistrationRef.current);
           } else if (mode === 'login') {
-            console.log('ƒƒOƒCƒ“ƒ‚[ƒh‚ğŒŸo');
-            isNewUserRegistrationRef.current = false; // ref‚ğæ‚Éİ’è
+            console.log('ãƒ­ã‚°ã‚¤ãƒ³ãƒ¢ãƒ¼ãƒ‰ã‚’æ¤œå‡º');
+            isNewUserRegistrationRef.current = false; // refã‚’å…ˆã«è¨­å®š
             setIsNewUserRegistration(false);
-            console.log('Šù‘¶ƒ†[ƒU[ƒtƒ‰ƒOİ’èŠ®—¹ - ref:', isNewUserRegistrationRef.current);
+            console.log('æ—¢å­˜ãƒ¦ãƒ¼ã‚¶ãƒ¼ãƒ•ãƒ©ã‚°è¨­å®šå®Œäº† - ref:', isNewUserRegistrationRef.current);
           }
           
           try {
-            // Supabase‚ÉƒZƒbƒVƒ‡ƒ“‚ğİ’è
+            // Supabaseã«ã‚»ãƒƒã‚·ãƒ§ãƒ³ã‚’è¨­å®š
             const { data: { user }, error } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken || ''
@@ -193,52 +158,26 @@ function App() {
             if (error) throw error;
             
             if (user) {
-              console.log('OAuth”FØŠ®—¹:', user.email);
-
-              const validProvider = checkAuthProvider(user);
-              setIsValidAuthProvider(validProvider);
-              setUserData(user);
-              setIsLoggedIn(true);
-
-              if (validProvider) {
-                if (mode === 'registration') {
-                  console.log('V‹K“o˜^Š®—¹ - —¿‹àƒvƒ‰ƒ“ƒy[ƒW‚Ö‘JˆÚ');
-                  setCurrentPage('pricing');
-                } else {
-                  console.log('ƒƒOƒCƒ“Š®—¹ - ƒ_ƒbƒVƒ…ƒ{[ƒh‚Ö‘JˆÚ');
-                  setCurrentPage('dashboard');
-                }
-              } else {
-                await auth.signOut();
-                handleApiError(new Error('‹–‰Â‚³‚ê‚½”FØ•û–@‚Å‚Í‚ ‚è‚Ü‚¹‚ñBGoogle‚ÅƒƒOƒCƒ“‚µ‚Ä‚­‚¾‚³‚¢B'), '”FØƒGƒ‰[');
-                setCurrentPage('landing');
+              console.log('OAuthèªè¨¼æˆåŠŸ:', user.email);
+              
+              // æ–°è¦ç™»éŒ²ã®å ´åˆã¯æ–™é‡‘ãƒ—ãƒ©ãƒ³ãƒšãƒ¼ã‚¸ã«ã€ãƒ­ã‚°ã‚¤ãƒ³ã®å ´åˆã¯onAuthStateChangeã§å‡¦ç†
+              if (mode === 'registration') {
+                console.log('æ–°è¦ç™»éŒ²å®Œäº† - æ–™é‡‘ãƒ—ãƒ©ãƒ³ãƒšãƒ¼ã‚¸ã«é·ç§»');
+                setCurrentPage('pricing');
               }
-
-              // URL‚©‚çƒNƒGƒŠƒpƒ‰ƒ[ƒ^‚ğíœ
+              
+              // URLã‹ã‚‰ã‚¯ã‚¨ãƒªãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’å‰Šé™¤
               window.history.replaceState({}, document.title, window.location.pathname);
-
-              // OAuthƒnƒ“ƒhƒŠƒ“ƒOŠ®—¹B‚±‚êˆÈ~‚Ì‰Šú‰»‚ğƒXƒLƒbƒv
-              setIsLoading(false);
-              return;
             }
           } catch (error) {
-            console.error('OAuth ƒZƒbƒVƒ‡ƒ“İ’èƒGƒ‰[:', error);
+            console.error('OAuth ã‚»ãƒƒã‚·ãƒ§ãƒ³è¨­å®šã‚¨ãƒ©ãƒ¼:', error);
           }
         }
 
-        // Public LP: no tokens and no cached session -> skip auth check and render immediately
-        if (!accessToken && !refreshToken && !hasStoredSession && isPublicPage(currentPageRef.current)) {
-          console.log('Public page: no auth tokens detected, skipping auth check');
-          setIsLoggedIn(false);
-          setUserData(null);
-          setIsValidAuthProvider(false);
-          setIsLoading(false);
-          return;
-        }
-        // ŠJ”­ŠÂ‹«‚Å‚Í localStorage ‚©‚ç”FØó‘Ô‚ğ•œŒ³i–³Œø‰»j
+        // é–‹ç™ºç’°å¢ƒã§ã¯ localStorage ã‹ã‚‰èªè¨¼çŠ¶æ…‹ã‚’å¾©å…ƒï¼ˆç„¡åŠ¹åŒ–ï¼‰
         if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-          console.log('ŠJ”­ŠÂ‹«: ©“®ƒƒOƒCƒ“‚ğ–³Œø‰»');
-          // ©“®ƒƒOƒCƒ“•œŒ³‚ğƒRƒƒ“ƒgƒAƒEƒg‚µ‚ÄAí‚ÉƒƒOƒAƒEƒgó‘Ô‚ÅŠJn
+          console.log('é–‹ç™ºç’°å¢ƒ: è‡ªå‹•ãƒ­ã‚°ã‚¤ãƒ³ã‚’ç„¡åŠ¹åŒ–');
+          // è‡ªå‹•ãƒ­ã‚°ã‚¤ãƒ³å¾©å…ƒã‚’ã‚³ãƒ¡ãƒ³ãƒˆã‚¢ã‚¦ãƒˆã—ã¦ã€å¸¸ã«ãƒ­ã‚°ã‚¢ã‚¦ãƒˆçŠ¶æ…‹ã§é–‹å§‹
           /*
           const savedUser = localStorage.getItem('dev_user');
           const savedLoginState = localStorage.getItem('dev_logged_in');
@@ -247,16 +186,16 @@ function App() {
             const user = JSON.parse(savedUser);
             setUserData(user);
             setIsLoggedIn(true);
-            isNewUserRegistrationRef.current = false; // ref‚ğæ‚Éİ’è
-            setIsNewUserRegistration(false); // ŠJ”­ŠÂ‹«•œŒ³‚ÍŠù‘¶ƒ†[ƒU[‚Æ‚µ‚Äˆµ‚¤
+            isNewUserRegistrationRef.current = false; // refã‚’å…ˆã«è¨­å®š
+            setIsNewUserRegistration(false); // é–‹ç™ºç’°å¢ƒå¾©å…ƒæ™‚ã¯æ—¢å­˜ãƒ¦ãƒ¼ã‚¶ãƒ¼ã¨ã—ã¦æ‰±ã†
             setCurrentPage('dashboard');
-            console.log('ŠJ”­ŠÂ‹«•œŒ³Š®—¹ - ref:', isNewUserRegistrationRef.current);
+            console.log('é–‹ç™ºç’°å¢ƒå¾©å…ƒå®Œäº† - ref:', isNewUserRegistrationRef.current);
           } else {
             setCurrentPage('landing');
             setIsLoggedIn(false);
           }
           */
-          // ƒpƒX‚ÉŒöŠJƒy[ƒWi/contact “™j‚ª‚ ‚ê‚Î‚»‚ê‚ğ—Dæ
+          // ãƒ‘ã‚¹ã«å…¬é–‹ãƒšãƒ¼ã‚¸ï¼ˆ/contact ç­‰ï¼‰ãŒã‚ã‚Œã°ãã‚Œã‚’å„ªå…ˆ
           const devPath = (typeof window !== 'undefined'
             ? window.location.pathname.split('/').filter(Boolean)[0]
             : '') || '';
@@ -264,61 +203,56 @@ function App() {
           setCurrentPage(isPublicDevPath ? devPath : 'landing');
           setIsLoggedIn(false);
           setUserData(null);
-          // localStorage‚àƒNƒŠƒA
+          // localStorageã‚‚ã‚¯ãƒªã‚¢
           localStorage.removeItem('dev_user');
           localStorage.removeItem('dev_logged_in');
           setIsLoading(false);
           return;
         }
 
-        const { user } = await runWithTimeout(auth.getCurrentUser(), AUTH_CHECK_TIMEOUT_MS, '”FØó‘Ô‚ÌŠm”F');
-        console.log('‰Šú‰»‚Ìƒ†[ƒU[ó‘Ô:', user ? '”FØÏ‚İ' : '–¢”FØ');
+        const { user } = await auth.getCurrentUser();
+        console.log('åˆæœŸåŒ–æ™‚ã®ãƒ¦ãƒ¼ã‚¶ãƒ¼çŠ¶æ…‹:', user ? 'èªè¨¼æ¸ˆã¿' : 'æœªèªè¨¼');
         
         if (user) {
           const validProvider = checkAuthProvider(user);
           setIsValidAuthProvider(validProvider);
           setUserData(user);
           setIsLoggedIn(true);
-          isNewUserRegistrationRef.current = false; // ref‚ğæ‚Éİ’è
-          setIsNewUserRegistration(false); // ‰Šú‰»‚ÍŠù‘¶ƒ†[ƒU[‚Æ‚µ‚Äˆµ‚¤
+          isNewUserRegistrationRef.current = false; // refã‚’å…ˆã«è¨­å®š
+          setIsNewUserRegistration(false); // åˆæœŸåŒ–æ™‚ã¯æ—¢å­˜ãƒ¦ãƒ¼ã‚¶ãƒ¼ã¨ã—ã¦æ‰±ã†
 
           if (validProvider) {
             const activePage = currentPageRef.current;
             // Only redirect to dashboard if not on a public page
             if (!isPublicPage(activePage)) {
               setCurrentPage('dashboard');
-              console.log('‰Šú‰»: ”FØÏ‚İƒ†[ƒU[ - ƒ_ƒbƒVƒ…ƒ{[ƒh‚ÉˆÚ“® - ref:', isNewUserRegistrationRef.current);
+              console.log('åˆæœŸåŒ–: èªè¨¼æ¸ˆã¿ãƒ¦ãƒ¼ã‚¶ãƒ¼ - ãƒ€ãƒƒã‚·ãƒ¥ãƒœãƒ¼ãƒ‰ã«ç§»å‹• - ref:', isNewUserRegistrationRef.current);
             } else {
-              console.log('‰Šú‰»: ”FØÏ‚İƒ†[ƒU[ - ŒöŠJƒy[ƒW‚ğˆÛ:', activePage);
+              console.log('åˆæœŸåŒ–: èªè¨¼æ¸ˆã¿ãƒ¦ãƒ¼ã‚¶ãƒ¼ - å…¬é–‹ãƒšãƒ¼ã‚¸ã‚’ç¶­æŒ:', activePage);
             }
           } else {
-            // –³Œø‚È”FØƒvƒƒoƒCƒ_[‚Ìê‡‚ÍƒƒOƒAƒEƒg
+            // ç„¡åŠ¹ãªèªè¨¼ãƒ—ãƒ­ãƒã‚¤ãƒ€ãƒ¼ã®å ´åˆã¯ãƒ­ã‚°ã‚¢ã‚¦ãƒˆ
             await auth.signOut();
             setCurrentPage('landing');
-            handleApiError(new Error('‹–‰Â‚³‚ê‚½”FØ•û–@‚Å‚Í‚ ‚è‚Ü‚¹‚ñBGoogle‚ÅƒƒOƒCƒ“‚µ‚Ä‚­‚¾‚³‚¢B'), '”FØƒGƒ‰[');
+            handleApiError(new Error('è¨±å¯ã•ã‚ŒãŸèªè¨¼æ–¹æ³•ã§ã¯ã‚ã‚Šã¾ã›ã‚“ã€‚Googleã§ãƒ­ã‚°ã‚¤ãƒ³ã—ã¦ãã ã•ã„ã€‚'), 'èªè¨¼ã‚¨ãƒ©ãƒ¼');
           }
         } else {
           const activePage = currentPageRef.current;
-          // –¢ƒƒOƒCƒ“: ƒpƒX‚ªŒöŠJƒy[ƒW‚È‚çˆÛA‚»‚¤‚Å‚È‚¯‚ê‚ÎLP‚Ö
+          // æœªãƒ­ã‚°ã‚¤ãƒ³: ãƒ‘ã‚¹ãŒå…¬é–‹ãƒšãƒ¼ã‚¸ãªã‚‰ç¶­æŒã€ãã†ã§ãªã‘ã‚Œã°LPã¸
           if (!isPublicPage(activePage)) {
             setCurrentPage('landing');
-            console.log('‰Šú‰»: –¢”FØƒ†[ƒU[ - ƒ‰ƒ“ƒfƒBƒ“ƒOƒy[ƒW‚ÉˆÚ“®');
+            console.log('åˆæœŸåŒ–: æœªèªè¨¼ãƒ¦ãƒ¼ã‚¶ãƒ¼ - ãƒ©ãƒ³ãƒ‡ã‚£ãƒ³ã‚°ãƒšãƒ¼ã‚¸ã«ç§»å‹•');
           } else {
-            console.log('‰Šú‰»: –¢”FØƒ†[ƒU[ - ŒöŠJƒy[ƒW‚ğˆÛ:', activePage);
+            console.log('åˆæœŸåŒ–: æœªèªè¨¼ãƒ¦ãƒ¼ã‚¶ãƒ¼ - å…¬é–‹ãƒšãƒ¼ã‚¸ã‚’ç¶­æŒ:', activePage);
           }
         }
       } catch (error) {
-        const msg = (error as Error)?.message?.toLowerCase?.() || '';
-        const isTimeout = msg.includes('timeout') || msg.includes('ƒ^ƒCƒ€ƒAƒEƒg');
-        if (isTimeout) {
-          console.warn('”FØŠm”F‚ªƒ^ƒCƒ€ƒAƒEƒg‚µ‚½‚½‚ßLP‚ÉƒtƒH[ƒ‹ƒoƒbƒN‚µ‚Ü‚·');
+        console.error('èªè¨¼åˆæœŸåŒ–ã‚¨ãƒ©ãƒ¼:', error);
+        // é–‹ç™ºç’°å¢ƒã§ã¯ã‚¨ãƒ©ãƒ¼ã‚’è¡¨ç¤ºã›ãšã€ãƒ©ãƒ³ãƒ‡ã‚£ãƒ³ã‚°ãƒšãƒ¼ã‚¸ã«ç§»å‹•
+        if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
+          console.log('é–‹ç™ºç’°å¢ƒ: èªè¨¼ã‚¨ãƒ©ãƒ¼ã‚’ç„¡è¦–ã—ã¦ãƒ©ãƒ³ãƒ‡ã‚£ãƒ³ã‚°ãƒšãƒ¼ã‚¸ã«ç§»å‹•');
         } else {
-          console.error('”FØ‰Šú‰»ƒGƒ‰[:', error);
-          if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-            console.log('ŠJ”­ƒ‚[ƒh: ”FØƒGƒ‰[‚ğ–³‹‚µ‚ÄLP‚Ö‘JˆÚ');
-          } else {
-            handleApiError(error, '”FØƒVƒXƒeƒ€‚Ì‰Šú‰»');
-          }
+          handleApiError(error, 'èªè¨¼ã‚·ã‚¹ãƒ†ãƒ ã®åˆæœŸåŒ–');
         }
         setCurrentPage('landing');
       } finally {
@@ -328,19 +262,19 @@ function App() {
 
     initializeAuth();
 
-    // ”FØó‘Ô‚Ì•ÏX‚ğŠÄ‹
+    // èªè¨¼çŠ¶æ…‹ã®å¤‰æ›´ã‚’ç›£è¦–
     let subscription: any;
     try {
       const { data: { subscription: authSubscription } } = auth.onAuthStateChange(
         async (_, session) => {
-          console.log('=== ”FØó‘Ô•ÏXŒŸo ===');
-          console.log('”FØó‘Ô:', session?.user ? 'ƒƒOƒCƒ“' : 'ƒƒOƒAƒEƒg');
+          console.log('=== èªè¨¼çŠ¶æ…‹å¤‰æ›´æ¤œå‡º ===');
+          console.log('èªè¨¼çŠ¶æ…‹:', session?.user ? 'ãƒ­ã‚°ã‚¤ãƒ³' : 'ãƒ­ã‚°ã‚¢ã‚¦ãƒˆ');
           
           const isNewUserState = isNewUserRegistration;
           const isNewUserRef = isNewUserRegistrationRef.current;
-          const isNewUser = isNewUserRef || isNewUserState; // ref‚ğ—Dæ
+          const isNewUser = isNewUserRef || isNewUserState; // refã‚’å„ªå…ˆ
           
-          console.log('ƒtƒ‰ƒOó‘ÔÚ×:', {
+          console.log('ãƒ•ãƒ©ã‚°çŠ¶æ…‹è©³ç´°:', {
             isNewUserState,
             isNewUserRef,
             isNewUser,
@@ -356,50 +290,49 @@ function App() {
             setIsLoggedIn(true);
 
             if (validProvider) {
-              // ref‚ğ—Dæ‚µ‚ÄV‹Kƒ†[ƒU[”»’è
+              // refã‚’å„ªå…ˆã—ã¦æ–°è¦ãƒ¦ãƒ¼ã‚¶ãƒ¼åˆ¤å®š
               if (isNewUser) {
-                console.log('V‹Kƒ†[ƒU[Šm”FÏ‚İ: —¿‹àƒvƒ‰ƒ“ƒy[ƒW‚Éİ’è');
-                setCurrentPage('pricing'); // –¾¦“I‚Éİ’è
-                console.log('—¿‹àƒvƒ‰ƒ“ƒy[ƒWİ’èŠ®—¹');
-                // ƒtƒ‰ƒO‚ğƒŠƒZƒbƒg
+                console.log('æ–°è¦ãƒ¦ãƒ¼ã‚¶ãƒ¼ç¢ºèªæ¸ˆã¿: æ–™é‡‘ãƒ—ãƒ©ãƒ³ãƒšãƒ¼ã‚¸ã«è¨­å®š');
+                setCurrentPage('pricing'); // æ˜ç¤ºçš„ã«è¨­å®š
+                console.log('æ–™é‡‘ãƒ—ãƒ©ãƒ³ãƒšãƒ¼ã‚¸è¨­å®šå®Œäº†');
+                // ãƒ•ãƒ©ã‚°ã‚’ãƒªã‚»ãƒƒãƒˆ
                 isNewUserRegistrationRef.current = false;
                 setIsNewUserRegistration(false);
               } else {
-                console.log('Šù‘¶ƒ†[ƒU[”FØ¬Œ÷');
+                console.log('æ—¢å­˜ãƒ¦ãƒ¼ã‚¶ãƒ¼èªè¨¼æˆåŠŸ');
                 // Only redirect to dashboard if not on a public page
                 if (!isPublicPage(activePage)) {
-                  console.log('ƒ_ƒbƒVƒ…ƒ{[ƒh‚ÉˆÚ“®');
+                  console.log('ãƒ€ãƒƒã‚·ãƒ¥ãƒœãƒ¼ãƒ‰ã«ç§»å‹•');
                   setCurrentPage('dashboard');
                 } else {
-                  console.log('ŒöŠJƒy[ƒW‚ğˆÛ:', activePage);
+                  console.log('å…¬é–‹ãƒšãƒ¼ã‚¸ã‚’ç¶­æŒ:', activePage);
                 }
               }
             } else {
-              // –³Œø‚È”FØƒvƒƒoƒCƒ_[‚Ìê‡‚ÍƒƒOƒAƒEƒg
+              // ç„¡åŠ¹ãªèªè¨¼ãƒ—ãƒ­ãƒã‚¤ãƒ€ãƒ¼ã®å ´åˆã¯ãƒ­ã‚°ã‚¢ã‚¦ãƒˆ
               await auth.signOut();
               setCurrentPage('landing');
-              handleApiError(new Error('‹–‰Â‚³‚ê‚½”FØ•û–@‚Å‚Í‚ ‚è‚Ü‚¹‚ñBGoogle‚ÅƒƒOƒCƒ“‚µ‚Ä‚­‚¾‚³‚¢B'), '”FØƒGƒ‰[');
+              handleApiError(new Error('è¨±å¯ã•ã‚ŒãŸèªè¨¼æ–¹æ³•ã§ã¯ã‚ã‚Šã¾ã›ã‚“ã€‚Googleã§ãƒ­ã‚°ã‚¤ãƒ³ã—ã¦ãã ã•ã„ã€‚'), 'èªè¨¼ã‚¨ãƒ©ãƒ¼');
             }
           } else {
             setUserData(null);
             setIsLoggedIn(false);
             setIsValidAuthProvider(false);
-            // ƒƒOƒAƒEƒg: ŒöŠJƒy[ƒW‚É‚¢‚é‚È‚çˆÛA‚»‚¤‚Å‚È‚¯‚ê‚ÎLP‚Ö
+            // ãƒ­ã‚°ã‚¢ã‚¦ãƒˆæ™‚: å…¬é–‹ãƒšãƒ¼ã‚¸ã«ã„ã‚‹ãªã‚‰ç¶­æŒã€ãã†ã§ãªã‘ã‚Œã°LPã¸
             if (!isPublicPage(activePage)) {
               setCurrentPage('landing');
-              console.log('ƒƒOƒAƒEƒg: ƒ‰ƒ“ƒfƒBƒ“ƒOƒy[ƒW‚ÉˆÚ“®');
+              console.log('ãƒ­ã‚°ã‚¢ã‚¦ãƒˆ: ãƒ©ãƒ³ãƒ‡ã‚£ãƒ³ã‚°ãƒšãƒ¼ã‚¸ã«ç§»å‹•');
             } else {
-              console.log('ƒƒOƒAƒEƒg: ŒöŠJƒy[ƒW‚ğˆÛ:', activePage);
+              console.log('ãƒ­ã‚°ã‚¢ã‚¦ãƒˆ: å…¬é–‹ãƒšãƒ¼ã‚¸ã‚’ç¶­æŒ:', activePage);
             }
           }
           setIsLoading(false);
         }
       );
       subscription = authSubscription;
-      console.log('”FØó‘ÔŠÄ‹ƒŠƒXƒi[İ’èŠ®—¹');
+      console.log('èªè¨¼çŠ¶æ…‹ç›£è¦–ãƒªã‚¹ãƒŠãƒ¼è¨­å®šå®Œäº†');
     } catch (error) {
-      console.error('”FØó‘ÔŠÄ‹ƒGƒ‰[:', error);
-      setIsLoading(false);
+      console.error('èªè¨¼çŠ¶æ…‹ç›£è¦–ã‚¨ãƒ©ãƒ¼:', error);
     }
 
     return () => {
@@ -407,18 +340,18 @@ function App() {
     };
   }, []);
 
-  // ƒtƒH[ƒ‹ƒoƒbƒNˆ—: ”FØŠ®—¹Œã‚Éƒtƒ‰ƒO‚ğÄŠm”F
+  // ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯å‡¦ç†: èªè¨¼å®Œäº†å¾Œã«ãƒ•ãƒ©ã‚°ã‚’å†ç¢ºèª
   useEffect(() => {
     if (isLoggedIn && currentPage === 'dashboard' && (isNewUserRegistration || isNewUserRegistrationRef.current)) {
-      console.log('=== ƒtƒH[ƒ‹ƒoƒbƒNˆ—Às ===');
-      console.log('V‹Kƒ†[ƒU[‚ªƒ_ƒbƒVƒ…ƒ{[ƒh‚É‚¢‚é‚½‚ß—¿‹àƒvƒ‰ƒ“ƒy[ƒW‚ÉC³');
-      console.log('ƒtƒ‰ƒOó‘Ô:', { 
+      console.log('=== ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯å‡¦ç†å®Ÿè¡Œ ===');
+      console.log('æ–°è¦ãƒ¦ãƒ¼ã‚¶ãƒ¼ãŒãƒ€ãƒƒã‚·ãƒ¥ãƒœãƒ¼ãƒ‰ã«ã„ã‚‹ãŸã‚æ–™é‡‘ãƒ—ãƒ©ãƒ³ãƒšãƒ¼ã‚¸ã«ä¿®æ­£');
+      console.log('ãƒ•ãƒ©ã‚°çŠ¶æ…‹:', { 
         isNewUserRegistration, 
         isNewUserRef: isNewUserRegistrationRef.current,
         currentPage 
       });
       setCurrentPage('pricing');
-      // ƒtƒ‰ƒO‚ğƒŠƒZƒbƒg
+      // ãƒ•ãƒ©ã‚°ã‚’ãƒªã‚»ãƒƒãƒˆ
       isNewUserRegistrationRef.current = false;
       setIsNewUserRegistration(false);
     }
@@ -426,28 +359,28 @@ function App() {
 
 
   const handlePageChange = async (page: string) => {
-    // ŠÇ—Òƒ`ƒFƒbƒNiƒf[ƒ^ƒx[ƒXƒx[ƒXj
+    // ç®¡ç†è€…ãƒã‚§ãƒƒã‚¯ï¼ˆãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ãƒ™ãƒ¼ã‚¹ï¼‰
     if (page === 'admin' || page === 'auto-upload') {
-      // ŠJ”­ŠÂ‹«‚Å‚ÍŠÇ—Òƒ`ƒFƒbƒN‚ğƒXƒLƒbƒv
+      // é–‹ç™ºç’°å¢ƒã§ã¯ç®¡ç†è€…ãƒã‚§ãƒƒã‚¯ã‚’ã‚¹ã‚­ãƒƒãƒ—
       if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-        console.log('ŠJ”­ŠÂ‹«: ŠÇ—Òƒ`ƒFƒbƒN‚ğƒXƒLƒbƒv‚µ‚Ä‚¢‚Ü‚·');
+        console.log('é–‹ç™ºç’°å¢ƒ: ç®¡ç†è€…ãƒã‚§ãƒƒã‚¯ã‚’ã‚¹ã‚­ãƒƒãƒ—ã—ã¦ã„ã¾ã™');
         setCurrentPage(page);
         return;
       }
 
       if (!userData?.id) {
-        handleApiError(new Error('ƒƒOƒCƒ“‚ª•K—v‚Å‚·'), 'ŠÇ—Òƒy[ƒWƒAƒNƒZƒX');
+        handleApiError(new Error('ãƒ­ã‚°ã‚¤ãƒ³ãŒå¿…è¦ã§ã™'), 'ç®¡ç†è€…ãƒšãƒ¼ã‚¸ã‚¢ã‚¯ã‚»ã‚¹');
         return;
       }
       
       try {
         const { isAdmin } = await database.checkAdminStatus(userData.id);
         if (!isAdmin) {
-          handleApiError(new Error('ŠÇ—Ò‚Ì‚İƒAƒNƒZƒX‰Â”\‚Å‚·'), 'ŠÇ—Òƒy[ƒWƒAƒNƒZƒX');
+          handleApiError(new Error('ç®¡ç†è€…ã®ã¿ã‚¢ã‚¯ã‚»ã‚¹å¯èƒ½ã§ã™'), 'ç®¡ç†è€…ãƒšãƒ¼ã‚¸ã‚¢ã‚¯ã‚»ã‚¹');
           return;
         }
       } catch (error) {
-        handleApiError(error, 'ŠÇ—ÒŒ ŒÀƒ`ƒFƒbƒN');
+        handleApiError(error, 'ç®¡ç†è€…æ¨©é™ãƒã‚§ãƒƒã‚¯');
         return;
       }
     }
@@ -455,46 +388,46 @@ function App() {
   };
 
   const handleAuthRequest = () => {
-    isNewUserRegistrationRef.current = false; // ref‚ğæ‚Éİ’è
-    setIsNewUserRegistration(false); // Šù‘¶ƒ†[ƒU[ƒƒOƒCƒ“‚È‚Ì‚Åƒtƒ‰ƒO‚ğfalse‚É
-    console.log('handleAuthRequest: Šù‘¶ƒ†[ƒU[ƒtƒ‰ƒO‚ğİ’è - ref:', isNewUserRegistrationRef.current);
+    isNewUserRegistrationRef.current = false; // refã‚’å…ˆã«è¨­å®š
+    setIsNewUserRegistration(false); // æ—¢å­˜ãƒ¦ãƒ¼ã‚¶ãƒ¼ãƒ­ã‚°ã‚¤ãƒ³ãªã®ã§ãƒ•ãƒ©ã‚°ã‚’falseã«
+    console.log('handleAuthRequest: æ—¢å­˜ãƒ¦ãƒ¼ã‚¶ãƒ¼ãƒ•ãƒ©ã‚°ã‚’è¨­å®š - ref:', isNewUserRegistrationRef.current);
     setShowAuthModal(true);
   };
 
   const handleLoginRequest = () => {
-    isNewUserRegistrationRef.current = false; // ref‚ğæ‚Éİ’è
-    setIsNewUserRegistration(false); // Šù‘¶ƒ†[ƒU[ƒƒOƒCƒ“‚È‚Ì‚Åƒtƒ‰ƒO‚ğfalse‚É
-    console.log('handleLoginRequest: Šù‘¶ƒ†[ƒU[ƒƒOƒCƒ“ƒtƒ‰ƒO‚ğİ’è - ref:', isNewUserRegistrationRef.current);
+    isNewUserRegistrationRef.current = false; // refã‚’å…ˆã«è¨­å®š
+    setIsNewUserRegistration(false); // æ—¢å­˜ãƒ¦ãƒ¼ã‚¶ãƒ¼ãƒ­ã‚°ã‚¤ãƒ³ãªã®ã§ãƒ•ãƒ©ã‚°ã‚’falseã«
+    console.log('handleLoginRequest: æ—¢å­˜ãƒ¦ãƒ¼ã‚¶ãƒ¼ãƒ­ã‚°ã‚¤ãƒ³ãƒ•ãƒ©ã‚°ã‚’è¨­å®š - ref:', isNewUserRegistrationRef.current);
     setShowAuthModal(true);
   };
 
   const handleRegistrationRequest = () => {
-    // ƒƒOƒCƒ“‚µ‚Ä‚¢‚È‚¢ê‡‚Í”FØƒ‚[ƒ_ƒ‹‚ğ•\¦
+    // ãƒ­ã‚°ã‚¤ãƒ³ã—ã¦ã„ãªã„å ´åˆã¯èªè¨¼ãƒ¢ãƒ¼ãƒ€ãƒ«ã‚’è¡¨ç¤º
     if (!isLoggedIn) {
-      isNewUserRegistrationRef.current = true; // ref‚ğæ‚Éİ’è
-      setIsNewUserRegistration(true); // V‹K“o˜^‚È‚Ì‚Åƒtƒ‰ƒO‚ğtrue‚É
-      console.log('handleRegistrationRequest: V‹K“o˜^ƒtƒ‰ƒO‚ğİ’è - ref:', isNewUserRegistrationRef.current);
+      isNewUserRegistrationRef.current = true; // refã‚’å…ˆã«è¨­å®š
+      setIsNewUserRegistration(true); // æ–°è¦ç™»éŒ²ãªã®ã§ãƒ•ãƒ©ã‚°ã‚’trueã«
+      console.log('handleRegistrationRequest: æ–°è¦ç™»éŒ²ãƒ•ãƒ©ã‚°ã‚’è¨­å®š - ref:', isNewUserRegistrationRef.current);
       setShowAuthModal(true);
       return;
     }
-    // ƒƒOƒCƒ“Ï‚İ‚Ìê‡‚Í—¿‹àƒy[ƒW‚Ö
+    // ãƒ­ã‚°ã‚¤ãƒ³æ¸ˆã¿ã®å ´åˆã¯æ–™é‡‘ãƒšãƒ¼ã‚¸ã¸
     setCurrentPage('pricing');
   };
 
   const handleContactRequest = () => {
-    // –â‚¢‡‚í‚¹‚Íƒy[ƒW‘JˆÚ‚Å•\¦iLP‚É–ß‚ç‚È‚¢j
+    // å•ã„åˆã‚ã›ã¯ãƒšãƒ¼ã‚¸é·ç§»ã§è¡¨ç¤ºï¼ˆLPã«æˆ»ã‚‰ãªã„ï¼‰
     setShowContactModal(false);
     setCurrentPage('contact');
     try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch {}
   };
 
   const handlePurchaseRequest = () => {
-    // ƒƒOƒCƒ“‚µ‚Ä‚¢‚È‚¢ê‡‚Í”FØƒ‚[ƒ_ƒ‹‚ğ•\¦
+    // ãƒ­ã‚°ã‚¤ãƒ³ã—ã¦ã„ãªã„å ´åˆã¯èªè¨¼ãƒ¢ãƒ¼ãƒ€ãƒ«ã‚’è¡¨ç¤º
     if (!isLoggedIn) {
       setShowAuthModal(true);
       return;
     }
-    // ƒƒOƒCƒ“Ï‚İ‚Ìê‡‚Í—¿‹àƒy[ƒW‚Ö
+    // ãƒ­ã‚°ã‚¤ãƒ³æ¸ˆã¿ã®å ´åˆã¯æ–™é‡‘ãƒšãƒ¼ã‚¸ã¸
     setCurrentPage('pricing');
   };
 
@@ -512,10 +445,10 @@ function App() {
       }
     } else {
       setCurrentPage('landing');
-      handleApiError(new Error('‹–‰Â‚³‚ê‚½”FØ•û–@‚Å‚Í‚ ‚è‚Ü‚¹‚ñBGoogle‚ÅƒƒOƒCƒ“‚µ‚Ä‚­‚¾‚³‚¢B'), '”FØƒGƒ‰[');
+      handleApiError(new Error('è¨±å¯ã•ã‚ŒãŸèªè¨¼æ–¹æ³•ã§ã¯ã‚ã‚Šã¾ã›ã‚“ã€‚Googleã§ãƒ­ã‚°ã‚¤ãƒ³ã—ã¦ãã ã•ã„ã€‚'), 'èªè¨¼ã‚¨ãƒ©ãƒ¼');
     }
     
-    // ŠJ”­ŠÂ‹«‚Å‚Í localStorage ‚É•Û‘¶
+    // é–‹ç™ºç’°å¢ƒã§ã¯ localStorage ã«ä¿å­˜
     if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
       localStorage.setItem('dev_user', JSON.stringify(user));
       localStorage.setItem('dev_logged_in', 'true');
@@ -525,32 +458,32 @@ function App() {
 
 
   const handleLogout = async () => {
-    console.log('handleLogoutŠÖ”‚ªŒÄ‚Î‚ê‚Ü‚µ‚½');
-    console.log('Œ»İ‚Ìó‘Ô:', { isLoggedIn, currentPage, userData: userData?.email });
+    console.log('handleLogouté–¢æ•°ãŒå‘¼ã°ã‚Œã¾ã—ãŸ');
+    console.log('ç¾åœ¨ã®çŠ¶æ…‹:', { isLoggedIn, currentPage, userData: userData?.email });
     
     try {
-      // ŠJ”­ŠÂ‹«‚Å‚Í localStorage ‚ğƒNƒŠƒA
+      // é–‹ç™ºç’°å¢ƒã§ã¯ localStorage ã‚’ã‚¯ãƒªã‚¢
       if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-        console.log('ŠJ”­ŠÂ‹«: localStorage ‚ğƒNƒŠƒA');
+        console.log('é–‹ç™ºç’°å¢ƒ: localStorage ã‚’ã‚¯ãƒªã‚¢');
         localStorage.removeItem('dev_user');
         localStorage.removeItem('dev_logged_in');
-        console.log('localStorage ƒNƒŠƒAŠ®—¹');
+        console.log('localStorage ã‚¯ãƒªã‚¢å®Œäº†');
       } else {
-        console.log('–{”ÔŠÂ‹«: Supabase auth.signOut Às');
+        console.log('æœ¬ç•ªç’°å¢ƒ: Supabase auth.signOut å®Ÿè¡Œ');
         await auth.signOut();
       }
       
-      console.log('ƒƒOƒAƒEƒgˆ—: ó‘Ô‚ğƒŠƒZƒbƒg');
+      console.log('ãƒ­ã‚°ã‚¢ã‚¦ãƒˆå‡¦ç†: çŠ¶æ…‹ã‚’ãƒªã‚»ãƒƒãƒˆ');
       setIsLoggedIn(false);
       setUserData(null);
       setIsValidAuthProvider(false);
-      setCurrentPage('landing'); // ƒƒOƒAƒEƒgŒã‚ÍƒIƒŠƒWƒiƒ‹LP‚ÉˆÚ“®
-      console.log('ƒƒOƒAƒEƒgˆ—Š®—¹: LP‚É‘JˆÚ');
+      setCurrentPage('landing'); // ãƒ­ã‚°ã‚¢ã‚¦ãƒˆå¾Œã¯ã‚ªãƒªã‚¸ãƒŠãƒ«LPã«ç§»å‹•
+      console.log('ãƒ­ã‚°ã‚¢ã‚¦ãƒˆå‡¦ç†å®Œäº†: LPã«é·ç§»');
       
     } catch (error) {
-      console.error('ƒƒOƒAƒEƒgƒGƒ‰[:', error);
+      console.error('ãƒ­ã‚°ã‚¢ã‚¦ãƒˆã‚¨ãƒ©ãƒ¼:', error);
       if (!(import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development')) {
-        handleApiError(error, 'ƒƒOƒAƒEƒgˆ—');
+        handleApiError(error, 'ãƒ­ã‚°ã‚¢ã‚¦ãƒˆå‡¦ç†');
       }
     }
   };
@@ -578,9 +511,9 @@ function App() {
     }
 
     if (!isLoggedIn) {
-      // –¢ƒƒOƒCƒ“: ƒ‰ƒ“ƒfƒBƒ“ƒOƒy[ƒW‘I‘ğ
+      // æœªãƒ­ã‚°ã‚¤ãƒ³æ™‚: ãƒ©ãƒ³ãƒ‡ã‚£ãƒ³ã‚°ãƒšãƒ¼ã‚¸é¸æŠ
       if (currentPage === 'simple-landing') {
-        // ƒVƒ“ƒvƒ‹LP‚ğ•\¦
+        // ã‚·ãƒ³ãƒ—ãƒ«LPã‚’è¡¨ç¤º
         return (
           <SimpleLandingPage
             onAuthRequest={handleRegistrationRequest}
@@ -589,7 +522,7 @@ function App() {
           />
         );
       } else if (currentPage === 'white-landing') {
-        // ”’”wŒiLP‚ğ•\¦
+        // ç™½èƒŒæ™¯LPã‚’è¡¨ç¤º
         return (
           <WhiteLandingPage
             onAuthRequest={handleLoginRequest}
@@ -600,7 +533,7 @@ function App() {
           />
         );
       } else if (currentPage === 'landing') {
-        // ]—ˆ‚ÌLP‚ğ•\¦i•”wŒij
+        // å¾“æ¥ã®LPã‚’è¡¨ç¤ºï¼ˆé»’èƒŒæ™¯ï¼‰
         return (
           <>
             <Hero onAuthRequest={handleRegistrationRequest} onPurchaseRequest={handlePurchaseRequest} onLoginRequest={handleLoginRequest} />
@@ -619,24 +552,24 @@ function App() {
       }
     }
 
-    // ƒƒOƒCƒ“Ï‚İ: “®‰æƒvƒ‰ƒbƒgƒtƒH[ƒ€
-    // Google/Apple”FØ‚Ì‚İƒAƒNƒZƒX‹–‰Â
+    // ãƒ­ã‚°ã‚¤ãƒ³æ¸ˆã¿æ™‚: å‹•ç”»ãƒ—ãƒ©ãƒƒãƒˆãƒ•ã‚©ãƒ¼ãƒ 
+    // Google/Appleèªè¨¼ã®ã¿ã‚¢ã‚¯ã‚»ã‚¹è¨±å¯
     if (!isValidAuthProvider) {
       return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center">
           <div className="text-center max-w-md mx-auto p-8">
             <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
-              <span className="text-white text-2xl">??</span>
+              <span className="text-white text-2xl">âš ï¸</span>
             </div>
-            <h2 className="text-2xl font-bold mb-4">ƒAƒNƒZƒX‚ª§ŒÀ‚³‚ê‚Ä‚¢‚Ü‚·</h2>
+            <h2 className="text-2xl font-bold mb-4">ã‚¢ã‚¯ã‚»ã‚¹ãŒåˆ¶é™ã•ã‚Œã¦ã„ã¾ã™</h2>
             <p className="text-gray-400 mb-6 leading-relaxed">
-              AI Creative Stock‚Ö‚ÌƒAƒNƒZƒX‚É‚ÍAGoogle‚Å‚ÌƒƒOƒCƒ“‚ª•K—v‚Å‚·B
+              AI Creative Stockã¸ã®ã‚¢ã‚¯ã‚»ã‚¹ã«ã¯ã€Googleã§ã®ãƒ­ã‚°ã‚¤ãƒ³ãŒå¿…è¦ã§ã™ã€‚
             </p>
             <button 
               onClick={handleLogout}
               className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
             >
-              ƒƒOƒCƒ“ƒy[ƒW‚É–ß‚é
+              ãƒ­ã‚°ã‚¤ãƒ³ãƒšãƒ¼ã‚¸ã«æˆ»ã‚‹
             </button>
           </div>
         </div>
@@ -673,23 +606,23 @@ function App() {
       case 'privacy':
         return <PrivacyPolicy onPageChange={handlePageChange} />;
       default:
-        return <Dashboard />; // ƒfƒtƒHƒ‹ƒg‚Íƒ_ƒbƒVƒ…ƒ{[ƒh
+        return <Dashboard />; // ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã¯ãƒ€ãƒƒã‚·ãƒ¥ãƒœãƒ¼ãƒ‰
     }
   };
 
-  // ƒ[ƒfƒBƒ“ƒO’†‚Ì•\¦
+  // ãƒ­ãƒ¼ãƒ‡ã‚£ãƒ³ã‚°ä¸­ã®è¡¨ç¤º
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">“Ç‚İ‚İ’†...</p>
+          <p className="text-gray-400">èª­ã¿è¾¼ã¿ä¸­...</p>
         </div>
       </div>
     );
   }
 
-  // SEOƒf[ƒ^‚ğæ“¾
+  // SEOãƒ‡ãƒ¼ã‚¿ã‚’å–å¾—
   const pageType = getPageType(currentPage);
   const seoData = pageType ? pageSEOData[pageType] : pageSEOData.dashboard;
   const pathname = isLoggedIn ? `/${currentPage}` : '/';
@@ -697,10 +630,10 @@ function App() {
   return (
     <HelmetProvider>
       <ErrorBoundary onError={(error, errorInfo) => {
-        handleApiError(error, 'ƒAƒvƒŠƒP[ƒVƒ‡ƒ“ƒGƒ‰[');
+        handleApiError(error, 'ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ã‚¨ãƒ©ãƒ¼');
       }}>
         <div className="min-h-screen bg-black force-white-h2">
-          {/* SEOƒƒ^ƒ^ƒO */}
+          {/* SEOãƒ¡ã‚¿ã‚¿ã‚° */}
           <SEOHead 
             title={seoData.title}
             description={seoData.description}
@@ -710,14 +643,14 @@ function App() {
           
           <div className="min-h-screen">
             
-            {/* ƒVƒ“ƒvƒ‹LP‚Æ”’”wŒiLP‚Ìê‡‚Íƒwƒbƒ_[Eƒtƒbƒ^[‚ğ•\¦‚µ‚È‚¢ */}
+            {/* ã‚·ãƒ³ãƒ—ãƒ«LPã¨ç™½èƒŒæ™¯LPã®å ´åˆã¯ãƒ˜ãƒƒãƒ€ãƒ¼ãƒ»ãƒ•ãƒƒã‚¿ãƒ¼ã‚’è¡¨ç¤ºã—ãªã„ */}
             {(currentPage === 'simple-landing' || currentPage === 'white-landing') ? (
               <div>
                 {renderContent()}
               </div>
             ) : (
               <>
-                {/* ƒwƒbƒ_[‚Í•”wŒi‚ğˆÛ */}
+                {/* ãƒ˜ãƒƒãƒ€ãƒ¼ã¯é»’èƒŒæ™¯ã‚’ç¶­æŒ */}
                 <div className="bg-black text-white">
                   <Header
                     currentPage={currentPage}
@@ -731,19 +664,19 @@ function App() {
                   />
                 </div>
                 
-                {/* ƒRƒ“ƒeƒ“ƒc•”•ª */}
+                {/* ã‚³ãƒ³ãƒ†ãƒ³ãƒ„éƒ¨åˆ† */}
                 <div className="bg-black" style={{ paddingTop: '80px' }}>
                   {renderContent()}
                 </div>
                 
-                {/* ƒtƒbƒ^[‚Í•”wŒi‚ğˆÛ */}
+                {/* ãƒ•ãƒƒã‚¿ãƒ¼ã¯é»’èƒŒæ™¯ã‚’ç¶­æŒ */}
                 <div className="bg-black text-white">
                   <Footer onPageChange={handlePageChange} />
                 </div>
               </>
             )}
                 
-            {/* ƒpƒ“‚­‚¸ƒŠƒXƒg */}
+            {/* ãƒ‘ãƒ³ããšãƒªã‚¹ãƒˆ */}
             {isLoggedIn && (
               <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4">
                 <Breadcrumbs pathname={pathname} />
@@ -761,7 +694,7 @@ function App() {
               onClose={() => setShowContactModal(false)}
             />
             
-            {/* ƒGƒ‰[ƒg[ƒXƒg */}
+            {/* ã‚¨ãƒ©ãƒ¼ãƒˆãƒ¼ã‚¹ãƒˆ */}
             <ErrorToast 
               errors={errors}
               onRemove={removeError}
@@ -776,8 +709,3 @@ function App() {
 }
 
 export default App;
-
-
-
-
-
