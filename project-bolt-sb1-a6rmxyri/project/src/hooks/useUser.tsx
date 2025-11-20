@@ -67,7 +67,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     if (!sub) return 0;
     const plan = subscriptionPlans.find((p) => p.id === (sub.plan as any));
     const planDefault = plan?.monthlyDownloads ?? 0;
-    return Math.max(sub.monthly_download_limit ?? 0, planDefault);
+    if (sub.monthly_download_limit) {
+      return Math.min(sub.monthly_download_limit, planDefault || sub.monthly_download_limit);
+    }
+    return planDefault;
   };
 
   const resolveTestSubscription = (data: UserSubscription | null | undefined): UserSubscription | null => {
@@ -272,7 +275,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const remainingDownloads = subscription
-    ? Math.max(0, subscription.monthly_download_limit - monthlyDownloads)
+    ? Math.max(0, monthlyDownloadLimit - monthlyDownloads)
     : 0;
 
   const hasActiveSubscription = Boolean(

@@ -1,4 +1,4 @@
-import { loadStripe, Stripe } from '@stripe/stripe-js';
+﻿import { loadStripe, Stripe } from '@stripe/stripe-js';
 
 // Stripe公開可能キー（未設定でもアプリを落とさない）
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
@@ -40,7 +40,7 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     name: 'スタンダード',
     monthlyPrice: 14800,
     yearlyPrice: 9800 * 12, // 月額14,800 / 年額9,800（年払い時、1か月あたり）
-    monthlyDownloads: 20,
+    monthlyDownloads: 15,
     features: [
       '月間20本ダウンロード',
       '4K解像度対応',
@@ -316,3 +316,4 @@ export const getPerVideoPrice = (plan: SubscriptionPlan, billing: 'monthly' | 'y
   const pricePerVideo = Math.round(price / plan.monthlyDownloads);
   return formatPrice(pricePerVideo);
 };
+
