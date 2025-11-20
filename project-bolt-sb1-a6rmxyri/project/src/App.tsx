@@ -153,7 +153,7 @@ function App() {
         
         // URL縺ｫ繧｢繧ｯ繧ｻ繧ｹ繝医・繧ｯ繝ｳ縺悟性縺ｾ繧後※縺・ｋ蝣ｴ蜷茨ｼ・Auth 繧ｳ繝ｼ繝ｫ繝舌ャ繧ｯ・・
         if (accessToken) {
-          console.log('OAuth繧ｳ繝ｼ繝ｫ繝舌ャ繧ｯ讀懷・: 繝医・繧ｯ繝ｳ縺九ｉ繧ｻ繝・す繝ｧ繝ｳ繧定ｨｭ螳・);
+          console.log('OAuth callback detected: applying session from token');
           
           // mode繝代Λ繝｡繝ｼ繧ｿ縺ｫ蝓ｺ縺･縺・※繝輔Λ繧ｰ繧定ｨｭ螳・
           if (mode === 'registration') {
@@ -196,7 +196,7 @@ function App() {
 
         // 髢狗匱迺ｰ蠅・〒縺ｯ localStorage 縺九ｉ隱崎ｨｼ迥ｶ諷九ｒ蠕ｩ蜈・ｼ育┌蜉ｹ蛹厄ｼ・
         if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-          console.log('髢狗匱迺ｰ蠅・ 閾ｪ蜍輔Ο繧ｰ繧､繝ｳ繧堤┌蜉ｹ蛹・);
+          console.log('Dev mode: disable auto login');
           // 閾ｪ蜍輔Ο繧ｰ繧､繝ｳ蠕ｩ蜈・ｒ繧ｳ繝｡繝ｳ繝医い繧ｦ繝医＠縺ｦ縲∝ｸｸ縺ｫ繝ｭ繧ｰ繧｢繧ｦ繝育憾諷九〒髢句ｧ・
           /*
           const savedUser = localStorage.getItem('dev_user');
@@ -244,19 +244,19 @@ function App() {
             // 辟｡蜉ｹ縺ｪ隱崎ｨｼ繝励Ο繝舌う繝繝ｼ縺ｮ蝣ｴ蜷医・繝ｭ繧ｰ繧｢繧ｦ繝・
             await auth.signOut();
             setCurrentPage('landing');
-            handleApiError(new Error('險ｱ蜿ｯ縺輔ｌ縺溯ｪ崎ｨｼ譁ｹ豕輔〒縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・oogle縺ｧ繝ｭ繧ｰ繧､繝ｳ縺励※縺上□縺輔＞縲・), '隱崎ｨｼ繧ｨ繝ｩ繝ｼ');
+            handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
           }
         } else {
           setCurrentPage('landing'); // 譛ｪ繝ｭ繧ｰ繧､繝ｳ縺ｮ蝣ｴ蜷医・繝ｩ繝ｳ繝・ぅ繝ｳ繧ｰ繝壹・繧ｸ縺ｫ
-          console.log('蛻晄悄蛹・ 譛ｪ隱崎ｨｼ繝ｦ繝ｼ繧ｶ繝ｼ - 繝ｩ繝ｳ繝・ぅ繝ｳ繧ｰ繝壹・繧ｸ縺ｫ遘ｻ蜍・);
+          console.log('Init: unauthenticated user -> landing');
         }
       } catch (error) {
         console.error('隱崎ｨｼ蛻晄悄蛹悶お繝ｩ繝ｼ:', error);
         // 髢狗匱迺ｰ蠅・〒縺ｯ繧ｨ繝ｩ繝ｼ繧定｡ｨ遉ｺ縺帙★縲√Λ繝ｳ繝・ぅ繝ｳ繧ｰ繝壹・繧ｸ縺ｫ遘ｻ蜍・
         if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-          console.log('髢狗匱迺ｰ蠅・ 隱崎ｨｼ繧ｨ繝ｩ繝ｼ繧堤┌隕悶＠縺ｦ繝ｩ繝ｳ繝・ぅ繝ｳ繧ｰ繝壹・繧ｸ縺ｫ遘ｻ蜍・);
+          console.log('Dev mode: ignore auth error and show landing');
         } else {
-          handleApiError(error, '隱崎ｨｼ繧ｷ繧ｹ繝・Β縺ｮ蛻晄悄蛹・);
+          handleApiError(error, '認証システムの初期化');
         }
         setCurrentPage('landing');
       } finally {
@@ -271,8 +271,8 @@ function App() {
     try {
       const { data: { subscription: authSubscription } } = auth.onAuthStateChange(
         async (_, session) => {
-          console.log('=== 隱崎ｨｼ迥ｶ諷句､画峩讀懷・ ===');
-          console.log('隱崎ｨｼ迥ｶ諷・', session?.user ? '繝ｭ繧ｰ繧､繝ｳ' : '繝ｭ繧ｰ繧｢繧ｦ繝・);
+          console.log('=== Auth state change detected ===');
+          console.log('Auth state', session?.user ? 'login' : 'logout');
           
           const isNewUserState = isNewUserRegistration;
           const isNewUserRef = isNewUserRegistrationRef.current;
@@ -295,34 +295,34 @@ function App() {
             if (validProvider) {
               // ref繧貞━蜈医＠縺ｦ譁ｰ隕上Θ繝ｼ繧ｶ繝ｼ蛻､螳・
               if (isNewUser) {
-                console.log('譁ｰ隕上Θ繝ｼ繧ｶ繝ｼ遒ｺ隱肴ｸ医∩: 譁咎≡繝励Λ繝ｳ繝壹・繧ｸ縺ｫ險ｭ螳・);
+                console.log('New user confirmed: go to pricing page');
                 setCurrentPage('pricing'); // 譏守､ｺ逧・↓險ｭ螳・
-                console.log('譁咎≡繝励Λ繝ｳ繝壹・繧ｸ險ｭ螳壼ｮ御ｺ・);
+                console.log('Pricing page set');
                 // 繝輔Λ繧ｰ繧偵Μ繧ｻ繝・ヨ
                 isNewUserRegistrationRef.current = false;
                 setIsNewUserRegistration(false);
               } else {
-                console.log('譌｢蟄倥Θ繝ｼ繧ｶ繝ｼ隱崎ｨｼ謌仙粥: 繝繝・す繝･繝懊・繝峨↓遘ｻ蜍・);
+                console.log('Existing user authenticated: going to dashboard');
                 setCurrentPage('dashboard');
               }
             } else {
               // 辟｡蜉ｹ縺ｪ隱崎ｨｼ繝励Ο繝舌う繝繝ｼ縺ｮ蝣ｴ蜷医・繝ｭ繧ｰ繧｢繧ｦ繝・
               await auth.signOut();
               setCurrentPage('landing');
-              handleApiError(new Error('險ｱ蜿ｯ縺輔ｌ縺溯ｪ崎ｨｼ譁ｹ豕輔〒縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・oogle縺ｧ繝ｭ繧ｰ繧､繝ｳ縺励※縺上□縺輔＞縲・), '隱崎ｨｼ繧ｨ繝ｩ繝ｼ');
+              handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
             }
           } else {
             setUserData(null);
             setIsLoggedIn(false);
             setIsValidAuthProvider(false);
             setCurrentPage('landing'); // 繝ｭ繧ｰ繧｢繧ｦ繝域凾縺ｯ繝ｩ繝ｳ繝・ぅ繝ｳ繧ｰ繝壹・繧ｸ縺ｫ遘ｻ蜍・
-            console.log('繝ｭ繧ｰ繧｢繧ｦ繝・ 繝ｩ繝ｳ繝・ぅ繝ｳ繧ｰ繝壹・繧ｸ縺ｫ遘ｻ蜍・);
+              console.log('Logged out: redirecting to landing');
           }
           setIsLoading(false);
         }
       );
       subscription = authSubscription;
-      console.log('隱崎ｨｼ迥ｶ諷狗屮隕悶Μ繧ｹ繝翫・險ｭ螳壼ｮ御ｺ・);
+      console.log('Auth state listener registered');
     } catch (error) {
       console.error('隱崎ｨｼ迥ｶ諷狗屮隕悶お繝ｩ繝ｼ:', error);
     }
@@ -355,13 +355,13 @@ function App() {
     if (page === 'admin' || page === 'auto-upload') {
       // 髢狗匱迺ｰ蠅・〒縺ｯ邂｡逅・・メ繧ｧ繝・け繧偵せ繧ｭ繝・・
       if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-        console.log('髢狗匱迺ｰ蠅・ 邂｡逅・・メ繧ｧ繝・け繧偵せ繧ｭ繝・・縺励※縺・∪縺・);
+        console.log('Dev mode: skipping admin role check');
         setCurrentPage(page);
         return;
       }
 
       if (!userData?.id) {
-        handleApiError(new Error('繝ｭ繧ｰ繧､繝ｳ縺悟ｿ・ｦ√〒縺・), '邂｡逅・・・繝ｼ繧ｸ繧｢繧ｯ繧ｻ繧ｹ');
+        handleApiError(new Error('ログインが必要です'), '管理ページアクセス');
         return;
       }
       // Enforce IP allowlist for admin areas if configured
@@ -370,11 +370,11 @@ function App() {
           const resp = await fetch('https://api.ipify.org?format=json');
           const ip = (await resp.json()).ip as string;
           if (!adminIpAllowlist.includes(ip)) {
-            handleApiError(new Error('邂｡逅・・判髱｢縺ｸ縺ｮ繧｢繧ｯ繧ｻ繧ｹ縺悟宛髯舌＆繧後※縺・∪縺呻ｼ・P蛻ｶ髯撰ｼ・), '繧｢繧ｯ繧ｻ繧ｹ蛻ｶ髯・);
+            handleApiError(new Error('管理画面へのアクセスが制限されています (IP制限)'), 'アクセス制限');
             return;
           }
         } catch {
-          handleApiError(new Error('IP讀懆ｨｼ縺ｫ螟ｱ謨励＠縺ｾ縺励◆'), '繧｢繧ｯ繧ｻ繧ｹ蛻ｶ髯・);
+          handleApiError(new Error('IP検証に失敗しました'), 'アクセス制限');
           return;
         }
       }
@@ -382,11 +382,11 @@ function App() {
       try {
         const { isAdmin } = await database.checkAdminStatus(userData.id);
         if (!isAdmin) {
-          handleApiError(new Error('邂｡逅・・・縺ｿ繧｢繧ｯ繧ｻ繧ｹ蜿ｯ閭ｽ縺ｧ縺・), '邂｡逅・・・繝ｼ繧ｸ繧｢繧ｯ繧ｻ繧ｹ');
+          handleApiError(new Error('管理者権限のみアクセス可能です'), '管理ページアクセス');
           return;
         }
       } catch (error) {
-        handleApiError(error, '邂｡逅・・ｨｩ髯舌メ繧ｧ繝・け');
+        handleApiError(error, '管理権限チェック');
         return;
       }
     }
@@ -461,7 +461,7 @@ function App() {
       setCurrentPage('dashboard'); // 譌｢蟄倥Θ繝ｼ繧ｶ繝ｼ縺ｮ繝ｭ繧ｰ繧､繝ｳ縺ｯ繝繝・す繝･繝懊・繝峨↓遘ｻ蜍・
     } else {
       setCurrentPage('landing');
-      handleApiError(new Error('險ｱ蜿ｯ縺輔ｌ縺溯ｪ崎ｨｼ譁ｹ豕輔〒縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・oogle縺ｧ繝ｭ繧ｰ繧､繝ｳ縺励※縺上□縺輔＞縲・), '隱崎ｨｼ繧ｨ繝ｩ繝ｼ');
+      handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
     }
     
     // 髢狗匱迺ｰ蠅・〒縺ｯ localStorage 縺ｫ菫晏ｭ・
@@ -483,7 +483,7 @@ function App() {
       setCurrentPage('pricing'); // 譁ｰ隕上Θ繝ｼ繧ｶ繝ｼ縺ｯ譁咎≡繝励Λ繝ｳ繝壹・繧ｸ縺ｫ隱伜ｰ・
     } else {
       setCurrentPage('landing');
-      handleApiError(new Error('險ｱ蜿ｯ縺輔ｌ縺溯ｪ崎ｨｼ譁ｹ豕輔〒縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・oogle縺ｧ繝ｭ繧ｰ繧､繝ｳ縺励※縺上□縺輔＞縲・), '隱崎ｨｼ繧ｨ繝ｩ繝ｼ');
+      handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
     }
     
     // 髢狗匱迺ｰ蠅・〒縺ｯ localStorage 縺ｫ菫晏ｭ・
@@ -504,7 +504,7 @@ function App() {
       setCurrentPage('dashboard'); // 逋ｻ骭ｲ螳御ｺ・ｾ後・繝繝・す繝･繝懊・繝峨↓遘ｻ蜍・
     } else {
       setCurrentPage('landing');
-      handleApiError(new Error('險ｱ蜿ｯ縺輔ｌ縺溯ｪ崎ｨｼ譁ｹ豕輔〒縺ｯ縺ゅｊ縺ｾ縺帙ｓ縲・oogle縺ｧ繝ｭ繧ｰ繧､繝ｳ縺励※縺上□縺輔＞縲・), '隱崎ｨｼ繧ｨ繝ｩ繝ｼ');
+      handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
     }
     
     // 髢狗匱迺ｰ蠅・〒縺ｯ localStorage 縺ｫ菫晏ｭ・
@@ -519,7 +519,7 @@ function App() {
     console.log('handleAuthSuccessForPricing螳溯｡・', authData);
     console.log('迴ｾ蝨ｨ縺ｮisNewUserRegistration繝輔Λ繧ｰ:', isNewUserRegistration);
     setIsNewUserRegistration(true); // 譁ｰ隕上Θ繝ｼ繧ｶ繝ｼ逋ｻ骭ｲ繝輔Λ繧ｰ繧定ｨｭ螳・
-    console.log('繝輔Λ繧ｰ繧稚rue縺ｫ險ｭ螳壼ｮ御ｺ・);
+    console.log('Set new-user flag true');
     setCurrentPage('pricing'); // 逶ｴ謗･譁咎≡繝励Λ繝ｳ繝壹・繧ｸ縺ｫ驕ｷ遘ｻ
     console.log('譁咎≡繝励Λ繝ｳ繝壹・繧ｸ縺ｫ驕ｷ遘ｻ');
     setShowRegistrationModal(false); // 繝｢繝ｼ繝繝ｫ繧帝哩縺倥ｋ
@@ -537,9 +537,9 @@ function App() {
         console.log('髢狗匱迺ｰ蠅・ localStorage 繧偵け繝ｪ繧｢');
         localStorage.removeItem('dev_user');
         localStorage.removeItem('dev_logged_in');
-        console.log('localStorage 繧ｯ繝ｪ繧｢螳御ｺ・);
+        console.log('Cleared localStorage');
       } else {
-        console.log('譛ｬ逡ｪ迺ｰ蠅・ Supabase auth.signOut 螳溯｡・);
+        console.log('Prod: calling supabase auth.signOut');
         await auth.signOut();
       }
       
@@ -553,7 +553,7 @@ function App() {
     } catch (error) {
       console.error('繝ｭ繧ｰ繧｢繧ｦ繝医お繝ｩ繝ｼ:', error);
       if (!(import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development')) {
-        handleApiError(error, '繝ｭ繧ｰ繧｢繧ｦ繝亥・逅・);
+        handleApiError(error, 'ログアウト処理');
       }
     }
   };
@@ -603,24 +603,23 @@ function App() {
       }
     }
 
-    // 繝ｭ繧ｰ繧､繝ｳ貂医∩譎・ 蜍慕判繝励Λ繝・ヨ繝輔か繝ｼ繝
-    // Google隱崎ｨｼ縺ｮ縺ｿ繧｢繧ｯ繧ｻ繧ｹ險ｱ蜿ｯ
+    // ログイン済み時: 許可されていない認証プロバイダーならアクセス不可を表示
     if (!isValidAuthProvider && !publicPages.has(currentPage)) {
       return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center">
           <div className="text-center max-w-md mx-auto p-8">
             <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
-              <span className="text-white text-2xl">笞・・/span>
+              <span className="text-white text-2xl">⚠️</span>
             </div>
-            <h2 className="text-2xl font-bold mb-4">繧｢繧ｯ繧ｻ繧ｹ縺悟宛髯舌＆繧後※縺・∪縺・/h2>
+            <h2 className="text-2xl font-bold mb-4">アクセスが制限されています</h2>
             <p className="text-gray-400 mb-6 leading-relaxed">
-              AI Creative Stock縺ｸ縺ｮ繧｢繧ｯ繧ｻ繧ｹ縺ｫ縺ｯ縲；oogle縺ｾ縺溘・Apple ID縺ｧ縺ｮ繝ｭ繧ｰ繧､繝ｳ縺悟ｿ・ｦ√〒縺吶・
+              AI Creative Stockへのアクセスには、GoogleまたはApple IDでのログインが必要です。
             </p>
-            <button 
+            <button
               onClick={handleLogout}
               className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
             >
-              繝ｭ繧ｰ繧､繝ｳ繝壹・繧ｸ縺ｫ謌ｻ繧・
+              ログインページに戻る
             </button>
           </div>
         </div>
