@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { auth, database, supabase } from '../lib/supabase';
+import { subscriptionPlans } from '../lib/stripe';
 
 interface UserProfile {
   id: string;
@@ -51,6 +52,35 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [monthlyDownloads, setMonthlyDownloads] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
+  const isTestEnv = import.meta.env.VITE_APP_ENV === 'test' || import.meta.env.MODE === 'test';
+  const forceTestStandardPlan =
+    isTestEnv ||
+    String(import.meta.env.VITE_FORCE_TEST_STANDARD_PLAN ?? '').toLowerCase() === 'true';
+
+  const resolveTestSubscription = (data: UserSubscription | null | undefined): UserSubscription | null => {
+    if (data) return data;
+    if (!forceTestStandardPlan) return null;
+
+    const standardPlan = subscriptionPlans.find((plan) => plan.id === 'standard');
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+    return {
+      id: 'test-standard-subscription',
+      plan: 'standard',
+      status: 'active',
+      current_period_end: periodEnd.toISOString(),
+      monthly_download_limit: standardPlan?.monthlyDownloads ?? 20,
+      trial_end_date: undefined,
+      trial_downloads_used: 0,
+      trial_downloads_limit: 0,
+      auto_charge_date: periodEnd.toISOString(),
+      stripe_customer_id: 'test_customer',
+      stripe_subscription_id: 'test_subscription_id'
+    };
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -95,7 +125,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         const { data: subscriptionData } = await database.getUserSubscription(currentUser.id);
         if (isMounted) {
-          setSubscription(subscriptionData);
+          setSubscription(resolveTestSubscription(subscriptionData));
         }
 
         const { count } = await database.getMonthlyDownloadCount(currentUser.id);
@@ -155,7 +185,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       try {
         const { data } = await database.getUserSubscription(user.id);
         if (isActive) {
-          setSubscription(data);
+          setSubscription(resolveTestSubscription(data));
         }
       } catch (error) {
         console.error('サブスクリプション同期エラー:', error);
@@ -219,7 +249,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const { data: subscriptionData } = await database.getUserSubscription(user.id);
-      setSubscription(subscriptionData);
+      setSubscription(resolveTestSubscription(subscriptionData));
 
       const { count } = await database.getMonthlyDownloadCount(user.id);
       setMonthlyDownloads(count);
