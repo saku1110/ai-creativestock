@@ -343,11 +343,12 @@ export const database = {
 
     const { data, error } = await supabase
       .from('download_history')
-      .select('id')
+      .select('video_id')
       .eq('user_id', userId)
       .gte('downloaded_at', startOfMonth.toISOString())
 
-    return { count: data?.length || 0, error }
+    const uniqueCount = data ? new Set(data.map((d: any) => d.video_id)).size : 0
+    return { count: uniqueCount, error }
   },
 
   // 動画ファイルアチE�EローチE

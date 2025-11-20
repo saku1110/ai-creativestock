@@ -108,18 +108,18 @@ export class DownloadLimitManager {
       nextResetDate.setMonth(nextResetDate.getMonth() + 1);
 
       // 現在の請求サイクルでのダウンロード数を取得
-      const { data: downloads, error } = await supabase
-        .from('download_history')
-        .select('id')
-        .eq('user_id', userId)
-        .gte('downloaded_at', cycleStart.toISOString())
-        .lte('downloaded_at', now.toISOString());
+    const { data: downloads, error } = await supabase
+      .from('download_history')
+      .select('video_id')
+      .eq('user_id', userId)
+      .gte('downloaded_at', cycleStart.toISOString())
+      .lte('downloaded_at', now.toISOString());
 
-      if (error) {
-        throw error;
-      }
+    if (error) {
+      throw error;
+    }
 
-      const currentUsage = downloads?.length || 0;
+    const currentUsage = downloads ? new Set(downloads.map((d: any) => d.video_id)).size : 0;
       const remaining = Math.max(0, limitConfig.monthlyLimit - currentUsage);
       const isLimitExceeded = currentUsage >= limitConfig.monthlyLimit;
 
