@@ -184,6 +184,15 @@ function App() {
           }
         }
 
+        // Public LP: no tokens -> skip auth check and render immediately
+        if (!accessToken && !refreshToken && isPublicPage(currentPageRef.current)) {
+          console.log('Public page: no auth tokens detected, skipping auth check');
+          setIsLoggedIn(false);
+          setUserData(null);
+          setIsValidAuthProvider(false);
+          setIsLoading(false);
+          return;
+        }
         // 開発環境では localStorage から認証状態を復元（無効化）
         if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
           console.log('開発環境: 自動ログインを無効化');
