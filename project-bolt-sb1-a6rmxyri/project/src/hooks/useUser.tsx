@@ -52,7 +52,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [monthlyDownloads, setMonthlyDownloads] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
-  const isTestEnv = import.meta.env.VITE_APP_ENV === 'test' || import.meta.env.MODE === 'test';
+  const isTestEnv =
+    import.meta.env.DEV ||
+    import.meta.env.VITE_APP_ENV === 'test' ||
+    import.meta.env.MODE === 'test';
   const forceTestStandardPlan =
     isTestEnv ||
     String(import.meta.env.VITE_FORCE_TEST_STANDARD_PLAN ?? '').toLowerCase() === 'true';
