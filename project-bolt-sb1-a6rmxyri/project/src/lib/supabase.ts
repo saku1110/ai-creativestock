@@ -20,6 +20,9 @@ const isSampleMode = isDevMode && normalizeBool(useSampleFlag)
 
 const supabaseUrl = runtimeEnv?.VITE_SUPABASE_URL || runtimeEnv?.SUPABASE_URL
 const supabaseAnonKey = runtimeEnv?.VITE_SUPABASE_ANON_KEY || runtimeEnv?.SUPABASE_ANON_KEY
+if (typeof window !== 'undefined') {
+  console.log('[supabase env]', { supabaseUrl, supabaseAnonKey: supabaseAnonKey?.slice(0, 8) + '...' })
+}
 const defaultVideoFetchLimit = resolvePositiveInt(
   runtimeEnv?.VITE_DASHBOARD_VIDEO_LIMIT ?? runtimeEnv?.DASHBOARD_VIDEO_LIMIT,
   500
