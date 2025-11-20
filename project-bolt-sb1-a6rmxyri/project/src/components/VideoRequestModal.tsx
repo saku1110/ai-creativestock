@@ -7,37 +7,34 @@ interface VideoRequestModalProps {
   onClose: () => void;
 }
 
+type Feedback =
+  | { type: 'success'; message: string }
+  | { type: 'error'; message: string }
+  | null;
+
+const defaultForm = {
+  age: '',
+  gender: '',
+  bodyType: '',
+  background: '',
+  scene: '',
+  faceDetail: '',
+  notes: ''
+};
+
 const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose }) => {
   const { user } = useUser();
-  const [formData, setFormData] = useState({
-    age: '',
-    gender: '',
-    bodyType: '',
-    background: '',
-    scene: '',
-    faceDetail: '',
-    notes: ''
-  });
+  const [formData, setFormData] = useState(defaultForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<Feedback>(null);
 
-  if (!open) return null;
+  const resetForm = () => {
+    setFormData(defaultForm);
+  };
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = event.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const resetForm = () => {
-    setFormData({
-      age: '',
-      gender: '',
-      bodyType: '',
-      background: '',
-      scene: '',
-      faceDetail: '',
-      notes: ''
-    });
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -48,7 +45,7 @@ const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose }) 
     if (!hasAnyInput) {
       setFeedback({
         type: 'error',
-        message: '少なくとも1項目以上ご入力ください。',
+        message: '少なくとも1項目以上ご入力ください。'
       });
       return;
     }
@@ -63,37 +60,22 @@ const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose }) 
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify({
-          age: formData.age,
-          gender: formData.gender,
-          bodyType: formData.bodyType,
-          background: formData.background,
-          scene: formData.scene,
-          faceDetail: formData.faceDetail,
-          notes: formData.notes,
+          ...formData,
           userEmail: user?.email ?? null,
           userId: user?.id ?? null,
-          requestedAt,
-        }),
+          requestedAt
+        })
       });
 
       if (!response.ok) {
-        let serverMsg = '';
-        try {
-          const data = await response.json();
-          serverMsg = data?.error || JSON.stringify(data);
-        } catch {
-          try {
-            serverMsg = await response.text();
-          } catch {
-            serverMsg = '';
-          }
-        }
+        const data = await response.json().catch(() => null);
+        const serverMsg = data?.error || data?.message;
         throw new Error(serverMsg || '送信に失敗しました');
       }
 
       setFeedback({
         type: 'success',
-        message: 'リクエストを送信しました。担当者よりご連絡いたします。',
+        message: 'リクエストを送信しました。動画がアップロードされるまでしばらくお待ちください。'
       });
       resetForm();
 
@@ -105,15 +87,14 @@ const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose }) 
       console.error('動画リクエスト送信エラー:', error);
       setFeedback({
         type: 'error',
-        message:
-          error instanceof Error
-            ? `送信に失敗しました：${error.message}`
-            : '送信に失敗しました。時間をおいて再度お試しください。',
+        message: error instanceof Error ? `送信に失敗しました: ${error.message}` : '送信に失敗しました。時間をおいて再度お試しください。'
       });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center">
@@ -130,8 +111,7 @@ const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose }) 
       <div className="relative w-full max-w-xl rounded-3xl bg-white shadow-2xl overflow-hidden text-black force-black">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
           <div>
-            <h2 className="text-lg font-bold force-black">動画リクエスト</h2>
-            <p className="text-sm text-black mt-1">ご希望の動画イメージを入力してください</p>
+            <h2 className="text-lg font-bold force-black text-left">動画リクエスト</h2>
           </div>
           <button
             type="button"
@@ -228,6 +208,9 @@ const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose }) 
               placeholder="その他ご要望があれば入力してください"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-black placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 resize-none"
             />
+            <p className="text-xs text-black mt-2 text-left leading-5">
+              ※詳細なシーンを記載してください。曖昧なリクエストや情報が不足している場合、ご希望通りの動画がアップロードされないことがあります。2人以上の人物や細かな動きは反映が難しい場合がございます。
+            </p>
           </div>
 
           {feedback && (
@@ -238,11 +221,7 @@ const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose }) 
                   : 'bg-rose-50 text-rose-600 border border-rose-200'
               }`}
             >
-              {feedback.type === 'success' ? (
-                <CheckCircle className="w-4 h-4" />
-              ) : (
-                <XCircle className="w-4 h-4" />
-              )}
+              {feedback.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
               <span>{feedback.message}</span>
             </div>
           )}

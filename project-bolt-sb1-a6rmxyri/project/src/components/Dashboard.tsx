@@ -1014,8 +1014,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       switch (sortBy) {
         case 'popular':
           return b.download_count - a.download_count;
-        case 'shortest':
-          return a.duration - b.duration;
         case 'newest':
         default:
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -1237,7 +1235,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                         >
                           <option value="popular">人気順</option>
                           <option value="newest">新着順</option>
-                          <option value="shortest">短い順</option>
                         </select>
                       </div>
                     </div>
