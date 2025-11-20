@@ -1,5 +1,5 @@
 import React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { HelmetProvider } from 'react-helmet-async';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -44,6 +44,34 @@ import { auth, database, supabase } from './lib/supabase';
 import { useErrorHandler } from './hooks/useErrorHandler';
 import { pageSEOData, getPageType } from './utils/seoUtils';
 import { User } from '@supabase/supabase-js';
+
+const AUTH_INITIALIZATION_TIMEOUT_MS = 12000;
+
+const withTimeout = async <T,>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string
+): Promise<T> => {
+  if (timeoutMs <= 0) {
+    return promise;
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+};
 
 function App() {
   // URLとクエリから初期ページを判定（/contact 等のパス優先）
@@ -116,14 +144,21 @@ function App() {
   const isNewUserRegistrationRef = useRef(false); // 同期フラグ管理用
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
 
+  const resolvedPage = useMemo(() => {
+    if (!isLoggedIn && !isPublicPage(currentPage)) {
+      return 'landing';
+    }
+    return currentPage;
+  }, [currentPage, isLoggedIn]);
+
   useEffect(() => {
-    currentPageRef.current = currentPage;
-  }, [currentPage]);
+    currentPageRef.current = resolvedPage;
+  }, [resolvedPage]);
 
   // ページ遷移時に最上部にスクロール
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [currentPage]);
+  }, [resolvedPage]);
 
   useEffect(() => {
     if (!isLoggedIn && !isPublicPage(currentPage)) {
@@ -192,10 +227,14 @@ function App() {
           
           try {
             // Supabaseにセッションを設定
-            const { data: { user }, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || ''
-            });
+            const { data: { user }, error } = await withTimeout(
+              supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken || ''
+              }),
+              AUTH_INITIALIZATION_TIMEOUT_MS,
+              'OAuthセッションの確立がタイムアウトしました'
+            );
             
             if (error) throw error;
             
@@ -252,7 +291,11 @@ function App() {
           return;
         }
 
-        const { user } = await auth.getCurrentUser();
+        const { user } = await withTimeout(
+          auth.getCurrentUser(),
+          AUTH_INITIALIZATION_TIMEOUT_MS,
+          '認証状態の確認がタイムアウトしました'
+        );
         console.log('初期化時のユーザー状態:', user ? '認証済み' : '未認証');
         
         if (user) {
@@ -528,7 +571,8 @@ function App() {
   };
 
   const renderContent = () => {
-    console.log('renderContent called:', { isLoggedIn, currentPage, isLoading });
+    const page = resolvedPage;
+    console.log('renderContent called:', { isLoggedIn, requestedPage: currentPage, resolvedPage: page, isLoading });
 
     // Public pages accessible without login
     const publicPages = [
@@ -541,8 +585,8 @@ function App() {
       'payment-success',
       'payment-cancel'
     ];
-    if (publicPages.includes(currentPage)) {
-      switch (currentPage) {
+    if (publicPages.includes(page)) {
+      switch (page) {
         case 'terms':
           return <TermsOfService onPageChange={handlePageChange} />;
         case 'privacy':
@@ -569,7 +613,7 @@ function App() {
 
     if (!isLoggedIn) {
       // 未ログイン時: ランディングページ選択
-      if (currentPage === 'simple-landing') {
+      if (page === 'simple-landing') {
         // シンプルLPを表示
         return (
           <SimpleLandingPage
@@ -578,7 +622,7 @@ function App() {
             setShowAuthModal={setShowAuthModal}
           />
         );
-      } else if (currentPage === 'white-landing') {
+      } else if (page === 'white-landing') {
         // 白背景LPを表示
         return (
           <WhiteLandingPage
@@ -589,7 +633,7 @@ function App() {
             onLoginRequest={handleLoginRequest}
           />
         );
-      } else if (currentPage === 'landing') {
+      } else if (page === 'landing') {
         // 従来のLPを表示（黒背景）
         return (
           <>
@@ -633,7 +677,7 @@ function App() {
       );
     }
 
-    switch (currentPage) {
+    switch (page) {
       case 'dashboard':
         return <Dashboard onLogout={handleLogout} onPageChange={handlePageChange} />;
       case 'mypage':
@@ -673,8 +717,11 @@ function App() {
     }
   };
 
-  // ローディング中の表示
-  if (isLoading) {
+  const isCurrentPagePublic = isPublicPage(resolvedPage);
+  const shouldShowGlobalLoading = isLoading && (!isCurrentPagePublic || isLoggedIn);
+
+  // ローディング中の表示（公開ページ以外のみブロック）
+  if (shouldShowGlobalLoading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
@@ -686,7 +733,7 @@ function App() {
   }
 
   // SEOデータを取得
-  const pageType = getPageType(currentPage);
+  const pageType = getPageType(resolvedPage);
   const seoData = pageType ? pageSEOData[pageType] : pageSEOData.dashboard;
   const pagePathMap: Record<string, string> = {
     landing: '/',
@@ -695,8 +742,8 @@ function App() {
     'payment-success': '/payment/success',
     'payment-cancel': '/payment/cancel'
   };
-  const resolvedPath = pagePathMap[currentPage] || `/${currentPage}`;
-  const pathname = (isLoggedIn || PUBLIC_PAGES.includes(currentPage)) ? resolvedPath : '/';
+  const resolvedPath = pagePathMap[resolvedPage] || `/${resolvedPage}`;
+  const pathname = (isLoggedIn || PUBLIC_PAGES.includes(resolvedPage)) ? resolvedPath : '/';
 
   return (
     <HelmetProvider>
@@ -715,7 +762,7 @@ function App() {
           <div className="min-h-screen">
             
             {/* シンプルLPと白背景LPの場合はヘッダー・フッターを表示しない */}
-            {(currentPage === 'simple-landing' || currentPage === 'white-landing') ? (
+            {(resolvedPage === 'simple-landing' || resolvedPage === 'white-landing') ? (
               <div>
                 {renderContent()}
               </div>
@@ -724,7 +771,7 @@ function App() {
                 {/* ヘッダーは黒背景を維持 */}
                 <div className="bg-black text-white">
                   <Header
-                    currentPage={currentPage}
+                    currentPage={resolvedPage}
                     onPageChange={handlePageChange}
                     isLoggedIn={isLoggedIn}
                     onAuthRequest={handleAuthRequest}
