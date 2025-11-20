@@ -834,12 +834,32 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       return;
     }
 
-    let historyRecorded = false;
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    let alreadyDownloadedThisMonth = false;
     try {
-      await database.addDownloadHistory(user.id, video.id);
-      historyRecorded = true;
+      const { data: existing } = await supabase
+        .from('download_history')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('video_id', video.id)
+        .gte('downloaded_at', startOfMonth.toISOString())
+        .limit(1);
+      alreadyDownloadedThisMonth = (existing?.length || 0) > 0;
     } catch (error) {
-      console.error('ダウンロード履歴の記録に失敗しました:', error);
+      console.error('既存ダウンロード確認エラー:', error);
+    }
+
+    let historyRecorded = false;
+    if (!alreadyDownloadedThisMonth) {
+      try {
+        await database.addDownloadHistory(user.id, video.id);
+        historyRecorded = true;
+      } catch (error) {
+        console.error('ダウンロード履歴の登録に失敗しました:', error);
+      }
     }
 
     if (historyRecorded) {
@@ -2035,3 +2055,4 @@ const VideoCard: React.FC<{
 
 
 export default Dashboard;
+
