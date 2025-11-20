@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+﻿import { createClient } from '@supabase/supabase-js'
 import type { BeautySubCategory } from '../utils/categoryInference'
 
 const runtimeEnv: Record<string, any> = (typeof import.meta !== 'undefined' && (import.meta as any).env)
@@ -111,9 +111,9 @@ export const supabase: any = isSampleMode
       return createClient(supabaseUrl, supabaseAnonKey)
     })()
 
-// 認証関連のヘルパー関数
+// 認証関連のヘルパ�E関数
 export const auth = {
-  // Google認証（既存ユーザーログイン用）
+  // Google認証�E�既存ユーザーログイン用�E�E
   signInWithGoogle: async () => {
     if (isSampleMode) {
       // Simulate a successful Google login locally
@@ -137,7 +137,7 @@ export const auth = {
     return { data, error }
   },
 
-  // Google認証（新規ユーザー登録用）
+  // Google認証�E�新規ユーザー登録用�E�E
   signUpWithGoogle: async () => {
     if (isSampleMode) {
       currentUser = {
@@ -145,8 +145,8 @@ export const auth = {
         email: 'new.user@gmail.com',
         app_metadata: { provider: 'google' },
         user_metadata: {
-          full_name: '開発ユーザー(新規)',
-          name: '開発ユーザー(新規)'
+          full_name: '開発ユーザー(新要E',
+          name: '開発ユーザー(新要E'
         }
       }
       notifyAuth('SIGNED_IN')
@@ -192,7 +192,7 @@ export const auth = {
     return { data, error }
   },
 
-  // ログアウト
+  // ログアウチE
   signOut: async () => {
     if (isSampleMode) {
       currentUser = null
@@ -203,7 +203,7 @@ export const auth = {
     return { error }
   },
 
-  // 現在のユーザー取得
+  // 現在のユーザー取征E
   getCurrentUser: async () => {
     if (isSampleMode) {
       return { user: currentUser, error: null }
@@ -212,7 +212,7 @@ export const auth = {
     return { user, error }
   },
 
-  // 認証状態の変更を監視
+  // 認証状態�E変更を監要E
   onAuthStateChange: (callback: (event: string, session: unknown) => void) => {
     if (isSampleMode) {
       authListeners.push(callback)
@@ -225,9 +225,9 @@ export const auth = {
   }
 }
 
-// データベース関連のヘルパー関数
+// チE�Eタベ�Eス関連のヘルパ�E関数
 export const database = {
-  // ユーザープロフィール取得
+  // ユーザープロフィール取征E
   getUserProfile: async (userId: string) => {
     const { data, error } = await supabase
       .from('profiles')
@@ -248,8 +248,7 @@ export const database = {
     return { data, error }
   },
 
-  // 動画アセット取得
-  getVideoAssets: async (category?: string, limit = defaultVideoFetchLimit) => {
+  // 動画アセチE��取征E  getVideoAssets: async (category?: string, limit = defaultVideoFetchLimit) => {
     if (!supabaseUrl || !supabaseAnonKey) {
       return { data: null, error: new Error('Missing Supabase environment variables') }
     }
@@ -280,30 +279,23 @@ export const database = {
   },
 
   getDownloadCounts: async () => {
+    if (isSampleMode) {
+      return { data: [], error: null }
+    }
+
     if (!supabaseUrl || !supabaseAnonKey) {
       return { data: null, error: new Error('Missing Supabase environment variables') }
     }
 
-    const url = new URL(`${supabaseUrl}/rest/v1/download_history`)
-    url.searchParams.set('select', 'video_id,count=video_id')
-    url.searchParams.set('group', 'video_id')
+    const { data, error } = await supabase
+      .from('download_history')
+      .select('video_id, count:video_id', { head: false })
+      .group('video_id')
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`
-      }
-    })
-
-    if (!response.ok) {
-      return { data: null, error: new Error(`Supabase REST error ${response.status}`) }
-    }
-
-    const data = await response.json()
-    return { data, error: null }
+    return { data, error }
   },
 
-  // サブスクリプション情報取得
+  // サブスクリプション惁E��取征E
   getUserSubscription: async (userId: string) => {
     const { data, error } = await supabase
       .from('subscriptions')
@@ -315,6 +307,19 @@ export const database = {
 
   // ダウンロード履歴追加
   addDownloadHistory: async (userId: string, videoId: string) => {
+    if (isSampleMode) {
+      // サンプルモードでは実際のDBには書かず、�E功レスポンスを返す
+      return {
+        data: {
+          id: 'sample-download',
+          user_id: userId,
+          video_id: videoId,
+          downloaded_at: new Date().toISOString()
+        },
+        error: null
+      }
+    }
+
     const { data, error } = await supabase
       .from('download_history')
       .insert([
@@ -329,7 +334,7 @@ export const database = {
     return { data, error }
   },
 
-  // 月間ダウンロード数取得
+  // 月間ダウンロード数取征E
   getMonthlyDownloadCount: async (userId: string) => {
     const startOfMonth = new Date()
     startOfMonth.setDate(1)
@@ -344,7 +349,7 @@ export const database = {
     return { count: data?.length || 0, error }
   },
 
-  // 動画ファイルアップロード
+  // 動画ファイルアチE�EローチE
   uploadVideo: async (file: File, category?: string) => {
     const fileExt = file.name.split('.').pop()
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`
@@ -372,7 +377,7 @@ export const database = {
     return { data: { publicUrl, path: filePath }, error: null }
   },
 
-  // サムネイルアップロード
+  // サムネイルアチE�EローチE
   uploadThumbnail: async (file: File, category?: string) => {
     const fileExt = file.name.split('.').pop()
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`
@@ -399,7 +404,7 @@ export const database = {
     return { data: { publicUrl, path: filePath }, error: null }
   },
 
-  // 動画アセット作成（CSRF保護付き）
+  // 動画アセチE��作�E�E�ESRF保護付き�E�E
   createVideoAsset: async (videoData: {
     title: string
     description: string
@@ -412,10 +417,10 @@ export const database = {
     is_featured: boolean
     beauty_sub_category?: BeautySubCategory | null
   }, csrfToken?: string) => {
-    // CSRFトークンの検証（フロントエンドでの基本チェック）
+    // CSRFト�Eクンの検証�E�フロントエンドでの基本チェチE���E�E
     const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
     if (isBrowser && !csrfToken) {
-      return { data: null, error: new Error('CSRFトークンが必要です') }
+      return { data: null, error: new Error('CSRFト�Eクンが忁E��でぁE) }
     }
 
     const { data, error } = await supabase
@@ -431,7 +436,7 @@ export const database = {
     return { data, error }
   },
 
-  // 管理者チェック（データベースベース）
+  // 管琁E��E��ェチE���E�データベ�Eスベ�Eス�E�E
   checkAdminStatus: async (userId: string) => {
     const { data, error } = await supabase
       .from('admin_users')
@@ -446,7 +451,7 @@ export const database = {
     return { isAdmin: !!data, role: data?.role, permissions: data?.permissions, error: null }
   },
 
-  // 管理者ユーザー追加（既存の管理者のみ実行可能）
+  // 管琁E��E��ーザー追加�E�既存�E管琁E��E�Eみ実行可能�E�E
   addAdminUser: async (userId: string, role = 'admin', permissions: string[] = []) => {
     const { data, error } = await supabase
       .from('admin_users')
@@ -461,7 +466,7 @@ export const database = {
     return { data, error }
   },
 
-  // ステージング動画の一覧取得
+  // スチE�Eジング動画の一覧取征E
   getStagingVideos: async () => {
     if (isSampleMode) {
       return { data: [], error: null }
@@ -475,10 +480,10 @@ export const database = {
     return { data, error }
   },
 
-  // ステージング動画のメタデータ更新
+  // スチE�Eジング動画のメタチE�Eタ更新
   updateStagingVideo: async (videoId: string, updates: Record<string, unknown>) => {
     if (isSampleMode) {
-      return { data: null, error: new Error('ステージング操作はサンプルデータモードでは無効です') }
+      return { data: null, error: new Error('スチE�Eジング操作�EサンプルチE�Eタモードでは無効でぁE) }
     }
 
     const payload = { ...updates }
@@ -496,7 +501,7 @@ export const database = {
     return { data, error }
   },
 
-  // ステージング動画の承認処理
+  // スチE�Eジング動画の承認�E琁E
   approveStagingVideo: async (
     videoId: string,
     options: {
@@ -511,7 +516,7 @@ export const database = {
     } = {}
   ) => {
     if (isSampleMode) {
-      return { data: null, error: new Error('ステージング操作はサンプルデータモードでは無効です') }
+      return { data: null, error: new Error('スチE�Eジング操作�EサンプルチE�Eタモードでは無効でぁE) }
     }
 
     const { data: staging, error: fetchError } = await supabase
@@ -547,7 +552,7 @@ export const database = {
       (typeof staging.file_url === 'string' && staging.file_url.startsWith('video-assets/') ? staging.file_url : undefined)
 
     if (!sourcePath) {
-      return { data: null, error: new Error('ステージング動画のストレージパスが見つかりませんでした') }
+      return { data: null, error: new Error('スチE�Eジング動画のストレージパスが見つかりませんでした') }
     }
 
     const fileExtMatch = sourcePath.match(/\.([a-zA-Z0-9]+)$/)
@@ -648,10 +653,10 @@ export const database = {
     return { data: { staging: updatedStaging, asset }, error: updateError }
   },
 
-  // ステージング動画の却下処理
+  // スチE�Eジング動画の却下�E琁E
   rejectStagingVideo: async (videoId: string, reason: string, reviewerId?: string) => {
     if (isSampleMode) {
-      return { data: null, error: new Error('ステージング操作はサンプルデータモードでは無効です') }
+      return { data: null, error: new Error('スチE�Eジング操作�EサンプルチE�Eタモードでは無効でぁE) }
     }
 
     const now = new Date().toISOString()
@@ -672,3 +677,4 @@ export const database = {
     return { data, error }
   }
 }
+
