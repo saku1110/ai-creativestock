@@ -83,12 +83,12 @@ const makeDevSupabase = () => {
     from: () => chain(),
     storage: {
       from: () => ({
-        async upload() { return { data: null, error: new Error('Disabled in dev sample mode') } },
+        async upload() { return { data: null, error: new Error('CSRF token is required') }
         async createSignedUrl() { return { data: { signedUrl: '' }, error: null } },
         getPublicUrl() { return { data: { publicUrl: '' } } },
-        async move() { return { data: null, error: new Error('Disabled in dev sample mode') } },
-        async remove() { return { data: null, error: new Error('Disabled in dev sample mode') } },
-        async copy() { return { data: null, error: new Error('Disabled in dev sample mode') } }
+        async move() { return { data: null, error: new Error('CSRF token is required') }
+        async remove() { return { data: null, error: new Error('CSRF token is required') }
+        async copy() { return { data: null, error: new Error('CSRF token is required') }
       })
     },
     functions: {
@@ -251,7 +251,7 @@ export const database = {
     // Fetch video assets
   getVideoAssets: async (category?: string, limit = defaultVideoFetchLimit) => {
     if (!supabaseUrl || !supabaseAnonKey) {
-      return { data: null, error: new Error('Missing Supabase environment variables') }
+      return { data: null, error: new Error('CSRF token is required') }
     }
 
     const safeLimit = Math.max(25, Math.min(limit, 2000))
@@ -272,7 +272,7 @@ export const database = {
     })
 
     if (!response.ok) {
-      return { data: null, error: new Error(`Supabase REST error ${response.status}`) }
+      return { data: null, error: new Error('CSRF token is required') }
     }
 
     const data = await response.json()
@@ -285,7 +285,7 @@ export const database = {
     }
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      return { data: null, error: new Error('Missing Supabase environment variables') }
+      return { data: null, error: new Error('CSRF token is required') }
     }
 
     const { data, error } = await supabase
@@ -421,7 +421,7 @@ export const database = {
     // CSRFト�Eクンの検証�E�フロントエンドでの基本チェチE���E�E
     const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
     if (isBrowser && !csrfToken) {
-      return { data: null, error: new Error('CSRFト�Eクンが忁E��でぁE) }
+      return { data: null, error: new Error('CSRF token is required') }
     }
 
     const { data, error } = await supabase
@@ -484,7 +484,7 @@ export const database = {
   // スチE�Eジング動画のメタチE�Eタ更新
   updateStagingVideo: async (videoId: string, updates: Record<string, unknown>) => {
     if (isSampleMode) {
-      return { data: null, error: new Error('スチE�Eジング操作�EサンプルチE�Eタモードでは無効でぁE) }
+      return { data: null, error: new Error('CSRF token is required') }
     }
 
     const payload = { ...updates }
@@ -517,7 +517,7 @@ export const database = {
     } = {}
   ) => {
     if (isSampleMode) {
-      return { data: null, error: new Error('スチE�Eジング操作�EサンプルチE�Eタモードでは無効でぁE) }
+      return { data: null, error: new Error('CSRF token is required') }
     }
 
     const { data: staging, error: fetchError } = await supabase
@@ -553,7 +553,7 @@ export const database = {
       (typeof staging.file_url === 'string' && staging.file_url.startsWith('video-assets/') ? staging.file_url : undefined)
 
     if (!sourcePath) {
-      return { data: null, error: new Error('スチE�Eジング動画のストレージパスが見つかりませんでした') }
+      return { data: null, error: new Error('CSRF token is required') }
     }
 
     const fileExtMatch = sourcePath.match(/\.([a-zA-Z0-9]+)$/)
@@ -657,7 +657,7 @@ export const database = {
   // スチE�Eジング動画の却下�E琁E
   rejectStagingVideo: async (videoId: string, reason: string, reviewerId?: string) => {
     if (isSampleMode) {
-      return { data: null, error: new Error('スチE�Eジング操作�EサンプルチE�Eタモードでは無効でぁE) }
+      return { data: null, error: new Error('CSRF token is required') }
     }
 
     const now = new Date().toISOString()
@@ -678,5 +678,7 @@ export const database = {
     return { data, error }
   }
 }
+
+
 
 
