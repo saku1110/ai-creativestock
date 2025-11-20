@@ -76,6 +76,17 @@ function App() {
   const isNewUserRegistrationRef = useRef(false); // 同期フラグ管理用
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
   const AUTH_CHECK_TIMEOUT_MS = 20000;
+
+  const getAuthParams = () => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const pick = (key: string) => searchParams.get(key) || hashParams.get(key);
+    return {
+      accessToken: pick('access_token'),
+      refreshToken: pick('refresh_token'),
+      mode: pick('mode')
+    };
+  };
   // 応答しない非同期処理でロードが解除されないのを防ぐための簡易タイムアウト
   const runWithTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
     return await Promise.race([
@@ -126,10 +137,7 @@ function App() {
     const initializeAuth = async () => {
       try {
         // URLパラメータを確認
-        const urlParams = new URLSearchParams(window.location.search);
-        const accessToken = urlParams.get('access_token');
-        const refreshToken = urlParams.get('refresh_token');
-        const mode = urlParams.get('mode');
+        const { accessToken, refreshToken, mode } = getAuthParams();
         
         console.log('=== 초기화 処理開始 ===');
         console.log('URLパラメータ詳細:', { 
@@ -282,7 +290,6 @@ function App() {
             console.log('初期化: 未認証ユーザー - 公開ページを維持:', activePage);
           }
         }
-        const msg = (error as Error)?.message?.toLowerCase?.() || '';
       } catch (error) {
         const msg = (error as Error)?.message?.toLowerCase?.() || '';
         const isTimeout = msg.includes('timeout') || msg.includes('タイムアウト');
@@ -752,5 +759,8 @@ function App() {
 }
 
 export default App;
+
+
+
 
 
