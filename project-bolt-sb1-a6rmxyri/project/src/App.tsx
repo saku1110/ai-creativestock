@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { HelmetProvider } from 'react-helmet-async';
 import Header from './components/Header';
@@ -75,6 +75,15 @@ function App() {
   const [isNewUserRegistration, setIsNewUserRegistration] = useState(false);
   const isNewUserRegistrationRef = useRef(false); // 同期フラグ管理用
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
+  // 応答しない非同期処理でロードが解除されないのを防ぐための簡易タイムアウト
+  const runWithTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`${label} がタイムアウトしました`)), ms)
+      )
+    ]);
+  };
 
   useEffect(() => {
     currentPageRef.current = currentPage;
@@ -210,7 +219,7 @@ function App() {
           return;
         }
 
-        const { user } = await auth.getCurrentUser();
+        const { user } = await runWithTimeout(auth.getCurrentUser(), 10000, '認証状態の確認');
         console.log('初期化時のユーザー状態:', user ? '認証済み' : '未認証');
         
         if (user) {
@@ -333,6 +342,7 @@ function App() {
       console.log('認証状態監視リスナー設定完了');
     } catch (error) {
       console.error('認証状態監視エラー:', error);
+      setIsLoading(false);
     }
 
     return () => {
