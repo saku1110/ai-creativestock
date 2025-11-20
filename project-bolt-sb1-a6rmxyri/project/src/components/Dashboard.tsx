@@ -1356,6 +1356,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
           isOpen={true}
           onClose={() => setSelectedVideoForModal(null)}
           onDownload={() => handleDownload(selectedVideoForModal)}
+          onNavigateToPricing={handleUpgradeClick}
+          isFavorited={userFavorites.has(selectedVideoForModal.id)}
+          onToggleFavorite={toggleFavorite}
         />
       )}
     </div>
