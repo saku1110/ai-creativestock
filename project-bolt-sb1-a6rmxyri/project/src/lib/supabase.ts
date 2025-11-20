@@ -83,12 +83,12 @@ const makeDevSupabase = () => {
     from: () => chain(),
     storage: {
       from: () => ({
-        async upload() { return { data: null, error: new Error('CSRF token is required') }
+        async upload() { return { data: null, error: new Error('Disabled in dev sample mode') } },
         async createSignedUrl() { return { data: { signedUrl: '' }, error: null } },
         getPublicUrl() { return { data: { publicUrl: '' } } },
-        async move() { return { data: null, error: new Error('CSRF token is required') }
-        async remove() { return { data: null, error: new Error('CSRF token is required') }
-        async copy() { return { data: null, error: new Error('CSRF token is required') }
+        async move() { return { data: null, error: new Error('Disabled in dev sample mode') } },
+        async remove() { return { data: null, error: new Error('Disabled in dev sample mode') } },
+        async copy() { return { data: null, error: new Error('Disabled in dev sample mode') } }
       })
     },
     functions: {
