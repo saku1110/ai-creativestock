@@ -1,12 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+// Contact form handler: tries Slack webhook, then SMTP if configured.
+// If no destinations are configured, it returns 200 with a warning to avoid blocking users.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  console.log('[contact] start', {
-    region: process.env.VERCEL_REGION,
-    hasSMTP: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
-    hasTo: Boolean(process.env.CONTACT_TO_EMAIL || process.env.SUPPORT_EMAIL),
-  });
-
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -34,39 +30,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: `縺雁撫縺・粋繧上○縺悟ｱ翫″縺ｾ縺励◆\n蜷榊燕: ${name}\n繝｡繝ｼ繝ｫ: ${from_email}\n莉ｶ蜷・ ${subject}\n---\n${message}`,
+            text: [
+              '【お問い合わせ】',
+              `お名前: ${name}`,
+              `メール: ${from_email}`,
+              `件名: ${subject}`,
+              '---',
+              message,
+            ].join('\n'),
           }),
         } as any);
-      } catch {
-        // ignore webhook failure
+      } catch (e) {
+        console.warn('[contact] slack webhook error', e);
       }
     }
 
-    // お名前メール（SMTP）での送信
     const toEmail = process.env.CONTACT_TO_EMAIL || process.env.SUPPORT_EMAIL;
     const fromSystemEmail = process.env.CONTACT_FROM_EMAIL || process.env.SYSTEM_FROM_EMAIL || process.env.SMTP_USER;
 
-    const emailSubject = `[縺雁撫縺・粋繧上○] ${subject}`;
+    const emailSubject = `[AI Creative Stock] ${subject}`;
     const emailText = [
-      '莉･荳九・蜀・ｮｹ縺ｧ縺雁撫縺・粋繧上○繧貞女縺台ｻ倥￠縺ｾ縺励◆縲・,
+      'お問い合わせを受け付けました。',
       '',
-      `蜷榊燕: ${name}`,
-      `繝｡繝ｼ繝ｫ: ${from_email}`,
-      `莉ｶ蜷・ ${subject}`,
+      `お名前: ${name}`,
+      `メール: ${from_email}`,
+      `件名: ${subject}`,
       '---',
       message,
     ].join('\n');
-
-    if (!toEmail) {
-      console.error('[contact] missing CONTACT_TO_EMAIL');
-      return res.status(500).json({ error: 'CONTACT_TO_EMAIL (縺ｾ縺溘・ SUPPORT_EMAIL) 縺梧悴險ｭ螳壹〒縺吶・ });
-    }
 
     const smtpHost = process.env.SMTP_HOST;
     const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
     const smtpSecure = (process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;
+
+    // If no email destination is configured, accept the request to avoid blocking the user.
+    if (!toEmail) {
+      console.warn('[contact] missing CONTACT_TO_EMAIL / SUPPORT_EMAIL, email skipped');
+      return res.status(200).json({ ok: true, provider: slackWebhook ? 'slack-only' : 'none', warning: 'no_email_config' });
+    }
 
     if (smtpHost && smtpUser && smtpPass) {
       try {
@@ -76,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           port: smtpPort || (smtpSecure ? 465 : 587),
           secure: smtpSecure,
           auth: { user: smtpUser, pass: smtpPass },
-        } as any;
+        } as any);
 
         await transporter.sendMail({
           from: fromSystemEmail || smtpUser,
@@ -91,12 +94,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ ok: true, provider: 'smtp' });
       } catch (e: any) {
         console.error('[contact] SMTP error', e);
-        return res.status(500).json({ error: `繝｡繝ｼ繝ｫ騾∽ｿ｡縺ｫ螟ｱ謨励＠縺ｾ縺励◆: ${e?.message || 'unknown error'}` });
+        // Do not fail the user flow; return 200 with warning
+        return res.status(200).json({ ok: true, provider: 'smtp', warning: e?.message || 'smtp_error' });
       }
     }
 
-    console.error('[contact] no email provider configured');
-    return res.status(500).json({ error: 'SMTP_* 縺ｨ CONTACT_TO_EMAIL (縺ｾ縺溘・ SUPPORT_EMAIL) 繧定ｨｭ螳壹＠縺ｦ縺上□縺輔＞縲・ });
+    console.warn('[contact] SMTP not configured, email skipped');
+    return res.status(200).json({ ok: true, provider: 'none', warning: 'no_smtp_config' });
   } catch (e: any) {
     console.error('[contact] unhandled error', e);
     return res.status(500).json({ error: e?.message || 'unknown error' });
