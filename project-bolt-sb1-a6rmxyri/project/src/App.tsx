@@ -1,5 +1,5 @@
 import React from 'react';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { HelmetProvider } from 'react-helmet-async';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -25,7 +25,6 @@ import AdminUpload from './components/AdminUpload';
 import AdminStagingReview from './components/AdminStagingReview';
 import AutoUpload from './components/AutoUpload';
 import AuthModal from './components/AuthModal';
-import RegistrationModal from './components/RegistrationModal';
 import ContactModal from './components/ContactModal';
 import PricingPage from './components/PricingPage';
 import PaymentSuccess from './components/PaymentSuccess';
@@ -45,85 +44,19 @@ import { useErrorHandler } from './hooks/useErrorHandler';
 import { pageSEOData, getPageType } from './utils/seoUtils';
 import { User } from '@supabase/supabase-js';
 
-const AUTH_INITIALIZATION_TIMEOUT_MS = 12000;
-
-const withTimeout = async <T,>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  timeoutMessage: string
-): Promise<T> => {
-  if (timeoutMs <= 0) {
-    return promise;
-  }
-
-  return new Promise<T>((resolve, reject) => {
-    const timeoutId = window.setTimeout(() => {
-      reject(new Error(timeoutMessage));
-    }, timeoutMs);
-
-    promise
-      .then((value) => {
-        window.clearTimeout(timeoutId);
-        resolve(value);
-      })
-      .catch((error) => {
-        window.clearTimeout(timeoutId);
-        reject(error);
-      });
-  });
-};
-
 function App() {
   // URLとクエリから初期ページを判定（/contact 等のパス優先）
   const urlParams = new URLSearchParams(window.location.search);
-  const pathSegments = (typeof window !== 'undefined'
-    ? window.location.pathname.split('/').filter(Boolean)
-    : []);
-  const primarySegment = pathSegments[0] || '';
-  const secondarySegment = pathSegments[1] || '';
-
-  const PATH_PAGES = [
-    'terms',
-    'privacy',
-    'refund',
-    'commercial',
-    'contact',
-    'pricing',
-    'landing',
-    'simple-landing',
-    'white-landing',
-    'payment-success',
-    'payment-cancel'
-  ];
-
-  const specialPath = primarySegment === 'payment'
-    ? (secondarySegment === 'success'
-        ? 'payment-success'
-        : secondarySegment === 'cancel'
-          ? 'payment-cancel'
-          : null)
-    : null;
-
-  const initialVariant = specialPath
-    ? specialPath
-    : (PATH_PAGES.includes(primarySegment)
-        ? primarySegment
-        : (urlParams.get('variant') || 'landing'));
+  const pathSegment = (typeof window !== 'undefined'
+    ? window.location.pathname.split('/').filter(Boolean)[0]
+    : '') || '';
+  const PATH_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
+  const initialVariant = (PATH_PAGES.includes(pathSegment)
+    ? pathSegment
+    : (urlParams.get('variant') || 'landing'));
 
   // Public pages that don't require authentication
-  const PUBLIC_PAGES = [
-    'terms',
-    'privacy',
-    'refund',
-    'commercial',
-    'contact',
-    'pricing',
-    'landing',
-    'simple-landing',
-    'white-landing',
-    'payment-success',
-    'payment-cancel'
-  ];
+  const PUBLIC_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
   const isPublicPage = (page?: string | null) => {
     if (!page) {
       return true;
@@ -135,7 +68,6 @@ function App() {
   const currentPageRef = useRef(currentPage);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [userData, setUserData] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -144,21 +76,14 @@ function App() {
   const isNewUserRegistrationRef = useRef(false); // 同期フラグ管理用
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
 
-  const resolvedPage = useMemo(() => {
-    if (!isLoggedIn && !isPublicPage(currentPage)) {
-      return 'landing';
-    }
-    return currentPage;
-  }, [currentPage, isLoggedIn]);
-
   useEffect(() => {
-    currentPageRef.current = resolvedPage;
-  }, [resolvedPage]);
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
 
   // ページ遷移時に最上部にスクロール
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [resolvedPage]);
+  }, [currentPage]);
 
   useEffect(() => {
     if (!isLoggedIn && !isPublicPage(currentPage)) {
@@ -175,8 +100,7 @@ function App() {
 
     // ユーザーの認証プロバイダーをチェック
     const authProvider = user.app_metadata?.provider;
-    // Allow both Google OAuth and email/password users in production
-    const validProviders = ['google', 'email'];
+    const validProviders = ['google'];
     
     console.log('Auth provider check:', { 
       provider: authProvider, 
@@ -193,10 +117,9 @@ function App() {
       try {
         // URLパラメータを確認
         const urlParams = new URLSearchParams(window.location.search);
-        const hashParams = new URLSearchParams(window.location.hash?.replace(/^#/, '') || '');
-        const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
-        const refreshToken = urlParams.get('refresh_token') || hashParams.get('refresh_token');
-        const mode = urlParams.get('mode') || hashParams.get('mode');
+        const accessToken = urlParams.get('access_token');
+        const refreshToken = urlParams.get('refresh_token');
+        const mode = urlParams.get('mode');
         
         console.log('=== 초기화 処理開始 ===');
         console.log('URLパラメータ詳細:', { 
@@ -227,14 +150,10 @@ function App() {
           
           try {
             // Supabaseにセッションを設定
-            const { data: { user }, error } = await withTimeout(
-              supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken || ''
-              }),
-              AUTH_INITIALIZATION_TIMEOUT_MS,
-              'OAuthセッションの確立がタイムアウトしました'
-            );
+            const { data: { user }, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || ''
+            });
             
             if (error) throw error;
             
@@ -291,11 +210,7 @@ function App() {
           return;
         }
 
-        const { user } = await withTimeout(
-          auth.getCurrentUser(),
-          AUTH_INITIALIZATION_TIMEOUT_MS,
-          '認証状態の確認がタイムアウトしました'
-        );
+        const { user } = await auth.getCurrentUser();
         console.log('初期化時のユーザー状態:', user ? '認証済み' : '未認証');
         
         if (user) {
@@ -308,8 +223,8 @@ function App() {
 
           if (validProvider) {
             const activePage = currentPageRef.current;
-            // Force dashboard after login unless already there
-            if (activePage !== 'dashboard') {
+            // Only redirect to dashboard if not on a public page
+            if (!isPublicPage(activePage)) {
               setCurrentPage('dashboard');
               console.log('初期化: 認証済みユーザー - ダッシュボードに移動 - ref:', isNewUserRegistrationRef.current);
             } else {
@@ -385,8 +300,8 @@ function App() {
                 setIsNewUserRegistration(false);
               } else {
                 console.log('既存ユーザー認証成功');
-                // Force dashboard unless already viewing it
-                if (activePage !== 'dashboard') {
+                // Only redirect to dashboard if not on a public page
+                if (!isPublicPage(activePage)) {
                   console.log('ダッシュボードに移動');
                   setCurrentPage('dashboard');
                 } else {
@@ -487,12 +402,12 @@ function App() {
   };
 
   const handleRegistrationRequest = () => {
-    // ログインしていない場合は新規登録モーダルを表示
+    // ログインしていない場合は認証モーダルを表示
     if (!isLoggedIn) {
       isNewUserRegistrationRef.current = true; // refを先に設定
       setIsNewUserRegistration(true); // 新規登録なのでフラグをtrueに
       console.log('handleRegistrationRequest: 新規登録フラグを設定 - ref:', isNewUserRegistrationRef.current);
-      setShowRegistrationModal(true); // 新規登録モーダルを表示
+      setShowAuthModal(true);
       return;
     }
     // ログイン済みの場合は料金ページへ
@@ -509,7 +424,7 @@ function App() {
   const handlePurchaseRequest = () => {
     // ログインしていない場合は認証モーダルを表示
     if (!isLoggedIn) {
-      handleRegistrationRequest();
+      setShowAuthModal(true);
       return;
     }
     // ログイン済みの場合は料金ページへ
@@ -524,7 +439,10 @@ function App() {
     setShowAuthModal(false);
 
     if (validProvider) {
-      setCurrentPage('dashboard');
+      // Only redirect to dashboard if not on a public page
+      if (!PUBLIC_PAGES.includes(currentPage)) {
+        setCurrentPage('dashboard');
+      }
     } else {
       setCurrentPage('landing');
       handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
@@ -571,22 +489,12 @@ function App() {
   };
 
   const renderContent = () => {
-    const page = resolvedPage;
-    console.log('renderContent called:', { isLoggedIn, requestedPage: currentPage, resolvedPage: page, isLoading });
+    console.log('renderContent called:', { isLoggedIn, currentPage, isLoading });
 
     // Public pages accessible without login
-    const publicPages = [
-      'terms',
-      'privacy',
-      'refund',
-      'commercial',
-      'contact',
-      'pricing',
-      'payment-success',
-      'payment-cancel'
-    ];
-    if (publicPages.includes(page)) {
-      switch (page) {
+    const publicPages = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing'];
+    if (publicPages.includes(currentPage)) {
+      switch (currentPage) {
         case 'terms':
           return <TermsOfService onPageChange={handlePageChange} />;
         case 'privacy':
@@ -598,22 +506,13 @@ function App() {
         case 'contact':
           return <Contact onPageChange={handlePageChange} />;
         case 'pricing':
-          return (
-            <PricingPage
-              onPageChange={handlePageChange}
-              onRequireRegistration={handleRegistrationRequest}
-            />
-          );
-        case 'payment-success':
-          return <PaymentSuccess />;
-        case 'payment-cancel':
-          return <PaymentCancel />;
+          return <PricingPage onPageChange={handlePageChange} />;
       }
     }
 
     if (!isLoggedIn) {
       // 未ログイン時: ランディングページ選択
-      if (page === 'simple-landing') {
+      if (currentPage === 'simple-landing') {
         // シンプルLPを表示
         return (
           <SimpleLandingPage
@@ -622,7 +521,7 @@ function App() {
             setShowAuthModal={setShowAuthModal}
           />
         );
-      } else if (page === 'white-landing') {
+      } else if (currentPage === 'white-landing') {
         // 白背景LPを表示
         return (
           <WhiteLandingPage
@@ -633,7 +532,7 @@ function App() {
             onLoginRequest={handleLoginRequest}
           />
         );
-      } else if (page === 'landing') {
+      } else if (currentPage === 'landing') {
         // 従来のLPを表示（黒背景）
         return (
           <>
@@ -677,7 +576,7 @@ function App() {
       );
     }
 
-    switch (page) {
+    switch (currentPage) {
       case 'dashboard':
         return <Dashboard onLogout={handleLogout} onPageChange={handlePageChange} />;
       case 'mypage':
@@ -689,13 +588,7 @@ function App() {
       case 'auto-upload':
         return <AutoUpload />;
       case 'pricing':
-        return (
-          <PricingPage
-            onPageChange={handlePageChange}
-            isNewUser={isNewUserRegistration}
-            onRequireRegistration={handleRegistrationRequest}
-          />
-        );
+        return <PricingPage onPageChange={handlePageChange} isNewUser={isNewUserRegistration} />;
       case 'payment-success':
         return <PaymentSuccess />;
       case 'payment-cancel':
@@ -717,11 +610,8 @@ function App() {
     }
   };
 
-  const isCurrentPagePublic = isPublicPage(resolvedPage);
-  const shouldShowGlobalLoading = isLoading && (!isCurrentPagePublic || isLoggedIn);
-
-  // ローディング中の表示（公開ページ以外のみブロック）
-  if (shouldShowGlobalLoading) {
+  // ローディング中の表示
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
@@ -733,17 +623,9 @@ function App() {
   }
 
   // SEOデータを取得
-  const pageType = getPageType(resolvedPage);
+  const pageType = getPageType(currentPage);
   const seoData = pageType ? pageSEOData[pageType] : pageSEOData.dashboard;
-  const pagePathMap: Record<string, string> = {
-    landing: '/',
-    'simple-landing': '/simple-landing',
-    'white-landing': '/white-landing',
-    'payment-success': '/payment/success',
-    'payment-cancel': '/payment/cancel'
-  };
-  const resolvedPath = pagePathMap[resolvedPage] || `/${resolvedPage}`;
-  const pathname = (isLoggedIn || PUBLIC_PAGES.includes(resolvedPage)) ? resolvedPath : '/';
+  const pathname = isLoggedIn ? `/${currentPage}` : '/';
 
   return (
     <HelmetProvider>
@@ -762,7 +644,7 @@ function App() {
           <div className="min-h-screen">
             
             {/* シンプルLPと白背景LPの場合はヘッダー・フッターを表示しない */}
-            {(resolvedPage === 'simple-landing' || resolvedPage === 'white-landing') ? (
+            {(currentPage === 'simple-landing' || currentPage === 'white-landing') ? (
               <div>
                 {renderContent()}
               </div>
@@ -771,7 +653,7 @@ function App() {
                 {/* ヘッダーは黒背景を維持 */}
                 <div className="bg-black text-white">
                   <Header
-                    currentPage={resolvedPage}
+                    currentPage={currentPage}
                     onPageChange={handlePageChange}
                     isLoggedIn={isLoggedIn}
                     onAuthRequest={handleAuthRequest}
@@ -805,17 +687,6 @@ function App() {
               isOpen={showAuthModal}
               onClose={() => setShowAuthModal(false)}
               onAuthSuccess={handleAuthSuccess}
-            />
-
-            <RegistrationModal
-              isOpen={showRegistrationModal}
-              onClose={() => {
-                setShowRegistrationModal(false);
-                // モーダルを閉じる時にフラグもリセット
-                isNewUserRegistrationRef.current = false;
-                setIsNewUserRegistration(false);
-              }}
-              onRegistrationSuccess={handleAuthSuccess}
             />
 
             <ContactModal
