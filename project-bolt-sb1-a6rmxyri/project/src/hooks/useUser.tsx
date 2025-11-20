@@ -31,6 +31,7 @@ interface UserContextValue {
   profile: UserProfile | null;
   subscription: UserSubscription | null;
   monthlyDownloads: number;
+  monthlyDownloadLimit: number;
   remainingDownloads: number;
   hasActiveSubscription: boolean;
   isTrialUser: boolean;
@@ -61,6 +62,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const forceTestStandardPlan =
     isTestEnv ||
     String(import.meta.env.VITE_FORCE_TEST_STANDARD_PLAN ?? '').toLowerCase() === 'true';
+
+  const resolvePlanLimit = (sub: UserSubscription | null) => {
+    if (!sub) return 0;
+    const plan = subscriptionPlans.find((p) => p.id === (sub.plan as any));
+    const planDefault = plan?.monthlyDownloads ?? 0;
+    return Math.max(sub.monthly_download_limit ?? 0, planDefault);
+  };
 
   const resolveTestSubscription = (data: UserSubscription | null | undefined): UserSubscription | null => {
     if (data) return data;
@@ -283,6 +291,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     ? Math.max(0, subscription.trial_downloads_limit - subscription.trial_downloads_used)
     : 0;
 
+  const monthlyDownloadLimit = subscription ? resolvePlanLimit(subscription) : 0;
+
   const recordDownload = () => {
     setMonthlyDownloads((prev) => prev + 1);
   };
@@ -292,6 +302,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     profile,
     subscription,
     monthlyDownloads,
+    monthlyDownloadLimit,
     remainingDownloads,
     hasActiveSubscription,
     isTrialUser,

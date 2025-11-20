@@ -483,6 +483,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   const {
     user,
     subscription,
+    monthlyDownloadLimit,
     remainingDownloads,
     isTrialUser,
     trialDaysRemaining,
@@ -511,7 +512,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   const downloadsUsed = Math.max(0, isTrialUser ? Math.min(trialLimit || Number.MAX_SAFE_INTEGER, computedTrialUsed) : monthlyDownloads);
   const downloadLimit = Math.max(
     0,
-    isTrialUser ? trialLimit : subscription?.monthly_download_limit ?? 0
+    isTrialUser ? trialLimit : monthlyDownloadLimit
   );
   const hasDownloadCap = downloadLimit > 0;
   const downloadProgress = hasDownloadCap && downloadLimit > 0
