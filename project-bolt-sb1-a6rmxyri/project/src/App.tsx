@@ -168,16 +168,33 @@ function App() {
             if (error) throw error;
             
             if (user) {
-              console.log('OAuth認証成功:', user.email);
-              
-              // 新規登録の場合は料金プランページに、ログインの場合はonAuthStateChangeで処理
-              if (mode === 'registration') {
-                console.log('新規登録完了 - 料金プランページに遷移');
-                setCurrentPage('pricing');
+              console.log('OAuth認証完了:', user.email);
+
+              const validProvider = checkAuthProvider(user);
+              setIsValidAuthProvider(validProvider);
+              setUserData(user);
+              setIsLoggedIn(true);
+
+              if (validProvider) {
+                if (mode === 'registration') {
+                  console.log('新規登録完了 - 料金プランページへ遷移');
+                  setCurrentPage('pricing');
+                } else {
+                  console.log('ログイン完了 - ダッシュボードへ遷移');
+                  setCurrentPage('dashboard');
+                }
+              } else {
+                await auth.signOut();
+                handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
+                setCurrentPage('landing');
               }
-              
+
               // URLからクエリパラメータを削除
               window.history.replaceState({}, document.title, window.location.pathname);
+
+              // OAuthハンドリング完了。これ以降の初期化をスキップ
+              setIsLoading(false);
+              return;
             }
           } catch (error) {
             console.error('OAuth セッション設定エラー:', error);
@@ -735,4 +752,5 @@ function App() {
 }
 
 export default App;
+
 
