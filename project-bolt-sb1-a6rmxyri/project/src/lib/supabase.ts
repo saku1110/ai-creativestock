@@ -248,7 +248,8 @@ export const database = {
     return { data, error }
   },
 
-  // 動画アセチE��取征E  getVideoAssets: async (category?: string, limit = defaultVideoFetchLimit) => {
+    // Fetch video assets
+  getVideoAssets: async (category?: string, limit = defaultVideoFetchLimit) => {
     if (!supabaseUrl || !supabaseAnonKey) {
       return { data: null, error: new Error('Missing Supabase environment variables') }
     }
@@ -677,4 +678,5 @@ export const database = {
     return { data, error }
   }
 }
+
 
