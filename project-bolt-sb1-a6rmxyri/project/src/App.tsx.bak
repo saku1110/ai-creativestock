@@ -111,55 +111,95 @@ function App() {
     return validProviders.includes(authProvider);
   };
 
-   // 認証状態の初期化と監視
+  // 認証状態の初期化と監視
   useEffect(() => {
     const initializeAuth = async () => {
-      const searchParams = new URLSearchParams(window.location.search);
-      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-      const accessToken = hashParams.get('access_token') ?? searchParams.get('access_token');
-      const refreshToken = hashParams.get('refresh_token') ?? searchParams.get('refresh_token');
-      const mode = hashParams.get('mode') ?? searchParams.get('mode');
-      const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
-
-      console.log('=== auth init ===', {
-        hasAccessToken: !!accessToken,
-        mode,
-        currentPage,
-        isNewUserRegistration,
-        isNewUserRef: isNewUserRegistrationRef.current,
-        url: window.location.href
-      });
-
       try {
+        // URLパラメータを確認
+        const searchParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
+        const mode = searchParams.get('mode') || hashParams.get('mode');
+        
+        console.log('=== 초기화 処理開始 ===');
+        console.log('URLパラメータ詳細:', { 
+          hasAccessToken: !!accessToken, 
+          mode,
+          currentPage,
+          isNewUserRegistration,
+          isNewUserRef: isNewUserRegistrationRef.current,
+          url: window.location.href
+        });
+        
+        // URLにアクセストークンが含まれている場合（OAuth コールバック）
         if (accessToken) {
+          console.log('OAuthコールバック検出: トークンからセッションを設定');
+          
+          // modeパラメータに基づいてフラグを設定
           if (mode === 'registration') {
-            isNewUserRegistrationRef.current = true;
+            console.log('新規登録モードを検出');
+            isNewUserRegistrationRef.current = true; // refを先に設定
             setIsNewUserRegistration(true);
+            console.log('新規ユーザーフラグ設定完了 - ref:', isNewUserRegistrationRef.current);
           } else if (mode === 'login') {
-            isNewUserRegistrationRef.current = false;
+            console.log('ログインモードを検出');
+            isNewUserRegistrationRef.current = false; // refを先に設定
             setIsNewUserRegistration(false);
+            console.log('既存ユーザーフラグ設定完了 - ref:', isNewUserRegistrationRef.current);
           }
-
+          
           try {
+            // Supabaseにセッションを設定
             const { data: { user }, error } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken || ''
             });
+            
             if (error) throw error;
-            if (user && mode === 'registration') {
-              setCurrentPage('pricing');
+            
+            if (user) {
+              console.log('OAuth認証成功:', user.email);
+              
+              // 新規登録の場合は料金プランページに、ログインの場合はonAuthStateChangeで処理
+              if (mode === 'registration') {
+                console.log('新規登録完了 - 料金プランページに遷移');
+                setCurrentPage('pricing');
+              }
+              
+              // URLからクエリパラメータを削除
+              window.history.replaceState({}, document.title, window.location.pathname);
             }
           } catch (error) {
-            console.error('OAuth セッション設定エラー:', error);
-            try { handleApiError(error, 'ログインに失敗しました。時間をおいて再試行してください。'); } catch {}
+            console.error('OAuth ??????????:', error);
+            try { handleApiError(error as Error, '????????????????????????????'); } catch {}
             setIsLoading(false);
             return;
-          } finally {
-            try { window.history.replaceState({}, document.title, window.location.pathname); } catch {}
           }
         }
 
-        if (isDevEnv) {
+        // 開発環境では localStorage から認証状態を復元（無効化）
+        if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
+          console.log('開発環境: 自動ログインを無効化');
+          // 自動ログイン復元をコメントアウトして、常にログアウト状態で開始
+          /*
+          const savedUser = localStorage.getItem('dev_user');
+          const savedLoginState = localStorage.getItem('dev_logged_in');
+          
+          if (savedUser && savedLoginState === 'true') {
+            const user = JSON.parse(savedUser);
+            setUserData(user);
+            setIsLoggedIn(true);
+            isNewUserRegistrationRef.current = false; // refを先に設定
+            setIsNewUserRegistration(false); // 開発環境復元時は既存ユーザーとして扱う
+            setCurrentPage('dashboard');
+            console.log('開発環境復元完了 - ref:', isNewUserRegistrationRef.current);
+          } else {
+            setCurrentPage('landing');
+            setIsLoggedIn(false);
+          }
+          */
+          // パスに公開ページ（/contact 等）があればそれを優先
           const devPath = (typeof window !== 'undefined'
             ? window.location.pathname.split('/').filter(Boolean)[0]
             : '') || '';
@@ -167,46 +207,63 @@ function App() {
           setCurrentPage(isPublicDevPath ? devPath : 'landing');
           setIsLoggedIn(false);
           setUserData(null);
+          // localStorageもクリア
           localStorage.removeItem('dev_user');
-          localStorage.removeItem('dev_logged_in');
-          setIsLoading(false);
-          return;
-        }
+        localStorage.removeItem('dev_logged_in');
+        setIsLoading(false);
+        return;
+      }
 
-        if (!accessToken) {
-          setIsLoading(false);
-          return;
-        }
+      // 未ログインのLP表示では Supabase 認証フェッチをスキップ
+      if (!accessToken) {
+        console.log('アクセストークンなし: 認証フェッチをスキップしてLPを表示');
+        setIsLoading(false);
+        return;
+      }
 
-        const { user } = await auth.getCurrentUser();
+      const { user } = await auth.getCurrentUser();
+        console.log('初期化時のユーザー状態:', user ? '認証済み' : '未認証');
+        
         if (user) {
           const validProvider = checkAuthProvider(user);
           setIsValidAuthProvider(validProvider);
           setUserData(user);
           setIsLoggedIn(true);
-          isNewUserRegistrationRef.current = false;
-          setIsNewUserRegistration(false);
+          isNewUserRegistrationRef.current = false; // refを先に設定
+          setIsNewUserRegistration(false); // 初期化時は既存ユーザーとして扱う
 
-          const activePage = currentPageRef.current;
           if (validProvider) {
+            const activePage = currentPageRef.current;
+            // Only redirect to dashboard if not on a public page
             if (!isPublicPage(activePage)) {
               setCurrentPage('dashboard');
+              console.log('初期化: 認証済みユーザー - ダッシュボードに移動 - ref:', isNewUserRegistrationRef.current);
+            } else {
+              console.log('初期化: 認証済みユーザー - 公開ページを維持:', activePage);
             }
           } else {
+            // 無効な認証プロバイダーの場合はログアウト
             await auth.signOut();
             setCurrentPage('landing');
             handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
           }
         } else {
           const activePage = currentPageRef.current;
+          // 未ログイン: パスが公開ページなら維持、そうでなければLPへ
           if (!isPublicPage(activePage)) {
             setCurrentPage('landing');
+            console.log('初期化: 未認証ユーザー - ランディングページに移動');
+          } else {
+            console.log('初期化: 未認証ユーザー - 公開ページを維持:', activePage);
           }
         }
       } catch (error) {
         console.error('認証初期化エラー:', error);
-        if (!isDevEnv) {
-          handleApiError(error, '認証システムの初期化に失敗しました。');
+        // 開発環境ではエラーを表示せず、ランディングページに移動
+        if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
+          console.log('開発環境: 認証エラーを無視してランディングページに移動');
+        } else {
+          handleApiError(error, '認証システムの初期化');
         }
         setCurrentPage('landing');
       } finally {
@@ -221,13 +278,21 @@ function App() {
     try {
       const { data: { subscription: authSubscription } } = auth.onAuthStateChange(
         async (_, session) => {
-          console.log('=== 認証状態変更検知 ===');
-          console.log('認証状態', session?.user ? 'ログイン' : 'ログアウト');
-
+          console.log('=== 認証状態変更検出 ===');
+          console.log('認証状態:', session?.user ? 'ログイン' : 'ログアウト');
+          
           const isNewUserState = isNewUserRegistration;
           const isNewUserRef = isNewUserRegistrationRef.current;
-          const isNewUser = isNewUserRef || isNewUserState;
-
+          const isNewUser = isNewUserRef || isNewUserState; // refを優先
+          
+          console.log('フラグ状態詳細:', {
+            isNewUserState,
+            isNewUserRef,
+            isNewUser,
+            currentPage,
+            timestamp: new Date().toISOString()
+          });
+          
           const activePage = currentPageRef.current;
           if (session?.user) {
             const validProvider = checkAuthProvider(session.user);
@@ -236,14 +301,26 @@ function App() {
             setIsLoggedIn(true);
 
             if (validProvider) {
+              // refを優先して新規ユーザー判定
               if (isNewUser) {
-                setCurrentPage('pricing');
+                console.log('新規ユーザー確認済み: 料金プランページに設定');
+                setCurrentPage('pricing'); // 明示的に設定
+                console.log('料金プランページ設定完了');
+                // フラグをリセット
                 isNewUserRegistrationRef.current = false;
                 setIsNewUserRegistration(false);
-              } else if (!isPublicPage(activePage)) {
-                setCurrentPage('dashboard');
+              } else {
+                console.log('既存ユーザー認証成功');
+                // Only redirect to dashboard if not on a public page
+                if (!isPublicPage(activePage)) {
+                  console.log('ダッシュボードに移動');
+                  setCurrentPage('dashboard');
+                } else {
+                  console.log('公開ページを維持:', activePage);
+                }
               }
             } else {
+              // 無効な認証プロバイダーの場合はログアウト
               await auth.signOut();
               setCurrentPage('landing');
               handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
@@ -252,8 +329,12 @@ function App() {
             setUserData(null);
             setIsLoggedIn(false);
             setIsValidAuthProvider(false);
+            // ログアウト時: 公開ページにいるなら維持、そうでなければLPへ
             if (!isPublicPage(activePage)) {
               setCurrentPage('landing');
+              console.log('ログアウト: ランディングページに移動');
+            } else {
+              console.log('ログアウト: 公開ページを維持:', activePage);
             }
           }
           setIsLoading(false);
@@ -269,7 +350,6 @@ function App() {
       subscription?.unsubscribe();
     };
   }, []);
-
 
   // フォールバック処理: 認証完了後にフラグを再確認
   useEffect(() => {
@@ -388,7 +468,7 @@ function App() {
 
 
 
-    const handleLogout = async () => {
+  const handleLogout = async () => {
     console.log('handleLogout called');
     console.log('state', { isLoggedIn, currentPage, userData: userData?.email });
     const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
@@ -419,7 +499,6 @@ function App() {
       console.log('logout done - redirect to landing');
     }
   };
-
 const renderContent = () => {
     console.log('renderContent called:', { isLoggedIn, currentPage, isLoading });
 
