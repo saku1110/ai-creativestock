@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { HelmetProvider } from 'react-helmet-async';
 import Header from './components/Header';
@@ -45,7 +45,7 @@ import { pageSEOData, getPageType } from './utils/seoUtils';
 import { User } from '@supabase/supabase-js';
 
 function App() {
-  // URLとクエリから初期ページを判定（/contact 等のパス優先）
+  // URL縺ｨ繧ｯ繧ｨ繝ｪ縺九ｉ蛻晄悄繝壹・繧ｸ繧貞愛螳夲ｼ・contact 遲峨・繝代せ蜆ｪ蜈茨ｼ・
   const urlParams = new URLSearchParams(window.location.search);
   const pathSegment = (typeof window !== 'undefined'
     ? window.location.pathname.split('/').filter(Boolean)[0]
@@ -54,6 +54,8 @@ function App() {
   const initialVariant = (PATH_PAGES.includes(pathSegment)
     ? pathSegment
     : (urlParams.get('variant') || 'landing'));
+  const REGISTRATION_RECENT_MS = 10 * 60 * 1000;
+  const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
 
   // Public pages that don't require authentication
   const PUBLIC_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
@@ -73,14 +75,16 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isValidAuthProvider, setIsValidAuthProvider] = useState(false);
   const [isNewUserRegistration, setIsNewUserRegistration] = useState(false);
-  const isNewUserRegistrationRef = useRef(false); // 同期フラグ管理用
+  const isNewUserRegistrationRef = useRef(false); // 蜷梧悄繝輔Λ繧ｰ邂｡逅・畑
+  const initialAuthModeRef = useRef<string | null>(null);
+  const postRegistrationHandledRef = useRef(false);
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
 
   useEffect(() => {
     currentPageRef.current = currentPage;
   }, [currentPage]);
 
-  // ページ遷移時に最上部にスクロール
+  // 繝壹・繧ｸ驕ｷ遘ｻ譎ゅ↓譛荳企Κ縺ｫ繧ｹ繧ｯ繝ｭ繝ｼ繝ｫ
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentPage]);
@@ -91,14 +95,14 @@ function App() {
     }
   }, [isLoggedIn, currentPage]);
 
-  // 認証プロバイダーチェック関数
+  // 隱崎ｨｼ繝励Ο繝舌う繝繝ｼ繝√ぉ繝・け髢｢謨ｰ
   const checkAuthProvider = (user: User): boolean => {
-    // 開発環境ではモックユーザーを許可
-    if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
+    // 髢狗匱迺ｰ蠅・〒縺ｯ繝｢繝・け繝ｦ繝ｼ繧ｶ繝ｼ繧定ｨｱ蜿ｯ
+    if (isDevEnv) {
       return true;
     }
 
-    // ユーザーの認証プロバイダーをチェック
+    // 繝ｦ繝ｼ繧ｶ繝ｼ縺ｮ隱崎ｨｼ繝励Ο繝舌う繝繝ｼ繧偵メ繧ｧ繝・け
     const authProvider = user.app_metadata?.provider;
     const validProviders = ['google'];
     
@@ -111,7 +115,153 @@ function App() {
     return validProviders.includes(authProvider);
   };
 
-   // 認証状態の初期化と監視
+  const fetchProfileRecord = async (userId: string) => {
+    try {
+      const query = supabase
+        .from('profiles')
+        .select('id, created_at, email, name')
+        .eq('id', userId) as any;
+      const { data, error } = query?.maybeSingle
+        ? await query.maybeSingle()
+        : await query.single();
+      if (error) {
+        console.error('profiles fetch error:', error);
+      }
+      return data || null;
+    } catch (error) {
+      console.error('profiles fetch exception:', error);
+      return null;
+    }
+  };
+
+  const wasCreatedRecently = (user?: User | null) => {
+    if (!user?.created_at) return false;
+    const createdAtMs = new Date(user.created_at).getTime();
+    if (Number.isNaN(createdAtMs)) return false;
+    const diff = Date.now() - createdAtMs;
+    return diff >= 0 && diff < REGISTRATION_RECENT_MS;
+  };
+
+  const isFirstTimeSession = (params: { modeHint?: string | null, user: User | null, profile: any }) => {
+    const { modeHint, user, profile } = params;
+    if (!user) return false;
+    const hasProfile = !!profile?.id;
+    const modeIsRegistration = modeHint === 'registration';
+    const createdRecently = wasCreatedRecently(user);
+
+    if (!hasProfile) {
+      return true;
+    }
+    if (modeIsRegistration && createdRecently) {
+      return true;
+    }
+    if (createdRecently && !postRegistrationHandledRef.current) {
+      return true;
+    }
+    return false;
+  };
+
+  const runPostRegistrationSideEffects = async (user: User) => {
+    if (!user?.id) return;
+    if (postRegistrationHandledRef.current) return;
+    if (isDevEnv) return;
+
+    postRegistrationHandledRef.current = true;
+    try {
+      const fallbackName = (user.user_metadata?.full_name || user.user_metadata?.name || user.email || '').toString().trim();
+      const name = fallbackName || 'New user';
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: user.email,
+          name,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+      if (profileError) {
+        console.error('Profile creation failed:', profileError);
+      }
+    } catch (error) {
+      console.error('Profile creation error:', error);
+    }
+
+    try {
+      await supabase?.functions?.invoke?.('post-registration-setup', {
+        body: { userId: user.id, email: user.email }
+      });
+    } catch (error) {
+      console.warn('post-registration-setup skipped', error);
+    }
+
+    try {
+      await supabase?.functions?.invoke?.('send-welcome-email', {
+        body: { userId: user.id, email: user.email }
+      });
+    } catch (error) {
+      console.warn('send-welcome-email skipped', error);
+    }
+
+    try {
+      await supabase?.functions?.invoke?.('grant-trial-plan', {
+        body: { userId: user.id }
+      });
+    } catch (error) {
+      console.warn('grant-trial-plan skipped', error);
+    }
+  };
+
+  const handleAuthenticatedSession = async (user: User | null, options: { modeHint?: string | null } = {}) => {
+    const modeHint = options.modeHint ?? initialAuthModeRef.current;
+
+    if (!user) {
+      setUserData(null);
+      setIsLoggedIn(false);
+      setIsValidAuthProvider(false);
+      isNewUserRegistrationRef.current = false;
+      setIsNewUserRegistration(false);
+      const activePage = currentPageRef.current;
+      if (!isPublicPage(activePage)) {
+        setCurrentPage('landing');
+      }
+      return;
+    }
+
+    const validProvider = checkAuthProvider(user);
+    setIsValidAuthProvider(validProvider);
+    if (!validProvider) {
+      try { await auth.signOut(); } catch {}
+      setCurrentPage('landing');
+      try { handleApiError(new Error('Unsupported authentication provider. Please log in with Google.'), '認証エラー'); } catch {}
+      return;
+    }
+
+    const profile = await fetchProfileRecord(user.id);
+    let isFirstLogin = isNewUserRegistrationRef.current;
+    if (!isFirstLogin) {
+      isFirstLogin = isFirstTimeSession({ modeHint, user, profile });
+    }
+
+    if (isFirstLogin) {
+      await runPostRegistrationSideEffects(user);
+    }
+
+    isNewUserRegistrationRef.current = isFirstLogin;
+    setIsNewUserRegistration(isFirstLogin);
+    setUserData(user);
+    setIsLoggedIn(true);
+
+    const activePage = currentPageRef.current;
+    if (isFirstLogin) {
+      setCurrentPage('pricing');
+    } else {
+      const targetPage = !isPublicPage(activePage)
+        ? 'dashboard'
+        : (activePage || 'dashboard');
+      setCurrentPage(targetPage === 'landing' ? 'dashboard' : targetPage);
+    }
+  };
+  // Auth initialization and watcher
   useEffect(() => {
     const initializeAuth = async () => {
       const searchParams = new URLSearchParams(window.location.search);
@@ -119,7 +269,7 @@ function App() {
       const accessToken = hashParams.get('access_token') ?? searchParams.get('access_token');
       const refreshToken = hashParams.get('refresh_token') ?? searchParams.get('refresh_token');
       const mode = hashParams.get('mode') ?? searchParams.get('mode');
-      const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
+      initialAuthModeRef.current = mode || null;
 
       console.log('=== auth init ===', {
         hasAccessToken: !!accessToken,
@@ -130,28 +280,21 @@ function App() {
         url: window.location.href
       });
 
+      let handled = false;
+
       try {
         if (accessToken) {
-          if (mode === 'registration') {
-            isNewUserRegistrationRef.current = true;
-            setIsNewUserRegistration(true);
-          } else if (mode === 'login') {
-            isNewUserRegistrationRef.current = false;
-            setIsNewUserRegistration(false);
-          }
-
           try {
             const { data: { user }, error } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken || ''
             });
             if (error) throw error;
-            if (user && mode === 'registration') {
-              setCurrentPage('pricing');
-            }
+            await handleAuthenticatedSession(user ?? null, { modeHint: mode });
+            handled = !!user;
           } catch (error) {
-            console.error('OAuth セッション設定エラー:', error);
-            try { handleApiError(error, 'ログインに失敗しました。時間をおいて再試行してください。'); } catch {}
+            console.error('OAuth session setup error:', error);
+            try { handleApiError(error, 'Login failed. Please try again shortly.'); } catch {}
             setIsLoading(false);
             return;
           } finally {
@@ -169,44 +312,20 @@ function App() {
           setUserData(null);
           localStorage.removeItem('dev_user');
           localStorage.removeItem('dev_logged_in');
+          postRegistrationHandledRef.current = false;
+          initialAuthModeRef.current = null;
           setIsLoading(false);
           return;
         }
 
-        if (!accessToken) {
-          setIsLoading(false);
-          return;
-        }
-
-        const { user } = await auth.getCurrentUser();
-        if (user) {
-          const validProvider = checkAuthProvider(user);
-          setIsValidAuthProvider(validProvider);
-          setUserData(user);
-          setIsLoggedIn(true);
-          isNewUserRegistrationRef.current = false;
-          setIsNewUserRegistration(false);
-
-          const activePage = currentPageRef.current;
-          if (validProvider) {
-            if (!isPublicPage(activePage)) {
-              setCurrentPage('dashboard');
-            }
-          } else {
-            await auth.signOut();
-            setCurrentPage('landing');
-            handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
-          }
-        } else {
-          const activePage = currentPageRef.current;
-          if (!isPublicPage(activePage)) {
-            setCurrentPage('landing');
-          }
+        if (!handled) {
+          const { user } = await auth.getCurrentUser();
+          await handleAuthenticatedSession(user ?? null, { modeHint: mode });
         }
       } catch (error) {
-        console.error('認証初期化エラー:', error);
+        console.error('Auth initialization error:', error);
         if (!isDevEnv) {
-          handleApiError(error, '認証システムの初期化に失敗しました。');
+          handleApiError(error, 'Failed to initialize auth system');
         }
         setCurrentPage('landing');
       } finally {
@@ -216,53 +335,25 @@ function App() {
 
     initializeAuth();
 
-    // 認証状態の変更を監視
+    // watch auth state changes
     let subscription: any;
     try {
       const { data: { subscription: authSubscription } } = auth.onAuthStateChange(
         async (_, session) => {
-          console.log('=== 認証状態変更検知 ===');
-          console.log('認証状態', session?.user ? 'ログイン' : 'ログアウト');
-
-          const isNewUserState = isNewUserRegistration;
-          const isNewUserRef = isNewUserRegistrationRef.current;
-          const isNewUser = isNewUserRef || isNewUserState;
-
-          const activePage = currentPageRef.current;
-          if (session?.user) {
-            const validProvider = checkAuthProvider(session.user);
-            setIsValidAuthProvider(validProvider);
-            setUserData(session.user);
-            setIsLoggedIn(true);
-
-            if (validProvider) {
-              if (isNewUser) {
-                setCurrentPage('pricing');
-                isNewUserRegistrationRef.current = false;
-                setIsNewUserRegistration(false);
-              } else if (!isPublicPage(activePage)) {
-                setCurrentPage('dashboard');
-              }
-            } else {
-              await auth.signOut();
-              setCurrentPage('landing');
-              handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
-            }
-          } else {
-            setUserData(null);
-            setIsLoggedIn(false);
-            setIsValidAuthProvider(false);
-            if (!isPublicPage(activePage)) {
-              setCurrentPage('landing');
-            }
+          console.log('=== auth state changed ===');
+          try {
+            await handleAuthenticatedSession(session?.user ?? null, { modeHint: initialAuthModeRef.current });
+          } catch (error) {
+            console.error('auth state handler error:', error);
+          } finally {
+            setIsLoading(false);
           }
-          setIsLoading(false);
         }
       );
       subscription = authSubscription;
-      console.log('認証状態監視リスナー設定完了');
+      console.log('auth subscription registered');
     } catch (error) {
-      console.error('認証状態監視エラー:', error);
+      console.error('auth onAuthStateChange error:', error);
     }
 
     return () => {
@@ -271,18 +362,18 @@ function App() {
   }, []);
 
 
-  // フォールバック処理: 認証完了後にフラグを再確認
+  // 繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ蜃ｦ逅・ 隱崎ｨｼ螳御ｺ・ｾ後↓繝輔Λ繧ｰ繧貞・遒ｺ隱・
   useEffect(() => {
     if (isLoggedIn && currentPage === 'dashboard' && (isNewUserRegistration || isNewUserRegistrationRef.current)) {
-      console.log('=== フォールバック処理実行 ===');
-      console.log('新規ユーザーがダッシュボードにいるため料金プランページに修正');
-      console.log('フラグ状態:', { 
+      console.log('=== 繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ蜃ｦ逅・ｮ溯｡・===');
+      console.log('譁ｰ隕上Θ繝ｼ繧ｶ繝ｼ縺後ム繝・す繝･繝懊・繝峨↓縺・ｋ縺溘ａ譁咎≡繝励Λ繝ｳ繝壹・繧ｸ縺ｫ菫ｮ豁｣');
+      console.log('繝輔Λ繧ｰ迥ｶ諷・', { 
         isNewUserRegistration, 
         isNewUserRef: isNewUserRegistrationRef.current,
         currentPage 
       });
       setCurrentPage('pricing');
-      // フラグをリセット
+      // 繝輔Λ繧ｰ繧偵Μ繧ｻ繝・ヨ
       isNewUserRegistrationRef.current = false;
       setIsNewUserRegistration(false);
     }
@@ -290,28 +381,28 @@ function App() {
 
 
   const handlePageChange = async (page: string) => {
-    // 管理者チェック（データベースベース）
+    // 邂｡逅・・メ繧ｧ繝・け・医ョ繝ｼ繧ｿ繝吶・繧ｹ繝吶・繧ｹ・・
     if (page === 'admin' || page === 'auto-upload') {
-      // 開発環境では管理者チェックをスキップ
+      // 髢狗匱迺ｰ蠅・〒縺ｯ邂｡逅・・メ繧ｧ繝・け繧偵せ繧ｭ繝・・
       if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-        console.log('開発環境: 管理者チェックをスキップしています');
+        console.log('髢狗匱迺ｰ蠅・ 邂｡逅・・メ繧ｧ繝・け繧偵せ繧ｭ繝・・縺励※縺・∪縺・);
         setCurrentPage(page);
         return;
       }
 
       if (!userData?.id) {
-        handleApiError(new Error('ログインが必要です'), '管理者ページアクセス');
+        handleApiError(new Error('繝ｭ繧ｰ繧､繝ｳ縺悟ｿ・ｦ√〒縺・), '邂｡逅・・・繝ｼ繧ｸ繧｢繧ｯ繧ｻ繧ｹ');
         return;
       }
       
       try {
         const { isAdmin } = await database.checkAdminStatus(userData.id);
         if (!isAdmin) {
-          handleApiError(new Error('管理者のみアクセス可能です'), '管理者ページアクセス');
+          handleApiError(new Error('邂｡逅・・・縺ｿ繧｢繧ｯ繧ｻ繧ｹ蜿ｯ閭ｽ縺ｧ縺・), '邂｡逅・・・繝ｼ繧ｸ繧｢繧ｯ繧ｻ繧ｹ');
           return;
         }
       } catch (error) {
-        handleApiError(error, '管理者権限チェック');
+        handleApiError(error, '邂｡逅・・ｨｩ髯舌メ繧ｧ繝・け');
         return;
       }
     }
@@ -319,85 +410,73 @@ function App() {
   };
 
   const handleAuthRequest = () => {
-    isNewUserRegistrationRef.current = false; // refを先に設定
-    setIsNewUserRegistration(false); // 既存ユーザーログインなのでフラグをfalseに
-    console.log('handleAuthRequest: 既存ユーザーフラグを設定 - ref:', isNewUserRegistrationRef.current);
+    isNewUserRegistrationRef.current = false; // ref繧貞・縺ｫ險ｭ螳・
+    setIsNewUserRegistration(false); // 譌｢蟄倥Θ繝ｼ繧ｶ繝ｼ繝ｭ繧ｰ繧､繝ｳ縺ｪ縺ｮ縺ｧ繝輔Λ繧ｰ繧断alse縺ｫ
+    console.log('handleAuthRequest: 譌｢蟄倥Θ繝ｼ繧ｶ繝ｼ繝輔Λ繧ｰ繧定ｨｭ螳・- ref:', isNewUserRegistrationRef.current);
     setShowAuthModal(true);
   };
 
   const handleLoginRequest = () => {
-    isNewUserRegistrationRef.current = false; // refを先に設定
-    setIsNewUserRegistration(false); // 既存ユーザーログインなのでフラグをfalseに
-    console.log('handleLoginRequest: 既存ユーザーログインフラグを設定 - ref:', isNewUserRegistrationRef.current);
+    isNewUserRegistrationRef.current = false; // ref繧貞・縺ｫ險ｭ螳・
+    setIsNewUserRegistration(false); // 譌｢蟄倥Θ繝ｼ繧ｶ繝ｼ繝ｭ繧ｰ繧､繝ｳ縺ｪ縺ｮ縺ｧ繝輔Λ繧ｰ繧断alse縺ｫ
+    console.log('handleLoginRequest: 譌｢蟄倥Θ繝ｼ繧ｶ繝ｼ繝ｭ繧ｰ繧､繝ｳ繝輔Λ繧ｰ繧定ｨｭ螳・- ref:', isNewUserRegistrationRef.current);
     setShowAuthModal(true);
   };
 
   const handleRegistrationRequest = () => {
-    // ログインしていない場合は認証モーダルを表示
+    // 繝ｭ繧ｰ繧､繝ｳ縺励※縺・↑縺・ｴ蜷医・隱崎ｨｼ繝｢繝ｼ繝繝ｫ繧定｡ｨ遉ｺ
     if (!isLoggedIn) {
-      isNewUserRegistrationRef.current = true; // refを先に設定
-      setIsNewUserRegistration(true); // 新規登録なのでフラグをtrueに
-      console.log('handleRegistrationRequest: 新規登録フラグを設定 - ref:', isNewUserRegistrationRef.current);
+      isNewUserRegistrationRef.current = true; // ref繧貞・縺ｫ險ｭ螳・
+      setIsNewUserRegistration(true); // 譁ｰ隕冗匳骭ｲ縺ｪ縺ｮ縺ｧ繝輔Λ繧ｰ繧稚rue縺ｫ
+      console.log('handleRegistrationRequest: 譁ｰ隕冗匳骭ｲ繝輔Λ繧ｰ繧定ｨｭ螳・- ref:', isNewUserRegistrationRef.current);
       setShowAuthModal(true);
       return;
     }
-    // ログイン済みの場合は料金ページへ
+    // 繝ｭ繧ｰ繧､繝ｳ貂医∩縺ｮ蝣ｴ蜷医・譁咎≡繝壹・繧ｸ縺ｸ
     setCurrentPage('pricing');
   };
 
   const handleContactRequest = () => {
-    // 問い合わせはページ遷移で表示（LPに戻らない）
+    // 蝠上＞蜷医ｏ縺帙・繝壹・繧ｸ驕ｷ遘ｻ縺ｧ陦ｨ遉ｺ・・P縺ｫ謌ｻ繧峨↑縺・ｼ・
     setShowContactModal(false);
     setCurrentPage('contact');
     try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch {}
   };
 
   const handlePurchaseRequest = () => {
-    // ログインしていない場合は認証モーダルを表示
+    // 繝ｭ繧ｰ繧､繝ｳ縺励※縺・↑縺・ｴ蜷医・隱崎ｨｼ繝｢繝ｼ繝繝ｫ繧定｡ｨ遉ｺ
     if (!isLoggedIn) {
       setShowAuthModal(true);
       return;
     }
-    // ログイン済みの場合は料金ページへ
+    // 繝ｭ繧ｰ繧､繝ｳ貂医∩縺ｮ蝣ｴ蜷医・譁咎≡繝壹・繧ｸ縺ｸ
     setCurrentPage('pricing');
   };
 
-  const handleAuthSuccess = (user: User) => {
-    const validProvider = checkAuthProvider(user);
-    setIsValidAuthProvider(validProvider);
-    setUserData(user);
-    setIsLoggedIn(true);
+  const handleAuthSuccess = async (user: User) => {
+    const modeHint = isNewUserRegistrationRef.current ? 'registration' : (initialAuthModeRef.current || 'login');
+    initialAuthModeRef.current = modeHint;
+    await handleAuthenticatedSession(user, { modeHint });
     setShowAuthModal(false);
 
-    if (validProvider) {
-      // Only redirect to dashboard if not on a public page
-      if (!PUBLIC_PAGES.includes(currentPage)) {
-        setCurrentPage('dashboard');
-      }
-    } else {
-      setCurrentPage('landing');
-      handleApiError(new Error('許可された認証方法ではありません。Googleでログインしてください。'), '認証エラー');
-    }
-    
-    // 開発環境では localStorage に保存
-    if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
+    if (isDevEnv) {
       localStorage.setItem('dev_user', JSON.stringify(user));
       localStorage.setItem('dev_logged_in', 'true');
     }
   };
-
-
-
   const handleLogout = async () => {
     console.log('handleLogout called');
     console.log('state', { isLoggedIn, currentPage, userData: userData?.email });
-    const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
 
-    // 先にUI状態をリセットしておく（signOut失敗でも画面は戻す）
+    // Reset UI state first (return to landing even if signOut fails)
     setIsLoggedIn(false);
     setUserData(null);
     setIsValidAuthProvider(false);
     setCurrentPage('landing');
+    isNewUserRegistrationRef.current = false;
+    setIsNewUserRegistration(false);
+    postRegistrationHandledRef.current = false;
+    initialAuthModeRef.current = null;
 
     try {
       if (isDevEnv) {
@@ -449,9 +528,9 @@ const renderContent = () => {
     }
 
     if (!isLoggedIn) {
-      // 未ログイン時: ランディングページ選択
+      // 譛ｪ繝ｭ繧ｰ繧､繝ｳ譎・ 繝ｩ繝ｳ繝・ぅ繝ｳ繧ｰ繝壹・繧ｸ驕ｸ謚・
       if (currentPage === 'simple-landing') {
-        // シンプルLPを表示
+        // 繧ｷ繝ｳ繝励ΝLP繧定｡ｨ遉ｺ
         return (
           <SimpleLandingPage
             onAuthRequest={handleRegistrationRequest}
@@ -460,7 +539,7 @@ const renderContent = () => {
           />
         );
       } else if (currentPage === 'white-landing') {
-        // 白背景LPを表示
+        // 逋ｽ閭梧勹LP繧定｡ｨ遉ｺ
         return (
           <WhiteLandingPage
             onAuthRequest={handleLoginRequest}
@@ -471,7 +550,7 @@ const renderContent = () => {
           />
         );
       } else if (currentPage === 'landing') {
-        // 従来のLPを表示（黒背景）
+        // 蠕捺擂縺ｮLP繧定｡ｨ遉ｺ・磯ｻ定レ譎ｯ・・
         return (
           <>
             <Hero onAuthRequest={handleRegistrationRequest} onPurchaseRequest={handlePurchaseRequest} onLoginRequest={handleLoginRequest} />
@@ -490,24 +569,24 @@ const renderContent = () => {
       }
     }
 
-    // ログイン済み時: 動画プラットフォーム
-    // Google/Apple認証のみアクセス許可
+    // 繝ｭ繧ｰ繧､繝ｳ貂医∩譎・ 蜍慕判繝励Λ繝・ヨ繝輔か繝ｼ繝
+    // Google/Apple隱崎ｨｼ縺ｮ縺ｿ繧｢繧ｯ繧ｻ繧ｹ險ｱ蜿ｯ
     if (!isValidAuthProvider) {
       return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center">
           <div className="text-center max-w-md mx-auto p-8">
             <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
-              <span className="text-white text-2xl">⚠️</span>
+              <span className="text-white text-2xl">笞・・/span>
             </div>
-            <h2 className="text-2xl font-bold mb-4">アクセスが制限されています</h2>
+            <h2 className="text-2xl font-bold mb-4">繧｢繧ｯ繧ｻ繧ｹ縺悟宛髯舌＆繧後※縺・∪縺・/h2>
             <p className="text-gray-400 mb-6 leading-relaxed">
-              AI Creative Stockへのアクセスには、Googleでのログインが必要です。
+              AI Creative Stock縺ｸ縺ｮ繧｢繧ｯ繧ｻ繧ｹ縺ｫ縺ｯ縲；oogle縺ｧ縺ｮ繝ｭ繧ｰ繧､繝ｳ縺悟ｿ・ｦ√〒縺吶・
             </p>
             <button 
               onClick={handleLogout}
               className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
             >
-              ログインページに戻る
+              繝ｭ繧ｰ繧､繝ｳ繝壹・繧ｸ縺ｫ謌ｻ繧・
             </button>
           </div>
         </div>
@@ -544,23 +623,23 @@ const renderContent = () => {
       case 'privacy':
         return <PrivacyPolicy onPageChange={handlePageChange} />;
       default:
-        return <Dashboard />; // デフォルトはダッシュボード
+        return <Dashboard />; // 繝・ヵ繧ｩ繝ｫ繝医・繝繝・す繝･繝懊・繝・
     }
   };
 
-  // ローディング中の表示
+  // 繝ｭ繝ｼ繝・ぅ繝ｳ繧ｰ荳ｭ縺ｮ陦ｨ遉ｺ
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">読み込み中...</p>
+          <p className="text-gray-400">隱ｭ縺ｿ霎ｼ縺ｿ荳ｭ...</p>
         </div>
       </div>
     );
   }
 
-  // SEOデータを取得
+  // SEO繝・・繧ｿ繧貞叙蠕・
   const pageType = getPageType(currentPage);
   const seoData = pageType ? pageSEOData[pageType] : pageSEOData.dashboard;
   const pathname = isLoggedIn ? `/${currentPage}` : '/';
@@ -568,10 +647,10 @@ const renderContent = () => {
   return (
     <HelmetProvider>
       <ErrorBoundary onError={(error, errorInfo) => {
-        handleApiError(error, 'アプリケーションエラー');
+        handleApiError(error, '繧｢繝励Μ繧ｱ繝ｼ繧ｷ繝ｧ繝ｳ繧ｨ繝ｩ繝ｼ');
       }}>
         <div className="min-h-screen bg-black force-white-h2">
-          {/* SEOメタタグ */}
+          {/* SEO繝｡繧ｿ繧ｿ繧ｰ */}
           <SEOHead 
             title={seoData.title}
             description={seoData.description}
@@ -581,14 +660,14 @@ const renderContent = () => {
           
           <div className="min-h-screen">
             
-            {/* シンプルLPと白背景LPの場合はヘッダー・フッターを表示しない */}
+            {/* 繧ｷ繝ｳ繝励ΝLP縺ｨ逋ｽ閭梧勹LP縺ｮ蝣ｴ蜷医・繝倥ャ繝繝ｼ繝ｻ繝輔ャ繧ｿ繝ｼ繧定｡ｨ遉ｺ縺励↑縺・*/}
             {(currentPage === 'simple-landing' || currentPage === 'white-landing') ? (
               <div>
                 {renderContent()}
               </div>
             ) : (
               <>
-                {/* ヘッダーは黒背景を維持 */}
+                {/* 繝倥ャ繝繝ｼ縺ｯ鮟定レ譎ｯ繧堤ｶｭ謖・*/}
                 <div className="bg-black text-white">
                   <Header
                     currentPage={currentPage}
@@ -602,19 +681,19 @@ const renderContent = () => {
                   />
                 </div>
                 
-                {/* コンテンツ部分 */}
+                {/* 繧ｳ繝ｳ繝・Φ繝・Κ蛻・*/}
                 <div className="bg-black" style={{ paddingTop: '80px' }}>
                   {renderContent()}
                 </div>
                 
-                {/* フッターは黒背景を維持 */}
+                {/* 繝輔ャ繧ｿ繝ｼ縺ｯ鮟定レ譎ｯ繧堤ｶｭ謖・*/}
                 <div className="bg-black text-white">
                   <Footer onPageChange={handlePageChange} />
                 </div>
               </>
             )}
                 
-            {/* パンくずリスト */}
+            {/* 繝代Φ縺上★繝ｪ繧ｹ繝・*/}
             {isLoggedIn && (
               <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4">
                 <Breadcrumbs pathname={pathname} />
@@ -632,7 +711,7 @@ const renderContent = () => {
               onClose={() => setShowContactModal(false)}
             />
             
-            {/* エラートースト */}
+            {/* 繧ｨ繝ｩ繝ｼ繝医・繧ｹ繝・*/}
             <ErrorToast 
               errors={errors}
               onRemove={removeError}
@@ -647,3 +726,9 @@ const renderContent = () => {
 }
 
 export default App;
+
+
+
+
+
+
