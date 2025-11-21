@@ -10,13 +10,13 @@ interface AuthModalProps {
   redirectToPricing?: boolean;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ 
-  isOpen, 
-  onClose, 
+const AuthModal: React.FC<AuthModalProps> = ({
+  isOpen,
+  onClose,
   onAuthSuccess,
   redirectToPricing = false
 }) => {
-  const [authStep, setAuthStep] = useState<'login' | 'register' | 'success' | 'error'>('login');
+  const [authStep, setAuthStep] = useState<'register' | 'success' | 'error'>('register');
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -35,10 +35,14 @@ const AuthModal: React.FC<AuthModalProps> = ({
       if (!raw) return { attempts: 0, until: 0 };
       const v = JSON.parse(raw);
       return { attempts: Number(v.attempts) || 0, until: Number(v.until) || 0 };
-    } catch { return { attempts: 0, until: 0 }; }
+    } catch {
+      return { attempts: 0, until: 0 };
+    }
   };
   const saveLock = (addr: string, attempts: number, until: number) => {
-    try { localStorage.setItem(keyFor(addr), JSON.stringify({ attempts, until })); } catch {}
+    try {
+      localStorage.setItem(keyFor(addr), JSON.stringify({ attempts, until }));
+    } catch {}
   };
   const resetLock = (addr: string) => saveLock(addr, 0, 0);
   const checkLocked = (addr: string) => {
@@ -50,12 +54,14 @@ const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleAuthSuccess = (userData: User) => {
     setAuthStep('success');
-    // reset lockout on successful login
-    try { localStorage.removeItem(`login_lockout_${(userData.email || '').toLowerCase()}`) } catch {}
+    // reset lockout on successful signup/login
+    try {
+      localStorage.removeItem(`login_lockout_${(userData.email || '').toLowerCase()}`);
+    } catch {}
     setTimeout(() => {
       onAuthSuccess(userData);
       onClose();
-      setAuthStep('login');
+      setAuthStep('register');
     }, 2000);
   };
 
@@ -69,8 +75,8 @@ const AuthModal: React.FC<AuthModalProps> = ({
         const raw = localStorage.getItem(key);
         const v = raw ? JSON.parse(raw) : { attempts: 0, until: 0 };
         const attempts = (Number(v.attempts) || 0) + 1;
-        if (attempts >= 10) {
-          const untilTs = Date.now() + 30 * 60 * 1000;
+        if (attempts >= MAX_ATTEMPTS) {
+          const untilTs = Date.now() + LOCK_MINUTES * 60 * 1000;
           localStorage.setItem(key, JSON.stringify({ attempts, until: untilTs }));
           setLockoutUntil(untilTs);
         } else {
@@ -79,67 +85,53 @@ const AuthModal: React.FC<AuthModalProps> = ({
       }
     } catch {}
     setTimeout(() => {
-      setAuthStep('login');
+      setAuthStep('register');
     }, 3000);
   };
 
-  const handleGoogleSignIn = async () => {
-    // lockout check before attempting login
+  const handleGoogleSignUp = async () => {
     const until = checkLocked(email);
     if (until) {
       const mins = Math.ceil((until - Date.now()) / 60000);
-      handleAuthError(`試行回数超過のためロック中です（約${mins}分）`);
+      handleAuthError(`試行回数超過のためロック中です（残り約${mins}分）`);
       setLockoutUntil(until);
       return;
     }
     setIsLoading(true);
     try {
-      // Supabaseを使用したGoogle認証
-      const { data, error } = await auth.signInWithGoogle();
-      
-      if (error) {
-        throw error;
-      }
-      
-      // 認証成功後、少し待ってからユーザー情報を取得
+      const { error } = await auth.signUpWithGoogle();
+      if (error) throw error;
       setTimeout(async () => {
         try {
           const { user: currentUser } = await auth.getCurrentUser();
           if (currentUser) {
-            console.log('Google認証成功:', currentUser.email);
             handleAuthSuccess(currentUser);
           }
         } catch (userError) {
           console.error('認証後のユーザー取得エラー:', userError);
         }
-      }, 1000);
-      
-    } catch (error) {
+      }, 800);
+    } catch (error: any) {
       console.error('Google認証エラー:', error);
-      
-      let errorMessage = 'Googleログインに失敗しました。';
-      
+
+      let errorMessage = 'Googleでの新規登録に失敗しました。';
       if (error instanceof Error) {
         if (error.message.includes('popup_closed_by_user')) {
-          errorMessage = 'ログインがキャンセルされました。';
-        } else if (error.message.includes('network')) {
-          errorMessage = 'ネットワークエラーです。インターネット接続を確認してください。';
-        } else if (error.message.includes('configuration')) {
+          errorMessage = '登録がキャンセルされました。';
+        } else if (error.message.toLowerCase().includes('network')) {
+          errorMessage = 'ネットワークエラーです。接続を確認してください。';
+        } else if (error.message.toLowerCase().includes('configuration')) {
           errorMessage = 'Google認証の設定に問題があります。管理者にお問い合わせください。';
-        } else if (error.message.includes('Invalid provider')) {
-          errorMessage = 'Google認証が有効になっていません。設定を確認してください。';
         } else {
-          errorMessage = `Googleログインエラー: ${error.message}`;
+          errorMessage = `Google登録エラー: ${error.message}`;
         }
       }
-      
       handleAuthError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // メールのマジックリンクを送信
   const handleEmailMagicLink = async () => {
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       handleAuthError('有効なメールアドレスを入力してください。');
@@ -158,41 +150,44 @@ const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  // メール + パスワードでログイン
-  const handleEmailPasswordLogin = async () => {
+  const handleEmailPasswordSignUp = async () => {
     if (!email || !password) {
-      handleAuthError('メールとパスワードを入力してください');
+      handleAuthError('メールアドレスとパスワードを入力してください。');
+      return;
+    }
+    if (password.length < 8) {
+      handleAuthError('パスワードは8文字以上で入力してください。');
       return;
     }
     setIsLoading(true);
     try {
-      const { data, error } = await auth.signInWithEmail(email, password);
+      const { error } = await auth.signUpWithEmail(email, password);
       if (error) throw error;
-      // すぐにユーザー情報を取得
       const { user } = await auth.getCurrentUser();
       if (user) {
         handleAuthSuccess(user as User);
       } else {
-        handleAuthError('ログインに失敗しました。もう一度お試しください');
+        handleAuthError('新規登録に失敗しました。もう一度お試しください。');
       }
     } catch (e: any) {
-      handleAuthError(e?.message || 'メールログインに失敗しました');
+      handleAuthError(e?.message || 'メールでの新規登録に失敗しました。');
     } finally {
       setIsLoading(false);
     }
   };
 
-  
-
   if (!isOpen) return null;
+
+  const isLocked = lockoutUntil && lockoutUntil > Date.now();
+  const lockMinutes = isLocked ? Math.ceil((lockoutUntil - Date.now()) / 60000) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div 
+      <div
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={onClose}
       />
-      
+
       <div className="relative glass-dark rounded-3xl border border-white/20 p-8 max-w-md w-full shadow-2xl">
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-8">
@@ -202,7 +197,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">AI Creative Stock</h2>
-              <p className="text-sm text-gray-400">安全なログイン</p>
+              <p className="text-sm text-gray-400">安心の新規登録</p>
             </div>
           </div>
           <button
@@ -214,20 +209,20 @@ const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {/* コンテンツ */}
-        {authStep === 'login' && (
+        {authStep === 'register' && (
           <div className="text-center">
             <h3 className="text-2xl font-bold text-white mb-4">
-              ログイン
+              新規登録
             </h3>
 
             {/* ソーシャルログインボタン */}
             <div className="space-y-4 mb-8">
               {/* Googleログインボタン */}
               <button
-                onClick={handleGoogleSignIn}
-                disabled={isLoading}
+                onClick={handleGoogleSignUp}
+                disabled={isLoading || isLocked}
                 className={`w-full flex items-center justify-center space-x-3 glass-effect border border-white/20 text-white hover:text-cyan-400 px-6 py-4 rounded-xl font-semibold transition-all duration-300 hover:bg-white/5 ${
-                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                  (isLoading || isLocked) ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 {isLoading ? (
@@ -240,76 +235,80 @@ const AuthModal: React.FC<AuthModalProps> = ({
                     <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
                 )}
-                <span>{isLoading ? '認証中...' : 'Googleでログイン'}</span>
+                <span>{isLoading ? '認証中...' : 'Googleで新規登録'}</span>
+              </button>
+
+              {/* 区切り */}
+              <div className="relative py-2">
+                <div className="absolute inset-0 border-t border-white/10" />
+                <div className="relative flex justify-center">
+                  <span className="px-3 text-xs text-gray-500 bg-black/60">または</span>
+                </div>
+              </div>
+
+              {/* メールで新規登録 */}
+              <div className="grid grid-cols-1 gap-3">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="メールアドレス"
+                  className="w-full rounded-xl bg-black/40 border border-white/20 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
+                  disabled={isLoading}
+                />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="パスワード（8文字以上）"
+                  className="w-full rounded-xl bg-black/40 border border-white/20 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
+                  disabled={isLoading}
+                />
+                <button
+                  onClick={handleEmailPasswordSignUp}
+                  disabled={isLoading}
+                  className={`w-full flex items-center justify-center space-x-3 glass-effect border border-white/20 text-white hover:text-cyan-400 px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:bg-white/5 ${
+                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {isLoading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : null}
+                  <span>メールで新規登録</span>
                 </button>
+              </div>
 
-                {/* 区切り */}
-                <div className="relative py-2">
-                  <div className="absolute inset-0 border-t border-white/10" />
-                  <div className="relative flex justify-center">
-                    <span className="px-3 text-xs text-gray-500 bg-black/60">または</span>
-                  </div>
-                </div>
+              {/* 任意: Magic Link */}
+              <div className="grid grid-cols-1 gap-3 mt-2">
+                <button
+                  onClick={handleEmailMagicLink}
+                  disabled={isLoading || emailSent}
+                  className={`w-full text-xs flex items-center justify-center space-x-2 glass-effect border border-white/10 text-gray-300 hover:text-cyan-300 px-4 py-2 rounded-lg transition-all ${
+                    (isLoading || emailSent) ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  <span>{emailSent ? '送信済み: メールをご確認ください' : 'またはメールに登録リンクを送信'}</span>
+                </button>
+              </div>
+            </div>
 
-                {/* メールでログイン（パスワード） */}
-                <div className="grid grid-cols-1 gap-3">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="メールアドレス"
-                    className="w-full rounded-xl bg-black/40 border border-white/20 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
-                    disabled={isLoading}
-                  />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="パスワード"
-                    className="w-full rounded-xl bg-black/40 border border-white/20 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
-                    disabled={isLoading}
-                  />
-                  <button
-                    onClick={handleEmailPasswordLogin}
-                    disabled={isLoading}
-                    className={`w-full flex items-center justify-center space-x-3 glass-effect border border-white/20 text-white hover:text-cyan-400 px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:bg-white/5 ${
-                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    {isLoading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : null}
-                    <span>メールでログイン</span>
-                  </button>
-                </div>
-
-                {/* 任意: Magic Link も利用可能 */}
-                <div className="grid grid-cols-1 gap-3 mt-2">
-                  <button
-                    onClick={handleEmailMagicLink}
-                    disabled={isLoading || emailSent}
-                    className={`w-full text-xs flex items-center justify-center space-x-2 glass-effect border border-white/10 text-gray-300 hover:text-cyan-300 px-4 py-2 rounded-lg transition-all ${
-                      (isLoading || emailSent) ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    <span>{emailSent ? '送信済み: メールをご確認ください' : 'またはメールにログインリンクを送信'}</span>
-                  </button>
-                </div>
-
-                </div>
-
-            {/* セキュリティ情報 */}
+            {/* セキュリティ案内 */}
             <div className="glass-effect rounded-2xl p-4 border border-cyan-400/30">
               <div className="flex items-center space-x-2 mb-2">
                 <Shield className="w-4 h-4 text-cyan-400" />
-                <span className="text-cyan-400 font-bold text-sm">安全性について</span>
+                <span className="text-cyan-400 font-bold text-sm">安心して始められます</span>
               </div>
               <ul className="text-xs text-gray-400 space-y-1 text-left">
-                <li>• OAuth 2.0による安全な認証</li>
-                <li>• パスワード不要でセキュリティリスクを軽減</li>
+                <li>• OAuth 2.0 による安全な認証</li>
+                <li>• メールでも Google でも登録可能</li>
                 <li>• 個人情報は暗号化して保護</li>
-                <li>• いつでもアカウント連携を解除可能</li>
+                <li>• いつでも連携解除が可能</li>
               </ul>
+              {isLocked && (
+                <p className="text-xs text-red-400 mt-2">
+                  試行回数超過のためロック中です（残り約{lockMinutes}分）
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -320,7 +319,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
               <CheckCircle className="w-8 h-8 text-white" />
             </div>
             <h3 className="text-2xl font-bold text-white mb-4">
-              ログイン成功！
+              登録完了！
             </h3>
             <p className="text-gray-400 mb-6">
               AI Creative Stockへようこそ。
@@ -329,7 +328,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
             </p>
             <div className="glass-effect rounded-2xl p-4 border border-green-400/30">
               <p className="text-green-400 font-bold text-sm">
-                自動的にリダイレクトしています...
+                自動的にリダイレクトします...
               </p>
             </div>
           </div>
@@ -341,7 +340,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
               <AlertCircle className="w-8 h-8 text-white" />
             </div>
             <h3 className="text-2xl font-bold text-white mb-4">
-              ログインエラー
+              登録エラー
             </h3>
             <p className="text-gray-400 mb-6">
               {errorMessage}
@@ -355,10 +354,10 @@ const AuthModal: React.FC<AuthModalProps> = ({
         )}
 
         {/* 利用規約 */}
-        {authStep === 'login' && (
+        {authStep === 'register' && (
           <div className="mt-6 pt-6 border-t border-white/10">
             <p className="text-xs text-gray-500 text-center leading-relaxed">
-              ログインすることで、
+              登録することで、
               <a href="#" className="text-cyan-400 hover:underline">利用規約</a>
               および
               <a href="#" className="text-cyan-400 hover:underline">プライバシーポリシー</a>
