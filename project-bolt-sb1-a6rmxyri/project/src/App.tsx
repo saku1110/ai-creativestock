@@ -116,10 +116,11 @@ function App() {
     const initializeAuth = async () => {
       try {
         // URLパラメータを確認
-        const urlParams = new URLSearchParams(window.location.search);
-        const accessToken = urlParams.get('access_token');
-        const refreshToken = urlParams.get('refresh_token');
-        const mode = urlParams.get('mode');
+        const searchParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
+        const mode = searchParams.get('mode') || hashParams.get('mode');
         
         console.log('=== 초기화 処理開始 ===');
         console.log('URLパラメータ詳細:', { 
