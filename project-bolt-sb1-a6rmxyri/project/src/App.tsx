@@ -469,37 +469,37 @@ function App() {
 
 
   const handleLogout = async () => {
-    console.log('handleLogout関数が呼ばれました');
-    console.log('現在の状態:', { isLoggedIn, currentPage, userData: userData?.email });
-    
+    console.log('handleLogout called');
+    console.log('state', { isLoggedIn, currentPage, userData: userData?.email });
+    const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
+
     try {
-      // 開発環境では localStorage をクリア
-      if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-        console.log('開発環境: localStorage をクリア');
+      if (isDevEnv) {
         localStorage.removeItem('dev_user');
         localStorage.removeItem('dev_logged_in');
-        console.log('localStorage クリア完了');
       } else {
-        console.log('本番環境: Supabase auth.signOut 実行');
         await auth.signOut();
       }
-      
-      console.log('ログアウト処理: 状態をリセット');
+    } catch (error) {
+      console.error('logout error:', error);
+      if (!isDevEnv) {
+        try { handleApiError(error as Error, 'Logout failed. Please try again.'); } catch {}
+      }
+    } finally {
+      try {
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith('sb-') || key.toLowerCase().includes('supabase'))
+          .forEach((key) => localStorage.removeItem(key));
+      } catch {}
+
       setIsLoggedIn(false);
       setUserData(null);
       setIsValidAuthProvider(false);
-      setCurrentPage('landing'); // ログアウト後はオリジナルLPに移動
-      console.log('ログアウト処理完了: LPに遷移');
-      
-    } catch (error) {
-      console.error('ログアウトエラー:', error);
-      if (!(import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development')) {
-        handleApiError(error, 'ログアウト処理');
-      }
+      setCurrentPage('landing');
+      console.log('logout done - redirect to landing');
     }
   };
-
-  const renderContent = () => {
+const renderContent = () => {
     console.log('renderContent called:', { isLoggedIn, currentPage, isLoading });
 
     // Public pages accessible without login
