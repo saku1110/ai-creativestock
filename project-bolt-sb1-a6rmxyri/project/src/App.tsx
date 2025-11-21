@@ -393,6 +393,12 @@ function App() {
     console.log('state', { isLoggedIn, currentPage, userData: userData?.email });
     const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
 
+    // 先にUI状態をリセットしておく（signOut失敗でも画面は戻す）
+    setIsLoggedIn(false);
+    setUserData(null);
+    setIsValidAuthProvider(false);
+    setCurrentPage('landing');
+
     try {
       if (isDevEnv) {
         localStorage.removeItem('dev_user');
@@ -415,10 +421,6 @@ function App() {
           .forEach((key) => sessionStorage.removeItem(key));
       } catch {}
 
-      setIsLoggedIn(false);
-      setUserData(null);
-      setIsValidAuthProvider(false);
-      setCurrentPage('landing');
       console.log('logout done - redirect to landing');
       try { window.location.href = '/'; } catch {}
     }
