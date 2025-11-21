@@ -30,7 +30,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
   const { isAdmin } = useAdmin();
 
   // プラン判定
-  const isEnterpriseUser = resolvedPlanId === 'enterprise';
+  const isEnterpriseUser = resolvedPlanId === 'enterprise' || resolvedPlanId === 'business';
   const shouldShowUpgrade = !isEnterpriseUser;
 
   // プラン情報の取得
@@ -66,6 +66,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
           downloads: displayedRemaining,
           limit: planLimit
         };
+      case 'business':
       case 'enterprise':
         return {
           name: 'ビジネス',

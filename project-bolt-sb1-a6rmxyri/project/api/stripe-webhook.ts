@@ -37,7 +37,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const customerId = session.customer as string | undefined
         const userId = session.metadata?.user_id
         const billing = session.metadata?.billing || 'monthly'
-        const planId = session.metadata?.plan_id || null
+        const rawPlanId = session.metadata?.plan_id || null
+        const planId = rawPlanId === 'enterprise' ? 'business' : rawPlanId
 
         if (userId && customerId) {
           // 既存行があれば更新、なければ作成
@@ -45,9 +46,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             user_id: userId,
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
-            plan: planId && ['standard', 'pro', 'enterprise'].includes(planId) ? planId : 'standard',
+            plan: planId && ['standard', 'pro', 'business'].includes(planId) ? planId : 'standard',
             status: 'active',
-            monthly_download_limit: planId === 'enterprise' ? 50 : planId === 'pro' ? 30 : 15,
+            monthly_download_limit: planId === 'business' ? 50 : planId === 'pro' ? 30 : 15,
             current_period_start: new Date(),
             current_period_end: null,
             cancel_at_period_end: false

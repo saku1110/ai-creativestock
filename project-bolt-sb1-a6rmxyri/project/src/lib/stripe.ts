@@ -1,5 +1,7 @@
 ﻿import { loadStripe, Stripe } from '@stripe/stripe-js';
 
+type PlanId = 'standard' | 'pro' | 'business' | 'enterprise';
+
 // Stripe公開可能キー（未設定でもアプリを落とさない）
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 console.log('[Stripe] VITE_STRIPE_PUBLISHABLE_KEY:', stripePublishableKey);
@@ -22,7 +24,9 @@ export const getStripe = () => {
 
 // サブスクリプションプランの定義
 export interface SubscriptionPlan {
-  id: 'standard' | 'pro' | 'enterprise';
+  id: PlanId;
+  aliases?: string[];
+  metadataPlanId?: PlanId;
   name: string;
   monthlyPrice: number; // 月額料金（円）
   yearlyPrice: number; // 年額料金（円）
@@ -74,7 +78,9 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     yearlyDiscount: 40 // 約40%オフ
   },
   {
-    id: 'enterprise',
+    id: 'business',
+    aliases: ['enterprise', 'bussines', 'bussiness'],
+    metadataPlanId: 'business',
     name: 'ビジネス',
     monthlyPrice: 49800,
     yearlyPrice: 29800 * 12, // LPと同じ年額月額: ¥29,800
@@ -89,9 +95,13 @@ export const subscriptionPlans: SubscriptionPlan[] = [
       'API利用可能'
     ],
     monthlyStripePriceId: 
-      import.meta.env.VITE_PRICE_ENTERPRISE_MONTHLY || 'price_1QZybdKpWTNKTKELPfRdSLOP',
+      import.meta.env.VITE_PRICE_BUSINESS_MONTHLY
+      || import.meta.env.VITE_PRICE_ENTERPRISE_MONTHLY
+      || 'price_1QZybdKpWTNKTKELPfRdSLOP',
     yearlyStripePriceId: 
-      import.meta.env.VITE_PRICE_ENTERPRISE_YEARLY || 'price_1QZyeRKpWTNKTKELEnterpriseYear',
+      import.meta.env.VITE_PRICE_BUSINESS_YEARLY
+      || import.meta.env.VITE_PRICE_ENTERPRISE_YEARLY
+      || 'price_1QZyeRKpWTNKTKELEnterpriseYear',
     yearlyDiscount: 40 // 約40%オフ
   }
 ];
@@ -120,12 +130,15 @@ export class StripePaymentService {
         return { sessionId: 'mock_session_' + Date.now() };
       }
 
-      const plan = subscriptionPlans.find(p => p.id === planId);
+      const plan = subscriptionPlans.find(
+        p => p.id === planId || (p.aliases?.includes(planId))
+      );
       if (!plan) {
         return { error: '無効なプランが選択されました。' };
       }
 
       const priceId = billing === 'yearly' ? plan.yearlyStripePriceId : plan.monthlyStripePriceId;
+      const metadataPlanId = plan.metadataPlanId || plan.id;
 
       if (!priceId) {
         console.error('[Stripe] priceId could not be resolved', { plan, billing });
@@ -146,7 +159,7 @@ export class StripePaymentService {
         priceId,
         userId,
         billing,
-        planId,
+        planId: metadataPlanId,
         successUrl,
         cancelUrl
       }
@@ -284,7 +297,7 @@ export const formatPrice = (price: number): string => {
 };
 
 export const getPlanById = (planId: string): SubscriptionPlan | undefined => {
-  return subscriptionPlans.find(plan => plan.id === planId);
+  return subscriptionPlans.find(plan => plan.id === planId || plan.aliases?.includes(planId));
 };
 
 export const getMonthlyPrice = (plan: SubscriptionPlan): string => {

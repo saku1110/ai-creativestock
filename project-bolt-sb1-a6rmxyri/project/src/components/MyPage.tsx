@@ -332,7 +332,7 @@ const MyPage: React.FC<MyPageProps> = ({ onPageChange }) => {
                   <span className="text-white font-medium text-sm sm:text-base">
                     {subscription?.plan === 'standard' ? 'メールサポート' : 
                      subscription?.plan === 'pro' ? '優先サポート' : 
-                     subscription?.plan === 'enterprise' ? '24時間サポート' : 
+                     (subscription?.plan === 'enterprise' || subscription?.plan === 'business') ? '24時間サポート' : 
                      '未設定'
                     }
                   </span>

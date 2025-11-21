@@ -19,7 +19,7 @@ const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
   downloadsRemaining = 0,
   reason
 }) => {
-  const [selectedPlan, setSelectedPlan] = useState<'standard' | 'pro' | 'enterprise'>('pro');
+  const [selectedPlan, setSelectedPlan] = useState<'standard' | 'pro' | 'business' | 'enterprise'>('pro');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -218,7 +218,7 @@ const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
                   ? 'border-green-500/50 shadow-lg shadow-green-500/20'
                   : 'border-gray-700 hover:border-gray-600'
               }`}
-              onClick={() => setSelectedPlan(plan.id as 'standard' | 'pro' | 'enterprise')}
+              onClick={() => setSelectedPlan(plan.id as 'standard' | 'pro' | 'business' | 'enterprise')}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">

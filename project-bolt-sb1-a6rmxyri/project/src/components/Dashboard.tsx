@@ -504,7 +504,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     return extended.plan_type ?? extended.planType ?? extended.plan ?? (isTrialUser ? 'trial' : undefined);
   }, [subscription, isTrialUser]);
 
-  const isEnterpriseUser = resolvedPlanType === 'enterprise';
+  const isEnterpriseUser = resolvedPlanType === 'enterprise' || resolvedPlanType === 'business';
   const canUpgradePlan = !isEnterpriseUser;
 
   const trialLimit = subscription?.trial_downloads_limit ?? 0;
@@ -554,6 +554,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
           buttonGradient: 'from-sky-500 to-indigo-500',
           icon: Zap
         };
+      case 'business':
       case 'enterprise':
         return {
           label: 'ビジネス',
@@ -1811,6 +1812,7 @@ const VideoCard: React.FC<{
   onToggleFavorite: () => void;
   onTagClick?: (tag: string) => void;
   onCategoryClick?: (categoryId: string) => void;
+  canDownload?: boolean;
 }> = ({ video, onClick, isFavorited, isDownloading, onDownload, onToggleFavorite, onTagClick, onCategoryClick, canDownload }) => {
   const [isHovered, setIsHovered] = useState(false);
   const hoverVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -1818,33 +1820,47 @@ const VideoCard: React.FC<{
   const previewSource = video.preview_url || video.file_url;
   const canPreviewPlay = Boolean(previewSource);
 
-  useEffect(() => {
+  const startPreview = useCallback(() => {
+    if (!canPreviewPlay) return;
     const el = hoverVideoRef.current;
     if (!el) return;
 
-    if (isHovered && canPreviewPlay) {
-      el.currentTime = 0;
-      const playPromise = el.play();
-      if (playPromise && typeof playPromise.catch === 'function') {
-        playPromise.catch(() => {
-          /* noop: autoplay might be blocked; fallback to static thumbnail */
-        });
-      }
-    } else {
+    el.preload = 'auto';
+    el.load();
+    const playPromise = el.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {
+        /* autoplay might be blocked; fallback to static thumbnail */
+      });
+    }
+  }, [canPreviewPlay]);
+
+  const stopPreview = useCallback(() => {
+    const el = hoverVideoRef.current;
+    if (!el) return;
+    try {
       el.pause();
       el.currentTime = 0;
+      el.preload = 'metadata';
+      el.load();
+    } catch {
+      // ignore cleanup errors
     }
-  }, [isHovered, canPreviewPlay]);
+  }, []);
+
+  useEffect(() => {
+    if (isHovered) {
+      startPreview();
+    } else {
+      stopPreview();
+    }
+  }, [isHovered, startPreview, stopPreview]);
 
   useEffect(() => {
     return () => {
-      const el = hoverVideoRef.current;
-      if (el) {
-        el.pause();
-        el.currentTime = 0;
-      }
+      stopPreview();
     };
-  }, []);
+  }, [stopPreview]);
 
   const categoryNames = {
     beauty: '美容',
@@ -1904,22 +1920,24 @@ const VideoCard: React.FC<{
       }}
     >
       <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[22px] md:rounded-[28px]">
-        {canPreviewPlay && (
+        {canPreviewPlay ? (
           <video
             ref={hoverVideoRef}
             src={previewSource}
             muted
             loop
             playsInline
-            preload="none"
-            className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${isHovered ? 'opacity-100' : 'opacity-0'}`}
+            preload="metadata"
+            poster={video.thumbnail_url}
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover bg-black transition-transform duration-700 ease-out md:group-hover:scale-105"
+          />
+        ) : (
+          <img
+            src={video.thumbnail_url}
+            alt={video.title}
+            className="h-full w-full object-cover transition-transform duration-700 ease-out md:group-hover:scale-105"
           />
         )}
-        <img
-          src={video.thumbnail_url}
-          alt={video.title}
-          className={`h-full w-full object-cover transition-transform duration-700 ease-out md:group-hover:scale-105 ${canPreviewPlay ? 'transition-opacity duration-500 ' + (isHovered ? 'opacity-0' : 'opacity-100') : ''}`}
-        />
 
         <div className="pointer-events-none absolute inset-0 hidden bg-gradient-to-b from-transparent via-black/10 to-black/70 opacity-0 transition-opacity duration-500 md:block md:group-hover:opacity-100" />
 

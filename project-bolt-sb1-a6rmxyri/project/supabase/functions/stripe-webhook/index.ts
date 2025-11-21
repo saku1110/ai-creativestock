@@ -14,7 +14,7 @@ type SupabaseClient = ReturnType<typeof createClient>
 type BillingCycle = 'monthly' | 'yearly'
 
 interface PlanDetails {
-  plan: 'standard' | 'pro' | 'enterprise'
+  plan: 'standard' | 'pro' | 'business'
   monthlyDownloadLimit: number
   billingCycle: BillingCycle
 }
@@ -38,17 +38,17 @@ const PRICE_PLAN_MAP: Record<string, PlanDetails> = {
   'price_1QZyeRKpWTNKTKELProYear': { plan: 'pro', monthlyDownloadLimit: 30, billingCycle: 'yearly' },
   'price_pro_yearly_prod': { plan: 'pro', monthlyDownloadLimit: 30, billingCycle: 'yearly' },
 
-  // Enterprise
-  'price_1QZybdKpWTNKTKELPfRdSLOP': { plan: 'enterprise', monthlyDownloadLimit: 50, billingCycle: 'monthly' },
-  'price_enterprise_monthly_prod': { plan: 'enterprise', monthlyDownloadLimit: 50, billingCycle: 'monthly' },
-  'price_1QZyeRKpWTNKTKELEnterpriseYear': { plan: 'enterprise', monthlyDownloadLimit: 50, billingCycle: 'yearly' },
-  'price_enterprise_yearly_prod': { plan: 'enterprise', monthlyDownloadLimit: 50, billingCycle: 'yearly' },
+  // Business (旧 Enterprise)
+  'price_1QZybdKpWTNKTKELPfRdSLOP': { plan: 'business', monthlyDownloadLimit: 50, billingCycle: 'monthly' },
+  'price_enterprise_monthly_prod': { plan: 'business', monthlyDownloadLimit: 50, billingCycle: 'monthly' },
+  'price_1QZyeRKpWTNKTKELEnterpriseYear': { plan: 'business', monthlyDownloadLimit: 50, billingCycle: 'yearly' },
+  'price_enterprise_yearly_prod': { plan: 'business', monthlyDownloadLimit: 50, billingCycle: 'yearly' },
 }
 
 const PLAN_LABEL: Record<PlanDetails['plan'], string> = {
   standard: 'スタンダード',
   pro: 'プロ',
-  enterprise: 'エンタープライズ',
+  business: 'ビジネス',
 }
 
 function resolvePlanDetails(priceId?: string | null): PlanDetails | null {

@@ -16,7 +16,7 @@ const DirectPurchaseModal: React.FC<DirectPurchaseModalProps> = ({
   onPurchaseSuccess
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
-  const [selectedPlan, setSelectedPlan] = useState<'standard' | 'pro' | 'enterprise'>('pro');
+  const [selectedPlan, setSelectedPlan] = useState<'standard' | 'pro' | 'business' | 'enterprise'>('pro');
   const [isLoading, setIsLoading] = useState(false);
 
   const formatPrice = (price: number) => {
@@ -125,7 +125,7 @@ const DirectPurchaseModal: React.FC<DirectPurchaseModalProps> = ({
                   ? 'border-green-500/50 shadow-lg shadow-green-500/20'
                   : 'border-gray-700 hover:border-gray-600'
               }`}
-              onClick={() => setSelectedPlan(plan.id as 'standard' | 'pro' | 'enterprise')}
+              onClick={() => setSelectedPlan(plan.id as 'standard' | 'pro' | 'business' | 'enterprise')}
             >
               {plan.popular && (
                 <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">

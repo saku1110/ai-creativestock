@@ -72,7 +72,7 @@ export class DownloadLimitManager {
         planId: subscription.plan_id,
         monthlyLimit: plan.monthlyDownloads,
         resetDay: new Date(subscription.created_at).getDate(),
-        gracePeriod: subscription.plan_id === 'enterprise' ? 5 : 2
+        gracePeriod: ['business', 'enterprise'].includes(subscription.plan_id) ? 5 : 2
       };
     } catch (error) {
       console.error('ダウンロード制限取得エラー:', error);
@@ -341,7 +341,7 @@ export class DownloadLimitManager {
    * プランアップグレード判定
    */
   private static isUpgrade(previousPlanId: string | undefined, newPlanId: string): boolean {
-    const planOrder = ['free', 'standard', 'pro', 'enterprise'];
+    const planOrder = ['free', 'standard', 'pro', 'business', 'enterprise'];
     const previousIndex = previousPlanId ? planOrder.indexOf(previousPlanId) : -1;
     const newIndex = planOrder.indexOf(newPlanId);
     

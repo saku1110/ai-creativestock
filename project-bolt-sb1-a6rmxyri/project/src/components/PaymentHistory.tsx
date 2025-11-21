@@ -9,7 +9,7 @@ interface PaymentRecord {
   amount: number;
   currency: string;
   status: string;
-  plan: 'standard' | 'pro' | 'enterprise';
+  plan: 'standard' | 'pro' | 'business' | 'enterprise';
   billing_period: 'monthly' | 'yearly';
   created_at: string;
 }
@@ -71,7 +71,9 @@ const PaymentHistory: React.FC = () => {
     switch (plan) {
       case 'standard': return 'スタンダード';
       case 'pro': return 'プロ';
-      case 'enterprise': return 'ビジネス';
+      case 'business':
+      case 'enterprise':
+        return 'ビジネス';
       default: return plan;
     }
   };

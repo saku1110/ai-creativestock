@@ -14,7 +14,7 @@ interface UserProfile {
 
 interface UserSubscription {
   id: string;
-  plan: 'standard' | 'pro' | 'enterprise';
+  plan: 'standard' | 'pro' | 'business' | 'enterprise';
   status: 'trial' | 'active' | 'canceled' | 'past_due' | 'unpaid';
   current_period_end: string;
   monthly_download_limit: number;
