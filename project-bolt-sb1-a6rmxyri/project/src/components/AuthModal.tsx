@@ -20,7 +20,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
-  const [emailSent, setEmailSent] = useState(false);
   const [password, setPassword] = useState('');
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
 
@@ -127,24 +126,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
         }
       }
       handleAuthError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleEmailMagicLink = async () => {
-    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      handleAuthError('有効なメールアドレスを入力してください。');
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const { error } = await auth.signInWithMagicLink(email);
-      if (error) throw error;
-      setEmailSent(true);
-      setAuthStep('success');
-    } catch (e: any) {
-      handleAuthError(e?.message || 'メール送信に失敗しました。時間をおいてお試しください。');
     } finally {
       setIsLoading(false);
     }
@@ -275,19 +256,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : null}
                   <span>メールで新規登録</span>
-                </button>
-              </div>
-
-              {/* 任意: Magic Link */}
-              <div className="grid grid-cols-1 gap-3 mt-2">
-                <button
-                  onClick={handleEmailMagicLink}
-                  disabled={isLoading || emailSent}
-                  className={`w-full text-xs flex items-center justify-center space-x-2 glass-effect border border-white/10 text-gray-300 hover:text-cyan-300 px-4 py-2 rounded-lg transition-all ${
-                    (isLoading || emailSent) ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  <span>{emailSent ? '送信済み: メールをご確認ください' : 'またはメールに登録リンクを送信'}</span>
                 </button>
               </div>
             </div>

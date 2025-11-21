@@ -177,7 +177,7 @@ export const auth = {
   },
 
   // メール登録
-  signUpWithEmail: async (email: string, password: string) => {
+  signUpWithEmail: async (email: string, password: string, redirectTo?: string) => {
     if (isSampleMode) {
       currentUser = {
         id: 'dev_email_new_456',
@@ -188,7 +188,17 @@ export const auth = {
       notifyAuth('SIGNED_IN')
       return { data: { user: currentUser }, error: null }
     }
-    const { data, error } = await supabase.auth.signUp({ email, password })
+    const emailRedirectTo =
+      redirectTo ||
+      (typeof window !== 'undefined'
+        ? `${window.location.origin}/auth/callback?mode=registration`
+        : undefined)
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: emailRedirectTo ? { emailRedirectTo } : undefined
+    })
     return { data, error }
   },
 
