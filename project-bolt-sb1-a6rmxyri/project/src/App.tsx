@@ -388,7 +388,7 @@ function App() {
 
 
 
-    const handleLogout = async () => {
+  const handleLogout = async () => {
     console.log('handleLogout called');
     console.log('state', { isLoggedIn, currentPage, userData: userData?.email });
     const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
@@ -410,6 +410,9 @@ function App() {
         Object.keys(localStorage)
           .filter((key) => key.startsWith('sb-') || key.toLowerCase().includes('supabase'))
           .forEach((key) => localStorage.removeItem(key));
+        Object.keys(sessionStorage)
+          .filter((key) => key.startsWith('sb-') || key.toLowerCase().includes('supabase'))
+          .forEach((key) => sessionStorage.removeItem(key));
       } catch {}
 
       setIsLoggedIn(false);
@@ -417,6 +420,7 @@ function App() {
       setIsValidAuthProvider(false);
       setCurrentPage('landing');
       console.log('logout done - redirect to landing');
+      try { window.location.href = '/'; } catch {}
     }
   };
 
