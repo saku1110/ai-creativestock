@@ -171,7 +171,10 @@ function App() {
               window.history.replaceState({}, document.title, window.location.pathname);
             }
           } catch (error) {
-            console.error('OAuth セッション設定エラー:', error);
+            console.error('OAuth ??????????:', error);
+            try { handleApiError(error as Error, '????????????????????????????'); } catch {}
+            setIsLoading(false);
+            return;
           }
         }
 
