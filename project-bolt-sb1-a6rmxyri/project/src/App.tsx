@@ -70,6 +70,7 @@ function App() {
   const currentPageRef = useRef(currentPage);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
   const [showContactModal, setShowContactModal] = useState(false);
   const [userData, setUserData] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -410,14 +411,14 @@ function App() {
 
   const handleAuthRequest = () => {
     isNewUserRegistrationRef.current = false; // ref繧貞・縺ｫ險ｭ螳・
-    setIsNewUserRegistration(false); // 譌｢蟄倥Θ繝ｼ繧ｶ繝ｼ繝ｭ繧ｰ繧､繝ｳ縺ｪ縺ｮ縺ｧ繝輔Λ繧ｰ繧断alse縺ｫ
+    setAuthMode('login');
     console.log('handleAuthRequest: 譌｢蟄倥Θ繝ｼ繧ｶ繝ｼ繝輔Λ繧ｰ繧定ｨｭ螳・- ref:', isNewUserRegistrationRef.current);
     setShowAuthModal(true);
   };
 
   const handleLoginRequest = () => {
     isNewUserRegistrationRef.current = false; // ref繧貞・縺ｫ險ｭ螳・
-    setIsNewUserRegistration(false); // 譌｢蟄倥Θ繝ｼ繧ｶ繝ｼ繝ｭ繧ｰ繧､繝ｳ縺ｪ縺ｮ縺ｧ繝輔Λ繧ｰ繧断alse縺ｫ
+    setAuthMode('login');
     console.log('handleLoginRequest: 譌｢蟄倥Θ繝ｼ繧ｶ繝ｼ繝ｭ繧ｰ繧､繝ｳ繝輔Λ繧ｰ繧定ｨｭ螳・- ref:', isNewUserRegistrationRef.current);
     setShowAuthModal(true);
   };
@@ -429,7 +430,7 @@ function App() {
       setIsNewUserRegistration(true); // 譁ｰ隕冗匳骭ｲ縺ｪ縺ｮ縺ｧ繝輔Λ繧ｰ繧稚rue縺ｫ
       console.log('handleRegistrationRequest: 譁ｰ隕冗匳骭ｲ繝輔Λ繧ｰ繧定ｨｭ螳・- ref:', isNewUserRegistrationRef.current);
       setShowAuthModal(true);
-      return;
+      setAuthMode('register');
     }
     // 繝ｭ繧ｰ繧､繝ｳ貂医∩縺ｮ蝣ｴ蜷医・譁咎≡繝壹・繧ｸ縺ｸ
     setCurrentPage('pricing');
@@ -703,6 +704,7 @@ const renderContent = () => {
               isOpen={showAuthModal}
               onClose={() => setShowAuthModal(false)}
               onAuthSuccess={handleAuthSuccess}
+              mode={authMode}
             />
 
             <ContactModal

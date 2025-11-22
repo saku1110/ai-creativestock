@@ -13,12 +13,14 @@ interface SimpleLandingPageProps {
   onAuthRequest?: () => void;
   showAuthModal?: boolean;
   setShowAuthModal?: (show: boolean) => void;
+  authMode?: 'login' | 'register';
 }
 
 const SimpleLandingPage: React.FC<SimpleLandingPageProps> = ({ 
   onAuthRequest,
   showAuthModal = false,
-  setShowAuthModal = () => {}
+  setShowAuthModal = () => {},
+  authMode = 'register'
 }) => {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [localShowAuthModal, setLocalShowAuthModal] = useState(showAuthModal);
@@ -139,6 +141,8 @@ const SimpleLandingPage: React.FC<SimpleLandingPageProps> = ({
         <AuthModal 
           isOpen={localShowAuthModal}
           onClose={handleCloseAuthModal}
+          onAuthSuccess={() => {}}
+          mode={authMode}
         />
       )}
     </div>

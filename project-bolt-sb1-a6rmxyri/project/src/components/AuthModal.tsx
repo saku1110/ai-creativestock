@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 import { auth } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
@@ -7,16 +7,16 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthSuccess: (userData: User) => void;
-  redirectToPricing?: boolean;
+  mode?: 'login' | 'register';
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
   onAuthSuccess,
-  redirectToPricing = false
+  mode = 'register'
 }) => {
-  const [authStep, setAuthStep] = useState<'register' | 'success' | 'error'>('register');
+  const [authStep, setAuthStep] = useState<'login' | 'register' | 'success' | 'error'>(mode);
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -53,24 +53,22 @@ const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleAuthSuccess = (userData: User) => {
     setAuthStep('success');
-    // reset lockout on successful signup/login
     try {
       localStorage.removeItem(`login_lockout_${(userData.email || '').toLowerCase()}`);
     } catch {}
     setTimeout(() => {
       onAuthSuccess(userData);
       onClose();
-      setAuthStep('register');
-    }, 2000);
+      setAuthStep(mode);
+    }, 1200);
   };
 
   const handleAuthError = (error: string) => {
     setErrorMessage(error);
     setAuthStep('error');
-    // increment attempts for lockout
     try {
       if (email) {
-        const key = `login_lockout_${email.toLowerCase()}`;
+        const key = keyFor(email);
         const raw = localStorage.getItem(key);
         const v = raw ? JSON.parse(raw) : { attempts: 0, until: 0 };
         const attempts = (Number(v.attempts) || 0) + 1;
@@ -83,12 +81,10 @@ const AuthModal: React.FC<AuthModalProps> = ({
         }
       }
     } catch {}
-    setTimeout(() => {
-      setAuthStep('register');
-    }, 3000);
+    setTimeout(() => setAuthStep(mode), 2000);
   };
 
-  const handleGoogleSignUp = async () => {
+  const handleGoogle = async () => {
     const until = checkLocked(email);
     if (until) {
       const mins = Math.ceil((until - Date.now()) / 60000);
@@ -98,66 +94,76 @@ const AuthModal: React.FC<AuthModalProps> = ({
     }
     setIsLoading(true);
     try {
-      const { error } = await auth.signUpWithGoogle();
+      const { error } = mode === 'login'
+        ? await auth.signInWithGoogle()
+        : await auth.signUpWithGoogle();
       if (error) throw error;
-      setTimeout(async () => {
-        try {
-          const { user: currentUser } = await auth.getCurrentUser();
-          if (currentUser) {
-            handleAuthSuccess(currentUser);
-          }
-        } catch (userError) {
-          console.error('認証後のユーザー取得エラー:', userError);
-        }
-      }, 800);
+      const { user } = await auth.getCurrentUser();
+      if (user) {
+        handleAuthSuccess(user);
+      } else {
+        handleAuthError(mode === 'login' ? 'ログインに失敗しました。' : '新規登録に失敗しました。');
+      }
     } catch (error: any) {
-      console.error('Google認証エラー:', error);
-
-      let errorMessage = 'Googleでの新規登録に失敗しました。';
+      let msg = mode === 'login' ? 'Googleログインに失敗しました。' : 'Googleでの新規登録に失敗しました。';
       if (error instanceof Error) {
         if (error.message.includes('popup_closed_by_user')) {
-          errorMessage = '登録がキャンセルされました。';
+          msg = mode === 'login' ? 'ログインがキャンセルされました。' : '登録がキャンセルされました。';
         } else if (error.message.toLowerCase().includes('network')) {
-          errorMessage = 'ネットワークエラーです。接続を確認してください。';
+          msg = 'ネットワークエラーです。接続を確認してください。';
         } else if (error.message.toLowerCase().includes('configuration')) {
-          errorMessage = 'Google認証の設定に問題があります。管理者にお問い合わせください。';
+          msg = 'Google認証の設定に問題があります。管理者にお問い合わせください。';
         } else {
-          errorMessage = `Google登録エラー: ${error.message}`;
+          msg = `${mode === 'login' ? 'Googleログイン' : 'Google登録'}エラー: ${error.message}`;
         }
       }
-      handleAuthError(errorMessage);
+      handleAuthError(msg);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleEmailPasswordSignUp = async () => {
+  const handleEmailPassword = async () => {
     if (!email || !password) {
       handleAuthError('メールアドレスとパスワードを入力してください。');
       return;
     }
-    if (password.length < 8) {
+    if (mode === 'register' && password.length < 8) {
       handleAuthError('パスワードは8文字以上で入力してください。');
       return;
     }
     setIsLoading(true);
     try {
-      const { error } = await auth.signUpWithEmail(email, password);
+      const { error } = mode === 'login'
+        ? await auth.signInWithEmail(email, password)
+        : await auth.signUpWithEmail(email, password);
       if (error) throw error;
       const { user } = await auth.getCurrentUser();
       if (user) {
-        handleAuthSuccess(user as User);
+        handleAuthSuccess(user);
       } else {
-        handleAuthError('新規登録に失敗しました。もう一度お試しください。');
+        handleAuthError(mode === 'login' ? 'ログインに失敗しました。' : '新規登録に失敗しました。');
       }
     } catch (e: any) {
-      handleAuthError(e?.message || 'メールでの新規登録に失敗しました。');
+      handleAuthError(e?.message || (mode === 'login' ? 'メールログインに失敗しました。' : 'メール登録に失敗しました。'));
     } finally {
       setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (isOpen) {
+      setAuthStep(mode);
+      setErrorMessage('');
+    }
+  }, [mode, isOpen]);
+
   if (!isOpen) return null;
+
+  const heading = mode === 'login' ? 'ログイン' : '新規登録';
+  const subHeading = mode === 'login' ? '安全なログイン' : '安心の新規登録';
+  const buttonGoogle = mode === 'login' ? 'Googleでログイン' : 'Googleで新規登録';
+  const buttonEmail = mode === 'login' ? 'メールでログイン' : 'メールで新規登録';
 
   const isLocked = lockoutUntil && lockoutUntil > Date.now();
   const lockMinutes = isLocked ? Math.ceil((lockoutUntil - Date.now()) / 60000) : null;
@@ -178,7 +184,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">AI Creative Stock</h2>
-              <p className="text-sm text-gray-400">安心の新規登録</p>
+              <p className="text-sm text-gray-400">{subHeading}</p>
             </div>
           </div>
           <button
@@ -190,17 +196,16 @@ const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {/* コンテンツ */}
-        {authStep === 'register' && (
+        {(authStep === 'register' || authStep === 'login') && (
           <div className="text-center">
             <h3 className="text-2xl font-bold text-white mb-4">
-              新規登録
+              {heading}
             </h3>
 
-            {/* ソーシャルログインボタン */}
+            {/* ソーシャルボタン */}
             <div className="space-y-4 mb-8">
-              {/* Googleログインボタン */}
               <button
-                onClick={handleGoogleSignUp}
+                onClick={handleGoogle}
                 disabled={isLoading || isLocked}
                 className={`w-full flex items-center justify-center space-x-3 glass-effect border border-white/20 text-white hover:text-cyan-400 px-6 py-4 rounded-xl font-semibold transition-all duration-300 hover:bg-white/5 ${
                   (isLoading || isLocked) ? 'opacity-50 cursor-not-allowed' : ''
@@ -216,10 +221,9 @@ const AuthModal: React.FC<AuthModalProps> = ({
                     <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
                 )}
-                <span>{isLoading ? '認証中...' : 'Googleで新規登録'}</span>
+                <span>{isLoading ? '認証中...' : buttonGoogle}</span>
               </button>
 
-              {/* 区切り */}
               <div className="relative py-2">
                 <div className="absolute inset-0 border-t border-white/10" />
                 <div className="relative flex justify-center">
@@ -227,7 +231,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               </div>
 
-              {/* メールで新規登録 */}
               <div className="grid grid-cols-1 gap-3">
                 <input
                   type="email"
@@ -241,12 +244,12 @@ const AuthModal: React.FC<AuthModalProps> = ({
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="パスワード（8文字以上）"
+                  placeholder={mode === 'login' ? 'パスワード' : 'パスワード（8文字以上）'}
                   className="w-full rounded-xl bg-black/40 border border-white/20 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
                   disabled={isLoading}
                 />
                 <button
-                  onClick={handleEmailPasswordSignUp}
+                  onClick={handleEmailPassword}
                   disabled={isLoading}
                   className={`w-full flex items-center justify-center space-x-3 glass-effect border border-white/20 text-white hover:text-cyan-400 px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:bg-white/5 ${
                     isLoading ? 'opacity-50 cursor-not-allowed' : ''
@@ -255,12 +258,11 @@ const AuthModal: React.FC<AuthModalProps> = ({
                   {isLoading ? (
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : null}
-                  <span>メールで新規登録</span>
+                  <span>{buttonEmail}</span>
                 </button>
               </div>
             </div>
 
-            {/* セキュリティ案内 */}
             <div className="glass-effect rounded-2xl p-4 border border-cyan-400/30">
               <div className="flex items-center space-x-2 mb-2">
                 <Shield className="w-4 h-4 text-cyan-400" />
@@ -268,7 +270,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
               </div>
               <ul className="text-xs text-gray-400 space-y-1 text-left">
                 <li>• OAuth 2.0 による安全な認証</li>
-                <li>• メールでも Google でも登録可能</li>
+                <li>• メールでも Google でも{mode === 'login' ? 'ログイン' : '登録'}可能</li>
                 <li>• 個人情報は暗号化して保護</li>
                 <li>• いつでも連携解除が可能</li>
               </ul>
@@ -287,18 +289,13 @@ const AuthModal: React.FC<AuthModalProps> = ({
               <CheckCircle className="w-8 h-8 text-white" />
             </div>
             <h3 className="text-2xl font-bold text-white mb-4">
-              登録完了！
+              {mode === 'login' ? 'ログイン成功' : '登録完了！'}
             </h3>
             <p className="text-gray-400 mb-6">
               AI Creative Stockへようこそ。
               <br />
               高品質SNS動画素材をお楽しみください。
             </p>
-            <div className="glass-effect rounded-2xl p-4 border border-green-400/30">
-              <p className="text-green-400 font-bold text-sm">
-                自動的にリダイレクトします...
-              </p>
-            </div>
           </div>
         )}
 
@@ -308,24 +305,18 @@ const AuthModal: React.FC<AuthModalProps> = ({
               <AlertCircle className="w-8 h-8 text-white" />
             </div>
             <h3 className="text-2xl font-bold text-white mb-4">
-              登録エラー
+              {mode === 'login' ? 'ログインエラー' : '登録エラー'}
             </h3>
             <p className="text-gray-400 mb-6">
               {errorMessage}
             </p>
-            <div className="glass-effect rounded-2xl p-4 border border-red-400/30">
-              <p className="text-red-400 font-bold text-sm">
-                しばらくしてから再度お試しください
-              </p>
-            </div>
           </div>
         )}
 
-        {/* 利用規約 */}
-        {authStep === 'register' && (
+        {(authStep === 'register' || authStep === 'login') && (
           <div className="mt-6 pt-6 border-t border-white/10">
             <p className="text-xs text-gray-500 text-center leading-relaxed">
-              登録することで、
+              {mode === 'login' ? 'ログインすることで、' : '登録することで、'}
               <a href="#" className="text-cyan-400 hover:underline">利用規約</a>
               および
               <a href="#" className="text-cyan-400 hover:underline">プライバシーポリシー</a>

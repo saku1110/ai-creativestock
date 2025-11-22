@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Heart, Grid, List, Download, Trash2, Search } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useUser } from '../hooks/useUser';
-import { database } from '../lib/supabase';
+import { database, supabase } from '../lib/supabase';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
 import { downloadFileFromUrl } from '../utils/downloadFile';
 
@@ -259,6 +259,29 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
     } catch (err) {
       console.error('Download error:', err);
       alert('ダウンロードに失敗しました。もう一度お試しください。');
+      return;
+    }
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    let alreadyDownloadedThisMonth = false;
+    try {
+      const { data: existing } = await database
+        .from('download_history')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('video_id', video.id)
+        .gte('downloaded_at', startOfMonth.toISOString())
+        .limit(1);
+      alreadyDownloadedThisMonth = (existing?.length || 0) > 0;
+    } catch (error) {
+      console.error('ダウンロード履歴確認に失敗しました:', error);
+    }
+
+    if (alreadyDownloadedThisMonth) {
+      setDownloadMessage('この動画は今月すでにダウンロード済みです。');
       return;
     }
 

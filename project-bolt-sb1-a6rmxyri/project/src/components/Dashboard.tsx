@@ -879,12 +879,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       recordDownload();
     }
 
-    await refreshUserData();
-
-    const usageBefore = hasDownloadCap
-      ? Math.max(0, downloadLimit - safeRemaining)
-      : monthlyDownloads;
-    const usageAfter = usageBefore + 1;
+    if (historyRecorded) {
+      await refreshUserData();
+    }
 
     setTimeout(() => {
       setDownloadingVideos(prev => {
