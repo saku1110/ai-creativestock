@@ -381,28 +381,27 @@ function App() {
 
 
   const handlePageChange = async (page: string) => {
-    // 邂｡逅・・メ繧ｧ繝・け・医ョ繝ｼ繧ｿ繝吶・繧ｹ繝吶・繧ｹ・・
+    // Admin-only pages require auth/role checks
     if (page === 'admin' || page === 'auto-upload') {
-      // 髢狗匱迺ｰ蠅・〒縺ｯ邂｡逅・・メ繧ｧ繝・け繧偵せ繧ｭ繝・・
       if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
-        console.log('髢狗匱迺ｰ蠅・ 邂｡逅・・メ繧ｧ繝・け繧偵せ繧ｭ繝・・縺励※縺・∪縺・);
+        console.log('Dev env: skipping admin check');
         setCurrentPage(page);
         return;
       }
 
       if (!userData?.id) {
-        handleApiError(new Error('繝ｭ繧ｰ繧､繝ｳ縺悟ｿ・ｦ√〒縺・), '邂｡逅・・・繝ｼ繧ｸ繧｢繧ｯ繧ｻ繧ｹ');
+        handleApiError(new Error('ログインが必要です'), '管理ページアクセス');
         return;
       }
-      
+
       try {
         const { isAdmin } = await database.checkAdminStatus(userData.id);
         if (!isAdmin) {
-          handleApiError(new Error('邂｡逅・・・縺ｿ繧｢繧ｯ繧ｻ繧ｹ蜿ｯ閭ｽ縺ｧ縺・), '邂｡逅・・・繝ｼ繧ｸ繧｢繧ｯ繧ｻ繧ｹ');
+          handleApiError(new Error('管理者のみアクセス可能です'), '管理ページアクセス');
           return;
         }
       } catch (error) {
-        handleApiError(error, '邂｡逅・・ｨｩ髯舌メ繧ｧ繝・け');
+        handleApiError(error, '管理権限チェック');
         return;
       }
     }
@@ -726,6 +725,9 @@ const renderContent = () => {
 }
 
 export default App;
+
+
+
 
 
 
