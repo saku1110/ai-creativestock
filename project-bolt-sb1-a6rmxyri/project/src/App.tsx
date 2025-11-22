@@ -564,10 +564,6 @@ const renderContent = () => {
             <TestFAQ />
             <FinalCTA onTrialRequest={handleRegistrationRequest} onContactRequest={handleContactRequest} onPurchaseRequest={handlePurchaseRequest} />
           </>
-        );
-      }
-    }
-
     // ログイン済み時のプラットフォーム表示
     // Google/Apple認証のみアクセス許可
     if (!isValidAuthProvider) {
@@ -590,6 +586,7 @@ const renderContent = () => {
           </div>
         </div>
       );
+    }
     }
     switch (currentPage) {
       case 'dashboard':
