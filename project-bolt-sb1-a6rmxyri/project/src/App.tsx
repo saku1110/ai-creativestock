@@ -647,7 +647,7 @@ const renderContent = () => {
   return (
     <HelmetProvider>
       <ErrorBoundary onError={(error, errorInfo) => {
-        handleApiError(error, '繧｢繝励Μ繧ｱ繝ｼ繧ｷ繝ｧ繝ｳ繧ｨ繝ｩ繝ｼ');
+        handleApiError(error, 'アプリケーションエラー');
       }}>
         <div className="min-h-screen bg-black force-white-h2">
           {/* SEO繝｡繧ｿ繧ｿ繧ｰ */}
