@@ -105,7 +105,7 @@ function App() {
 
     // 繝ｦ繝ｼ繧ｶ繝ｼ縺ｮ隱崎ｨｼ繝励Ο繝舌う繝繝ｼ繧偵メ繧ｧ繝・け
     const authProvider = user.app_metadata?.provider;
-    const validProviders = ['google'];
+    const validProviders = ['google', 'email', 'apple'];
     
     console.log('Auth provider check:', { 
       provider: authProvider, 
