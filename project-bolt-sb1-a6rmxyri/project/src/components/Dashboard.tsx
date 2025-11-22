@@ -1025,13 +1025,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   }, [videos, selectedCategories, selectedAges, selectedGenders, showOnlyFavorites, userFavorites, sortBy, debouncedSearchQuery]);
   const spotlightVideos = useMemo(() => filteredVideos.slice(0, 12), [filteredVideos]);
   const spotlightIds = useMemo(() => new Set(spotlightVideos.map(video => video.id)), [spotlightVideos]);
-  const newestVideos = useMemo(
-    () =>
-      [...videos]
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 12),
-    [videos]
-  );
+  const newestVideos = useMemo(() => {
+    const perCategoryLimit = 4;
+    const sortedByCreated = [...videos].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    const buckets: Record<string, VideoAsset[]> = {};
+    for (const video of sortedByCreated) {
+      const cat = video.category || 'uncategorized';
+      if (!buckets[cat]) buckets[cat] = [];
+      if (buckets[cat].length < perCategoryLimit) {
+        buckets[cat].push(video);
+      }
+    }
+
+    const mixed = Object.values(buckets).flat();
+    mixed.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    return mixed.slice(0, 12);
+  }, [videos]);
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-slate-900">
@@ -2073,4 +2086,3 @@ const VideoCard: React.FC<{
 
 
 export default Dashboard;
-
