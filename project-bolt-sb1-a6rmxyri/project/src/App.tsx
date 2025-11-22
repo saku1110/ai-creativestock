@@ -568,30 +568,29 @@ const renderContent = () => {
       }
     }
 
-    // 繝ｭ繧ｰ繧､繝ｳ貂医∩譎・ 蜍慕判繝励Λ繝・ヨ繝輔か繝ｼ繝
-    // Google/Apple隱崎ｨｼ縺ｮ縺ｿ繧｢繧ｯ繧ｻ繧ｹ險ｱ蜿ｯ
+    // ログイン済み時のプラットフォーム表示
+    // Google/Apple認証のみアクセス許可
     if (!isValidAuthProvider) {
       return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center">
           <div className="text-center max-w-md mx-auto p-8">
             <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
-              <span className="text-white text-2xl">笞・・/span>
+              <span className="text-white text-2xl">!</span>
             </div>
-            <h2 className="text-2xl font-bold mb-4">繧｢繧ｯ繧ｻ繧ｹ縺悟宛髯舌＆繧後※縺・∪縺・/h2>
+            <h2 className="text-2xl font-bold mb-4">アクセスが制限されています</h2>
             <p className="text-gray-400 mb-6 leading-relaxed">
-              AI Creative Stock縺ｸ縺ｮ繧｢繧ｯ繧ｻ繧ｹ縺ｫ縺ｯ縲；oogle縺ｧ縺ｮ繝ｭ繧ｰ繧､繝ｳ縺悟ｿ・ｦ√〒縺吶・
+              AI Creative Stockへのアクセスには、Googleでのログインが必要です。
             </p>
-            <button 
+            <button
               onClick={handleLogout}
               className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
             >
-              繝ｭ繧ｰ繧､繝ｳ繝壹・繧ｸ縺ｫ謌ｻ繧・
+              ログインページに戻る
             </button>
           </div>
         </div>
       );
     }
-
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard onLogout={handleLogout} onPageChange={handlePageChange} />;
@@ -725,6 +724,7 @@ const renderContent = () => {
 }
 
 export default App;
+
 
 
 
