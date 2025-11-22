@@ -56,31 +56,7 @@ function App() {
     : (urlParams.get('variant') || 'landing'));
   const REGISTRATION_RECENT_MS = 10 * 60 * 1000;
   const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
-  const AUTH_TIMEOUT_MS = 10000;
-  const LOADER_FAILSAFE_MS = 12000;
-
-  // Avoid hanging the UI if an auth request stalls
-  const withTimeout = async <T,>(promise: Promise<T>, label: string, timeoutMs: number = AUTH_TIMEOUT_MS): Promise<T> => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`${label} request timed out`)), timeoutMs);
-    });
-
-    try {
-      return await Promise.race([
-        promise.finally(() => {
-          if (timer) {
-            clearTimeout(timer);
-          }
-        }),
-        timeoutPromise,
-      ]);
-    } finally {
-      if (timer) {
-        clearTimeout(timer);
-      }
-    }
-  };
+  const LOADER_FAILSAFE_MS = 20000;
 
   // Public pages that don't require authentication
   const PUBLIC_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
@@ -288,12 +264,7 @@ function App() {
       return;
     }
 
-    let profile = null;
-    try {
-      profile = await withTimeout(fetchProfileRecord(user.id), 'Profile fetch', 8000);
-    } catch (error) {
-      console.error('profiles fetch exception:', error);
-    }
+    const profile = await fetchProfileRecord(user.id);
     let isFirstLogin = isNewUserRegistrationRef.current;
     if (!isFirstLogin) {
       isFirstLogin = isFirstTimeSession({ modeHint, user, profile });
@@ -346,13 +317,10 @@ function App() {
       try {
         if (accessToken) {
           try {
-            const { data: { user }, error } = await withTimeout(
-              supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken || ''
-              }),
-              'Auth session setup'
-            );
+            const { data: { user }, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || ''
+            });
             if (error) throw error;
             await handleAuthenticatedSession(user ?? null, { modeHint: mode });
             handled = !!user;
@@ -383,10 +351,7 @@ function App() {
         }
 
         if (!handled) {
-          const { user } = await withTimeout(
-            auth.getCurrentUser(),
-            'Current user fetch'
-          );
+          const { user } = await auth.getCurrentUser();
           await handleAuthenticatedSession(user ?? null, { modeHint: mode });
         }
       } catch (error) {
