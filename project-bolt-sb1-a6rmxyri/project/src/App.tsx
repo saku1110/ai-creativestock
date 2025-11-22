@@ -56,6 +56,31 @@ function App() {
     : (urlParams.get('variant') || 'landing'));
   const REGISTRATION_RECENT_MS = 10 * 60 * 1000;
   const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
+  const AUTH_TIMEOUT_MS = 10000;
+  const LOADER_FAILSAFE_MS = 12000;
+
+  // Avoid hanging the UI if an auth request stalls
+  const withTimeout = async <T,>(promise: Promise<T>, label: string, timeoutMs: number = AUTH_TIMEOUT_MS): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} request timed out`)), timeoutMs);
+    });
+
+    try {
+      return await Promise.race([
+        promise.finally(() => {
+          if (timer) {
+            clearTimeout(timer);
+          }
+        }),
+        timeoutPromise,
+      ]);
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
+  };
 
   // Public pages that don't require authentication
   const PUBLIC_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
@@ -89,6 +114,19 @@ function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentPage]);
+
+  // Fail-safe to prevent getting stuck on the loading screen
+  useEffect(() => {
+    const failsafe = setTimeout(() => {
+      setIsLoading((prev) => {
+        if (prev) {
+          console.warn('Auth initialization fallback triggered - forcing loading off.');
+        }
+        return false;
+      });
+    }, LOADER_FAILSAFE_MS);
+    return () => clearTimeout(failsafe);
+  }, []);
 
   useEffect(() => {
     if (!isLoggedIn && !isPublicPage(currentPage)) {
@@ -233,18 +271,32 @@ function App() {
     if (!validProvider) {
       try { await auth.signOut(); } catch {}
       setCurrentPage('landing');
-      try { handleApiError(new Error('Unsupported authentication provider. Please log in with Google.'), '認証エラー'); } catch {}
+      const shouldNotify = !!(modeHint || initialAuthModeRef.current);
+      if (shouldNotify) {
+        try {
+          handleApiError(
+            new Error('許可されていないログイン方法です。Google / Apple / メールアドレスでログインしてください。'),
+            '認証エラー'
+          );
+        } catch {}
+      } else {
+        console.warn('Unsupported auth provider detected. Session cleared.', {
+          provider: user.app_metadata?.provider,
+          userId: user.id,
+        });
+      }
       return;
     }
 
-    const profile = await fetchProfileRecord(user.id);
+    let profile = null;
+    try {
+      profile = await withTimeout(fetchProfileRecord(user.id), 'Profile fetch', 8000);
+    } catch (error) {
+      console.error('profiles fetch exception:', error);
+    }
     let isFirstLogin = isNewUserRegistrationRef.current;
     if (!isFirstLogin) {
       isFirstLogin = isFirstTimeSession({ modeHint, user, profile });
-    }
-
-    if (isFirstLogin) {
-      await runPostRegistrationSideEffects(user);
     }
 
     isNewUserRegistrationRef.current = isFirstLogin;
@@ -255,6 +307,14 @@ function App() {
     const activePage = currentPageRef.current;
     if (isFirstLogin) {
       setCurrentPage('pricing');
+      // Run post-registration tasks without blocking the UI
+      void (async () => {
+        try {
+          await runPostRegistrationSideEffects(user);
+        } catch (error) {
+          console.error('post registration side effects error:', error);
+        }
+      })();
     } else {
       const targetPage = !isPublicPage(activePage)
         ? 'dashboard'
@@ -286,16 +346,19 @@ function App() {
       try {
         if (accessToken) {
           try {
-            const { data: { user }, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || ''
-            });
+            const { data: { user }, error } = await withTimeout(
+              supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken || ''
+              }),
+              'Auth session setup'
+            );
             if (error) throw error;
             await handleAuthenticatedSession(user ?? null, { modeHint: mode });
             handled = !!user;
           } catch (error) {
             console.error('OAuth session setup error:', error);
-            try { handleApiError(error, 'Login failed. Please try again shortly.'); } catch {}
+            try { handleApiError(error, 'アプリケーションエラー'); } catch {}
             setIsLoading(false);
             return;
           } finally {
@@ -320,13 +383,19 @@ function App() {
         }
 
         if (!handled) {
-          const { user } = await auth.getCurrentUser();
+          const { user } = await withTimeout(
+            auth.getCurrentUser(),
+            'Current user fetch'
+          );
           await handleAuthenticatedSession(user ?? null, { modeHint: mode });
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
-        if (!isDevEnv) {
-          handleApiError(error, 'Failed to initialize auth system');
+        const hasAuthCallbackParams =
+          !!(searchParams.get('access_token') || searchParams.get('refresh_token') || searchParams.get('mode')) ||
+          window.location.hash.includes('access_token');
+        if (!isDevEnv && hasAuthCallbackParams) {
+          handleApiError(error, 'アプリケーションエラー');
         }
         setCurrentPage('landing');
       } finally {
@@ -402,7 +471,7 @@ function App() {
           return;
         }
       } catch (error) {
-        handleApiError(error, '管理権限チェック');
+        handleApiError(error, 'アプリケーションエラー');
         return;
       }
     }
@@ -488,7 +557,7 @@ function App() {
     } catch (error) {
       console.error('logout error:', error);
       if (!isDevEnv) {
-        try { handleApiError(error as Error, 'Logout failed. Please try again.'); } catch {}
+        try { handleApiError(error as Error, 'ログアウトに失敗しました'); } catch {}
       }
     } finally {
       try {
@@ -570,7 +639,7 @@ const renderContent = () => {
     }
 
     // Logged-in platform view
-    // Allow only Google/Apple auth
+    // Allow only supported auth providers
     if (!isValidAuthProvider) {
       return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -578,15 +647,15 @@ const renderContent = () => {
             <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
               <span className="text-white text-2xl">!</span>
             </div>
-            <h2 className="text-2xl font-bold mb-4">Access restricted</h2>
+            <h2 className="text-2xl font-bold mb-4">利用できないログイン方法です</h2>
             <p className="text-gray-400 mb-6 leading-relaxed">
-              Google login only is allowed.
+              Google / Apple / メールアドレスでログインしてください。
             </p>
             <button
               onClick={handleLogout}
               className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
             >
-              Back to login page
+              ログインページに戻る
             </button>
           </div>
         </div>
@@ -633,7 +702,7 @@ const renderContent = () => {
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">隱ｭ縺ｿ霎ｼ縺ｿ荳ｭ...</p>
+          <p className="text-gray-400">読み込み中...</p>
         </div>
       </div>
     );
@@ -727,6 +796,11 @@ const renderContent = () => {
 }
 
 export default App;
+
+
+
+
+
 
 
 
