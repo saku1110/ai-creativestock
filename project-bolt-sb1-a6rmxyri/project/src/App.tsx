@@ -568,7 +568,6 @@ const renderContent = () => {
       }
     }
 
-
     // Logged-in platform view
     // Allow only Google/Apple auth
     if (!isValidAuthProvider) {
@@ -580,13 +579,13 @@ const renderContent = () => {
             </div>
             <h2 className="text-2xl font-bold mb-4">Access restricted</h2>
             <p className="text-gray-400 mb-6 leading-relaxed">
-              Googleログインのみ許可されています。
+              Google login only is allowed.
             </p>
             <button
               onClick={handleLogout}
               className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
             >
-              ログインページに戻る
+              Back to login page
             </button>
           </div>
         </div>
