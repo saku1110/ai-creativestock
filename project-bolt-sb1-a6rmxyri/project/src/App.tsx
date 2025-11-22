@@ -564,8 +564,13 @@ const renderContent = () => {
             <TestFAQ />
             <FinalCTA onTrialRequest={handleRegistrationRequest} onContactRequest={handleContactRequest} onPurchaseRequest={handlePurchaseRequest} />
           </>
-    // ログイン済み時のプラットフォーム表示
-    // Google/Apple認証のみアクセス許可
+        );
+      }
+    }
+
+
+    // Logged-in platform view
+    // Allow only Google/Apple auth
     if (!isValidAuthProvider) {
       return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -573,9 +578,9 @@ const renderContent = () => {
             <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
               <span className="text-white text-2xl">!</span>
             </div>
-            <h2 className="text-2xl font-bold mb-4">アクセスが制限されています</h2>
+            <h2 className="text-2xl font-bold mb-4">Access restricted</h2>
             <p className="text-gray-400 mb-6 leading-relaxed">
-              AI Creative Stockへのアクセスには、Googleでのログインが必要です。
+              Googleログインのみ許可されています。
             </p>
             <button
               onClick={handleLogout}
@@ -587,7 +592,7 @@ const renderContent = () => {
         </div>
       );
     }
-    }
+
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard onLogout={handleLogout} onPageChange={handlePageChange} />;
@@ -618,7 +623,7 @@ const renderContent = () => {
       case 'privacy':
         return <PrivacyPolicy onPageChange={handlePageChange} />;
       default:
-        return <Dashboard />; // 繝・ヵ繧ｩ繝ｫ繝医・繝繝・す繝･繝懊・繝・
+        return <Dashboard />; // default dashboard fallback
     }
   };
 
