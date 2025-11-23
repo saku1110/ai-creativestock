@@ -164,15 +164,13 @@ function App() {
     const modeIsRegistration = modeHint === 'registration';
     const createdRecently = wasCreatedRecently(user);
 
+    // プロファイルが取れなかった場合は「登録直後モード」のときだけ初回扱いにする
     if (!hasProfile) {
-      return true;
+      return modeIsRegistration || createdRecently;
     }
-    if (modeIsRegistration && createdRecently) {
-      return true;
-    }
-    if (createdRecently && !postRegistrationHandledRef.current) {
-      return true;
-    }
+
+    if (modeIsRegistration && createdRecently) return true;
+    if (createdRecently && !postRegistrationHandledRef.current) return true;
     return false;
   };
 
@@ -269,6 +267,8 @@ function App() {
       profile = await fetchProfileRecord(user.id);
     } catch (error) {
       console.error('profiles fetch exception:', error);
+      // プロファイル取得に失敗しても既存ユーザーとして扱い、ダッシュボード遷移を妨げない
+      profile = { id: user.id };
     }
     let isFirstLogin = isNewUserRegistrationRef.current;
     if (!isFirstLogin) {
@@ -292,10 +292,11 @@ function App() {
         }
       })();
     } else {
+      // LP/pricingなどからのログインも必ずダッシュボードへ送る
       const targetPage = !isPublicPage(activePage)
         ? 'dashboard'
-        : (activePage || 'dashboard');
-      setCurrentPage(targetPage === 'landing' ? 'dashboard' : targetPage);
+        : ((activePage === 'landing' || activePage === 'pricing') ? 'dashboard' : (activePage || 'dashboard'));
+      setCurrentPage(targetPage);
     }
   };
   // Auth initialization and watcher
@@ -766,7 +767,6 @@ const renderContent = () => {
 }
 
 export default App;
-
 
 
 
