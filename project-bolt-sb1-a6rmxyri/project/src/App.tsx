@@ -341,6 +341,7 @@ function App() {
             });
             if (error) throw error;
             await handleAuthenticatedSession(user ?? null, { modeHint: mode });
+            setIsLoading(false);
             handled = !!user;
           } catch (error) {
             console.error('OAuth session setup error:', error);
@@ -383,6 +384,7 @@ function App() {
         if (!handled) {
           const { user } = await auth.getCurrentUser();
           await handleAuthenticatedSession(user ?? null, { modeHint: mode });
+          setIsLoading(false);
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
