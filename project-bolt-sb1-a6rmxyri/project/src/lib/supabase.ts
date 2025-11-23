@@ -298,12 +298,31 @@ export const database = {
       return { data: null, error: new Error('CSRF token is required') }
     }
 
-    const { data, error } = await supabase
-      .from('download_history')
-      .select('video_id, count:video_id', { head: false })
-      .group('video_id')
+    try {
+      const url = new URL(`${supabaseUrl}/rest/v1/download_history`)
+      url.searchParams.set('select', 'video_id,count:video_id')
+      url.searchParams.set('group', 'video_id')
 
-    return { data, error }
+      const response = await fetch(url.toString(), {
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`
+        }
+      })
+
+      if (!response.ok) {
+        const message = await response.text().catch(() => '')
+        return {
+          data: null,
+          error: new Error(message || 'Failed to fetch download counts')
+        }
+      }
+
+      const data = await response.json()
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error as Error }
+    }
   },
 
   // サブスクリプション惁E��取征E
