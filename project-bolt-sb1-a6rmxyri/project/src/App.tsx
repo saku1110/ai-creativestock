@@ -295,42 +295,50 @@ function App() {
       return;
     }
 
-    let profile = null;
-    try {
-      profile = await ensureProfile(user);
-    } catch (error) {
-      console.error('profiles fetch exception:', error);
-      // プロファイル取得に失敗しても既存ユーザーとして扱い、ダッシュボード遷移を妨げない
-      profile = { id: user.id };
-    }
-    let isFirstLogin = isNewUserRegistrationRef.current;
-    if (!isFirstLogin) {
-      isFirstLogin = isFirstTimeSession({ modeHint, user, profile });
-    }
-
-    isNewUserRegistrationRef.current = isFirstLogin;
-    setIsNewUserRegistration(isFirstLogin);
     setUserData(user);
     setIsLoggedIn(true);
 
     const activePage = currentPageRef.current;
-    if (isFirstLogin) {
+    // 既に新規登録フラグが立っている場合は即 pricing へ
+    const initialFirstLogin = isNewUserRegistrationRef.current;
+    if (initialFirstLogin) {
       setCurrentPage('pricing');
-      // Run post-registration tasks without blocking the UI
-      void (async () => {
-        try {
-          await runPostRegistrationSideEffects(user);
-        } catch (error) {
-          console.error('post registration side effects error:', error);
-        }
-      })();
     } else {
-      // LP/pricingなどからのログインも必ずダッシュボードへ送る
       const targetPage = !isPublicPage(activePage)
-        ? 'dashboard'
+        ? activePage
         : ((activePage === 'landing' || activePage === 'pricing') ? 'dashboard' : (activePage || 'dashboard'));
       setCurrentPage(targetPage);
     }
+
+    // プロファイル取得/作成と初回判定はバックグラウンドで実施し、UIを止めない
+    void (async () => {
+      let profile = null;
+      try {
+        profile = await ensureProfile(user);
+      } catch (error) {
+        console.error('profiles fetch exception:', error);
+        profile = { id: user.id };
+      }
+      let isFirstLogin = initialFirstLogin;
+      if (!isFirstLogin) {
+        isFirstLogin = isFirstTimeSession({ modeHint, user, profile });
+      }
+
+      isNewUserRegistrationRef.current = isFirstLogin;
+      setIsNewUserRegistration(isFirstLogin);
+
+      if (isFirstLogin && !initialFirstLogin) {
+        setCurrentPage('pricing');
+        // Run post-registration tasks without blocking the UI
+        void (async () => {
+          try {
+            await runPostRegistrationSideEffects(user);
+          } catch (error) {
+            console.error('post registration side effects error:', error);
+          }
+        })();
+      }
+    })();
   };
   // Auth initialization and watcher
   useEffect(() => {
@@ -390,8 +398,15 @@ function App() {
         }
 
         if (!handled) {
-          const { user } = await auth.getCurrentUser();
-          await handleAuthenticatedSession(user ?? null, { modeHint: mode });
+          // 認証確認はバックグラウンドで行い、LP表示をブロックしない
+          void (async () => {
+            try {
+              const { user } = await auth.getCurrentUser();
+              await handleAuthenticatedSession(user ?? null, { modeHint: mode });
+            } catch (error) {
+              console.error('Deferred auth initialization error:', error);
+            }
+          })();
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
@@ -800,7 +815,6 @@ const renderContent = () => {
 }
 
 export default App;
-
 
 
 
