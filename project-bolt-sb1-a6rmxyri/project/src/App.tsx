@@ -342,7 +342,7 @@ function App() {
   };
   // Auth initialization and watcher
   useEffect(() => {
-    const initializeAuth = () => {
+    const initializeAuth = async () => {
       const searchParams = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
       const accessToken = hashParams.get('access_token') ?? searchParams.get('access_token');
@@ -359,27 +359,27 @@ function App() {
         url: window.location.href
       });
 
+      // LP表示をブロックしないため先にローディングを解除
+      setIsLoading(false);
+
       let handled = false;
 
       try {
         if (accessToken) {
-          // セッション確立はバックグラウンドで実施し、LP表示をブロックしない
-          void (async () => {
-            try {
-              const { data: { user }, error } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken || ''
-              });
-              if (error) throw error;
-              await handleAuthenticatedSession(user ?? null, { modeHint: mode });
-            } catch (error) {
-              console.error('OAuth session setup error:', error);
-              try { handleApiError(error, '�A�v���P�[�V�����G���['); } catch {}
-            } finally {
-              try { window.history.replaceState({}, document.title, window.location.pathname); } catch {}
-            }
-          })();
-          handled = true;
+          try {
+            const { data: { user }, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || ''
+            });
+            if (error) throw error;
+            await handleAuthenticatedSession(user ?? null, { modeHint: mode });
+            handled = true;
+          } catch (error) {
+            console.error('OAuth session setup error:', error);
+            try { handleApiError(error, '�A�v���P�[�V�����G���['); } catch {}
+          } finally {
+            try { window.history.replaceState({}, document.title, window.location.pathname); } catch {}
+          }
         }
 
         if (isDevEnv) {
@@ -399,15 +399,12 @@ function App() {
         }
 
         if (!handled) {
-          // 認証確認はバックグラウンドで行い、LP表示をブロックしない
-          void (async () => {
-            try {
-              const { user } = await auth.getCurrentUser();
-              await handleAuthenticatedSession(user ?? null, { modeHint: mode });
-            } catch (error) {
-              console.error('Deferred auth initialization error:', error);
-            }
-          })();
+          try {
+            const { user } = await auth.getCurrentUser();
+            await handleAuthenticatedSession(user ?? null, { modeHint: mode });
+          } catch (error) {
+            console.error('Deferred auth initialization error:', error);
+          }
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
