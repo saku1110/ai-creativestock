@@ -342,7 +342,7 @@ function App() {
   };
   // Auth initialization and watcher
   useEffect(() => {
-    const initializeAuth = async () => {
+    const initializeAuth = () => {
       const searchParams = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
       const accessToken = hashParams.get('access_token') ?? searchParams.get('access_token');
@@ -363,22 +363,23 @@ function App() {
 
       try {
         if (accessToken) {
-          try {
-            const { data: { user }, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || ''
-            });
-            if (error) throw error;
-            await handleAuthenticatedSession(user ?? null, { modeHint: mode });
-            handled = !!user;
-          } catch (error) {
-            console.error('OAuth session setup error:', error);
-            try { handleApiError(error, 'アプリケーションエラー'); } catch {}
-            setIsLoading(false);
-            return;
-          } finally {
-            try { window.history.replaceState({}, document.title, window.location.pathname); } catch {}
-          }
+          // セッション確立はバックグラウンドで実施し、LP表示をブロックしない
+          void (async () => {
+            try {
+              const { data: { user }, error } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken || ''
+              });
+              if (error) throw error;
+              await handleAuthenticatedSession(user ?? null, { modeHint: mode });
+            } catch (error) {
+              console.error('OAuth session setup error:', error);
+              try { handleApiError(error, '�A�v���P�[�V�����G���['); } catch {}
+            } finally {
+              try { window.history.replaceState({}, document.title, window.location.pathname); } catch {}
+            }
+          })();
+          handled = true;
         }
 
         if (isDevEnv) {
@@ -414,10 +415,11 @@ function App() {
           !!(searchParams.get('access_token') || searchParams.get('refresh_token') || searchParams.get('mode')) ||
           window.location.hash.includes('access_token');
         if (!isDevEnv && hasAuthCallbackParams) {
-          handleApiError(error, 'アプリケーションエラー');
+          handleApiError(error, '�A�v���P�[�V�����G���[');
         }
         setCurrentPage('landing');
       } finally {
+        // UIは即表示、認証はバックグラウンドで進行
         setIsLoading(false);
       }
     };
@@ -449,7 +451,6 @@ function App() {
       subscription?.unsubscribe();
     };
   }, []);
-
 
   // 繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ蜃ｦ逅・ 隱崎ｨｼ螳御ｺ・ｾ後↓繝輔Λ繧ｰ繧貞・遒ｺ隱・
   useEffect(() => {
