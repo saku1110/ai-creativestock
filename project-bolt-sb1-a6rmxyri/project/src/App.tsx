@@ -149,6 +149,39 @@ function App() {
     }
   };
 
+  const upsertProfileRecord = async (user: User) => {
+    if (!user?.id) return null;
+    try {
+      const fallbackName = (user.user_metadata?.full_name || user.user_metadata?.name || user.email || '').toString().trim();
+      const name = fallbackName || 'New user';
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: user.email,
+          name,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' })
+        .select()
+        .maybeSingle?.() ?? { data: null, error: null };
+
+      if (error) {
+        console.error('Profile upsert failed:', error);
+      }
+      return data || null;
+    } catch (error) {
+      console.error('Profile upsert exception:', error);
+      return null;
+    }
+  };
+
+  const ensureProfile = async (user: User) => {
+    // 既存プロファイルを取り、なければ作成を試みる
+    const existing = await fetchProfileRecord(user.id);
+    if (existing?.id) return existing;
+    return await upsertProfileRecord(user);
+  };
+
   const wasCreatedRecently = (user?: User | null) => {
     if (!user?.created_at) return false;
     const createdAtMs = new Date(user.created_at).getTime();
@@ -264,7 +297,7 @@ function App() {
 
     let profile = null;
     try {
-      profile = await fetchProfileRecord(user.id);
+      profile = await ensureProfile(user);
     } catch (error) {
       console.error('profiles fetch exception:', error);
       // プロファイル取得に失敗しても既存ユーザーとして扱い、ダッシュボード遷移を妨げない
@@ -767,7 +800,6 @@ const renderContent = () => {
 }
 
 export default App;
-
 
 
 
