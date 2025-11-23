@@ -56,7 +56,21 @@ function App() {
     : (urlParams.get('variant') || 'landing'));
   const REGISTRATION_RECENT_MS = 10 * 60 * 1000;
   const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
+  const AUTH_TIMEOUT_MS = 8000;
   const LOADER_FAILSAFE_MS = 20000;
+
+  // Minimal timeout helper to avoid hanging forever on unreachable Supabase
+  const withTimeout = async <T,>(promise: Promise<T>, label: string, timeoutMs: number = AUTH_TIMEOUT_MS): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} request timed out`)), timeoutMs);
+    });
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
 
   // Public pages that don't require authentication
   const PUBLIC_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
@@ -264,7 +278,12 @@ function App() {
       return;
     }
 
-    const profile = await fetchProfileRecord(user.id);
+    let profile = null;
+    try {
+      profile = await withTimeout(fetchProfileRecord(user.id), 'Profile fetch');
+    } catch (error) {
+      console.error('profiles fetch timeout/error:', error);
+    }
     let isFirstLogin = isNewUserRegistrationRef.current;
     if (!isFirstLogin) {
       isFirstLogin = isFirstTimeSession({ modeHint, user, profile });
@@ -317,10 +336,13 @@ function App() {
       try {
         if (accessToken) {
           try {
-            const { data: { user }, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || ''
-            });
+            const { data: { user }, error } = await withTimeout(
+              supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken || ''
+              }),
+              'Auth session setup'
+            );
             if (error) throw error;
             await handleAuthenticatedSession(user ?? null, { modeHint: mode });
             handled = !!user;
@@ -350,8 +372,20 @@ function App() {
           return;
         }
 
+        // トークン無しなら即LPへ（LOGIN_FLOW.md に従い無駄なフェッチを避ける）
+        if (!handled && !accessToken) {
+          const activePage = currentPageRef.current;
+          if (!isPublicPage(activePage)) {
+            setCurrentPage('landing');
+          }
+          setIsLoggedIn(false);
+          setUserData(null);
+          setIsLoading(false);
+          return;
+        }
+
         if (!handled) {
-          const { user } = await auth.getCurrentUser();
+          const { user } = await withTimeout(auth.getCurrentUser(), 'Current user fetch');
           await handleAuthenticatedSession(user ?? null, { modeHint: mode });
         }
       } catch (error) {
