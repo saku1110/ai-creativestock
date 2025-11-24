@@ -3,6 +3,9 @@ import { User } from '@supabase/supabase-js';
 import { auth, database, supabase } from '../lib/supabase';
 import { subscriptionPlans } from '../lib/stripe';
 
+const LOG_TAG = '[useUser]';
+console.log(`${LOG_TAG} module loaded`);
+
 interface UserProfile {
   id: string;
   email: string;
@@ -49,6 +52,7 @@ const UserContext = createContext<UserContextValue | undefined>(undefined);
 let lastAuthLogStatus: 'Authenticated' | 'Not authenticated' | null = null;
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
+  console.log(`${LOG_TAG} provider render`);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
@@ -122,6 +126,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const fetchUserData = async () => {
+      console.log(`${LOG_TAG} fetchUserData start`);
       try {
         const { user: currentUser } = await auth.getCurrentUser();
 
