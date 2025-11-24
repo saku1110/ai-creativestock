@@ -99,6 +99,27 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let isMounted = true;
+    // Fail-safe: loading解除が何らかの理由で実行されない場合に備える
+    const loadingTimeout = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 12000);
+
+    const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T | null> => {
+      let timeoutHandle: ReturnType<typeof setTimeout>;
+      const timeoutPromise = new Promise<null>((resolve) => {
+        timeoutHandle = setTimeout(() => {
+          console.warn(`[useUser] ${label} timed out after ${ms}ms`);
+          resolve(null);
+        }, ms);
+      });
+
+      try {
+        const result = await Promise.race([promise, timeoutPromise]);
+        return result as T | null;
+      } finally {
+        clearTimeout(timeoutHandle!);
+      }
+    };
 
     const fetchUserData = async () => {
       try {
@@ -123,14 +144,26 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         setUser(currentUser);
 
-        const { data: profileData, error: profileError } = await database.getUserProfile(currentUser.id);
+        const profileResult = await withTimeout(
+          database.getUserProfile(currentUser.id),
+          6000,
+          'getUserProfile'
+        );
+        const profileData = profileResult?.data;
+        const profileError: any = profileResult?.error;
 
         if (profileError && profileError.code === 'PGRST116') {
-          const { data: newProfile, error: createError } = await database.updateUserProfile(currentUser.id, {
-            email: currentUser.email,
-            name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'ゲストユーザー',
-            avatar_url: currentUser.user_metadata?.avatar_url
-          });
+          const createResult = await withTimeout(
+            database.updateUserProfile(currentUser.id, {
+              email: currentUser.email,
+              name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'ゲストユーザー',
+              avatar_url: currentUser.user_metadata?.avatar_url
+            }),
+            6000,
+            'updateUserProfile'
+          );
+          const newProfile = createResult?.data;
+          const createError = createResult?.error;
 
           if (!createError && newProfile && isMounted) {
             setProfile(newProfile);
@@ -139,12 +172,22 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setProfile(profileData);
         }
 
-        const { data: subscriptionData } = await database.getUserSubscription(currentUser.id);
+        const subscriptionResult = await withTimeout(
+          database.getUserSubscription(currentUser.id),
+          6000,
+          'getUserSubscription'
+        );
+        const subscriptionData = subscriptionResult?.data;
         if (isMounted) {
           setSubscription(resolveTestSubscription(subscriptionData));
         }
 
-        const { count } = await database.getMonthlyDownloadCount(currentUser.id);
+        const monthlyResult = await withTimeout(
+          database.getMonthlyDownloadCount(currentUser.id),
+          6000,
+          'getMonthlyDownloadCount'
+        );
+        const count = monthlyResult?.count;
         if (isMounted && typeof count === 'number') {
           setMonthlyDownloads((prev) => Math.max(prev, count));
         }
@@ -177,6 +220,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       isMounted = false;
+      clearTimeout(loadingTimeout);
       authSubscription?.unsubscribe();
     };
   }, []);
