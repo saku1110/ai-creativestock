@@ -128,30 +128,27 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const fetchUserData = async () => {
       console.log(`${LOG_TAG} fetchUserData start`);
       try {
-        console.log(`${LOG_TAG} auth.getCurrentUser start`);
-        const { user: currentUser, error: currentUserError } = await auth.getCurrentUser();
-        if (currentUserError) {
-          console.warn(`${LOG_TAG} auth.getCurrentUser error`, currentUserError);
+        console.log(`${LOG_TAG} auth.getSession start`);
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
         }
-        console.log(`${LOG_TAG} auth.getCurrentUser result`, currentUser);
+        let effectiveUser = sessionData?.session?.user ?? null;
+        console.log(`${LOG_TAG} auth.getSession result`, effectiveUser);
 
-        // Fallback: getSession が取れるならそこから user を採用
-        let effectiveUser = currentUser;
+        // Fallback: getCurrentUser が取れるならそこから user を採用
         if (!effectiveUser) {
-          try {
-            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError) {
-              console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
-            }
-            effectiveUser = sessionData?.session?.user ?? null;
-            console.log(`${LOG_TAG} auth.getSession result`, effectiveUser);
-          } catch (sessionErr) {
-            console.error(`${LOG_TAG} auth.getSession exception`, sessionErr);
+          console.log(`${LOG_TAG} auth.getCurrentUser start`);
+          const { user: currentUser, error: currentUserError } = await auth.getCurrentUser();
+          if (currentUserError) {
+            console.warn(`${LOG_TAG} auth.getCurrentUser error`, currentUserError);
           }
+          console.log(`${LOG_TAG} auth.getCurrentUser result`, currentUser);
+          effectiveUser = currentUser ?? null;
         }
 
         if (import.meta.env.DEV) {
-          const status = currentUser ? 'Authenticated' : 'Not authenticated';
+          const status = effectiveUser ? 'Authenticated' : 'Not authenticated';
           if (lastAuthLogStatus !== status) {
             lastAuthLogStatus = status;
             console.log('User authentication check:', status);
@@ -181,10 +178,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         if (profileError && profileError.code === 'PGRST116') {
           const createResult = await withTimeout(
-            database.updateUserProfile(currentUser.id, {
-              email: currentUser.email,
-              name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'ゲストユーザー',
-              avatar_url: currentUser.user_metadata?.avatar_url
+            database.updateUserProfile(effectiveUser.id, {
+              email: effectiveUser.email,
+              name: effectiveUser.user_metadata?.full_name || effectiveUser.email?.split('@')[0] || 'ゲストユーザー',
+              avatar_url: effectiveUser.user_metadata?.avatar_url
             }),
             6000,
             'updateUserProfile'
@@ -199,7 +196,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setProfile(profileData);
         }
 
-        console.log(`${LOG_TAG} getUserSubscription start`, currentUser.id);
+        console.log(`${LOG_TAG} getUserSubscription start`, effectiveUser.id);
         const subscriptionResult = await withTimeout(
           database.getUserSubscription(effectiveUser.id),
           6000,
