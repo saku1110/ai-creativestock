@@ -22,6 +22,28 @@ const getLocalSessionUser = (): User | null => {
   }
 };
 
+const getLocalSessionTokens = (): { access_token: string; refresh_token: string } | null => {
+  try {
+    const key = Object.keys(localStorage).find(
+      (k) => k.startsWith('sb-') && k.includes('auth-token')
+    );
+    if (!key) return null;
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const session = parsed?.currentSession || parsed?.session;
+    const access_token = session?.access_token || parsed?.access_token;
+    const refresh_token = session?.refresh_token || parsed?.refresh_token;
+    if (access_token && refresh_token) {
+      return { access_token, refresh_token };
+    }
+    return null;
+  } catch (err) {
+    console.warn(`${LOG_TAG} local token parse error`, err);
+    return null;
+  }
+};
+
 interface UserProfile {
   id: string;
   email: string;
@@ -124,23 +146,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       if (isMounted) setLoading(false);
     }, 12000);
 
-    const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T | null> => {
-      let timeoutHandle: ReturnType<typeof setTimeout>;
-      const timeoutPromise = new Promise<null>((resolve) => {
-        timeoutHandle = setTimeout(() => {
-          console.warn(`[useUser] ${label} timed out after ${ms}ms`);
-          resolve(null);
-        }, ms);
-      });
-
-      try {
-        const result = await Promise.race([promise, timeoutPromise]);
-        return result as T | null;
-      } finally {
-        clearTimeout(timeoutHandle!);
-      }
-    };
-
     const fetchUserData = async () => {
       console.log(`${LOG_TAG} fetchUserData start`);
       try {
@@ -164,6 +169,27 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           if (localUser) {
             effectiveUser = localUser;
             console.log(`${LOG_TAG} local session user`, localUser);
+          }
+          if (!effectiveUser) {
+            const localTokens = getLocalSessionTokens();
+            if (localTokens) {
+              console.log(`${LOG_TAG} auth.setSession start (local tokens)`);
+              try {
+                const { data: setSessionData, error: setSessionError } = await supabase.auth.setSession({
+                  access_token: localTokens.access_token,
+                  refresh_token: localTokens.refresh_token
+                });
+                if (setSessionError) {
+                  console.warn(`${LOG_TAG} auth.setSession error`, setSessionError);
+                }
+                if (setSessionData?.session?.user) {
+                  effectiveUser = setSessionData.session.user;
+                  console.log(`${LOG_TAG} auth.setSession user restored`, effectiveUser);
+                }
+              } catch (setSessionErr) {
+                console.error(`${LOG_TAG} auth.setSession exception`, setSessionErr);
+              }
+            }
           }
         }
 
@@ -234,14 +260,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           console.error(`${LOG_TAG} getUserSubscription exception`, subErr);
         }
 
-        const monthlyResult = await withTimeout(
-          database.getMonthlyDownloadCount(effectiveUser.id),
-          6000,
-          'getMonthlyDownloadCount'
-        );
-        const count = monthlyResult?.count;
-        if (isMounted && typeof count === 'number') {
-          setMonthlyDownloads((prev) => Math.max(prev, count));
+        console.log(`${LOG_TAG} getMonthlyDownloadCount start`, effectiveUser.id);
+        try {
+          const { count } = await database.getMonthlyDownloadCount(effectiveUser.id);
+          console.log(`${LOG_TAG} getMonthlyDownloadCount result`, count);
+          if (isMounted && typeof count === 'number') {
+            setMonthlyDownloads((prev) => Math.max(prev, count));
+          }
+        } catch (monthlyErr) {
+          console.error(`${LOG_TAG} getMonthlyDownloadCount exception`, monthlyErr);
         }
       } catch (error) {
         console.error(`${LOG_TAG} user data fetch error`, error);
