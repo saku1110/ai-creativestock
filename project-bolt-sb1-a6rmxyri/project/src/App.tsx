@@ -373,7 +373,7 @@ function App() {
             });
             if (error) throw error;
             await handleAuthenticatedSession(user ?? null, { modeHint: mode });
-            handled = true;
+            handled = !!user;
           } catch (error) {
             console.error('OAuth session setup error:', error);
             try { handleApiError(error, '�A�v���P�[�V�����G���['); } catch {}
