@@ -189,30 +189,39 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         setUser(effectiveUser);
 
-        const { data: profileData, error: profileError } = await database.getUserProfile(effectiveUser.id);
-        if (profileError) {
-          console.warn(`${LOG_TAG} getUserProfile error`, profileError);
-        }
-
-        if (profileError && (profileError as any)?.code === 'PGRST116') {
-          const { data: newProfile, error: createError } = await database.updateUserProfile(effectiveUser.id, {
-            email: effectiveUser.email,
-            name: effectiveUser.user_metadata?.full_name || effectiveUser.email?.split('@')[0] || 'ゲストユーザー',
-            avatar_url: effectiveUser.user_metadata?.avatar_url
-          });
-          if (!createError && newProfile && isMounted) {
-            setProfile(newProfile);
+        console.log(`${LOG_TAG} getUserProfile start`, effectiveUser.id);
+        try {
+          const { data: profileData, error: profileError } = await database.getUserProfile(effectiveUser.id);
+          if (profileError) {
+            console.warn(`${LOG_TAG} getUserProfile error`, profileError);
           }
-        } else if (profileData && isMounted) {
-          setProfile(profileData);
+
+          if (profileError && (profileError as any)?.code === 'PGRST116') {
+            const { data: newProfile, error: createError } = await database.updateUserProfile(effectiveUser.id, {
+              email: effectiveUser.email,
+              name: effectiveUser.user_metadata?.full_name || effectiveUser.email?.split('@')[0] || 'ゲストユーザー',
+              avatar_url: effectiveUser.user_metadata?.avatar_url
+            });
+            if (!createError && newProfile && isMounted) {
+              setProfile(newProfile);
+            }
+          } else if (profileData && isMounted) {
+            setProfile(profileData);
+          }
+        } catch (profileErr) {
+          console.error(`${LOG_TAG} getUserProfile exception`, profileErr);
         }
 
         console.log(`${LOG_TAG} getUserSubscription start`, effectiveUser.id);
-        const subscriptionResult = await database.getUserSubscription(effectiveUser.id);
-        const subscriptionData = subscriptionResult?.data;
-        console.log('[useUser] subscriptionResult', { data: subscriptionResult?.data, error: subscriptionResult?.error });
-        if (isMounted) {
-          setSubscription(resolveTestSubscription(subscriptionData));
+        try {
+          const subscriptionResult = await database.getUserSubscription(effectiveUser.id);
+          const subscriptionData = subscriptionResult?.data;
+          console.log('[useUser] subscriptionResult', { data: subscriptionResult?.data, error: subscriptionResult?.error });
+          if (isMounted) {
+            setSubscription(resolveTestSubscription(subscriptionData));
+          }
+        } catch (subErr) {
+          console.error(`${LOG_TAG} getUserSubscription exception`, subErr);
         }
 
         const monthlyResult = await withTimeout(
