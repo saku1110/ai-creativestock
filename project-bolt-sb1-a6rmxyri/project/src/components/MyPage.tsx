@@ -3,7 +3,6 @@ import { LogOut, CreditCard, Download, Settings, Receipt, History, Calendar, Shi
 import { useUser } from '../hooks/useUser';
 import { auth } from '../lib/supabase';
 import { stripeService } from '../lib/stripe';
-import Sidebar from './Sidebar';
 
 interface MyPageProps {
   onPageChange: (page: string) => void;
@@ -90,9 +89,7 @@ const MyPage: React.FC<MyPageProps> = ({ onPageChange }) => {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <Sidebar currentPage="mypage" onPageChange={onPageChange} />
-
-      <main className="ml-0 lg:ml-64 p-6 lg:p-10 space-y-8 max-w-5xl">
+      <main className="mx-auto p-6 lg:p-10 space-y-8 max-w-5xl">
         <header>
           <h1 className="text-3xl font-black mb-2">マイページ</h1>
           <p className="text-gray-400 text-sm">契約状況とダウンロード枠を確認できます。</p>
