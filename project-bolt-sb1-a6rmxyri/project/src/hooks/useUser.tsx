@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+﻿import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { auth, database, supabase } from '../lib/supabase';
 import { subscriptionPlans } from '../lib/stripe';
@@ -119,7 +119,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let isMounted = true;
-    // Fail-safe: loading解除が何らか�E琁E��で実行されなぁE��合に備えめE    const loadingTimeout = setTimeout(() => {
+    // Fail-safe: loading解除が実行されない場合の保険
+    const loadingTimeout = setTimeout(() => {
       if (isMounted) setLoading(false);
     }, 12000);
 
@@ -177,7 +178,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        // Fallback: getCurrentUser が取れるならそこかめEuser を採用
+        // Fallback: getCurrentUser 縺悟叙繧後ｋ縺ｪ繧峨◎縺薙°繧・user 繧呈治逕ｨ
         if (!effectiveUser) {
           console.log(`${LOG_TAG} auth.getCurrentUser start`);
           const { user: currentUser, error: currentUserError } = await auth.getCurrentUser();
@@ -227,7 +228,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           if (profileError && (profileError as any)?.code === 'PGRST116') {
             const { data: newProfile, error: createError } = await database.updateUserProfile(effectiveUser.id, {
               email: effectiveUser.email,
-              name: effectiveUser.user_metadata?.full_name || effectiveUser.email?.split('@')[0] || 'ゲストユーザー',
+              name: effectiveUser.user_metadata?.full_name || effectiveUser.email?.split('@')[0] || '繧ｲ繧ｹ繝医Θ繝ｼ繧ｶ繝ｼ',
               avatar_url: effectiveUser.user_metadata?.avatar_url
             });
             if (!createError && newProfile && isMounted) {
@@ -315,7 +316,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setMonthlyDownloads((prev) => Math.max(prev, count));
         }
       } catch (error) {
-        console.error('月次ダウンロード数同期エラー:', error);
+        console.error('譛域ｬ｡繝繧ｦ繝ｳ繝ｭ繝ｼ繝画焚蜷梧悄繧ｨ繝ｩ繝ｼ:', error);
       }
     };
 
@@ -326,7 +327,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setSubscription(resolveTestSubscription(data));
         }
       } catch (error) {
-        console.error('サブスクリプション同期エラー:', error);
+        console.error('繧ｵ繝悶せ繧ｯ繝ｪ繝励す繝ｧ繝ｳ蜷梧悄繧ｨ繝ｩ繝ｼ:', error);
       }
     };
 
@@ -364,7 +365,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, [user?.id]);
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user) return { error: 'ユーザーが未ログインでぁE };
+    if (!user) return { error: '繝ｦ繝ｼ繧ｶ繝ｼ縺梧悴繝ｭ繧ｰ繧､繝ｳ縺ｧ縺・ };
 
     try {
       const { data, error } = await database.updateUserProfile(user.id, updates);
@@ -392,7 +393,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       const { count } = await database.getMonthlyDownloadCount(user.id);
       setMonthlyDownloads((prev) => Math.max(prev, count));
     } catch (error) {
-      console.error('ユーザーチE�Eタ再取得エラー:', error);
+      console.error('繝ｦ繝ｼ繧ｶ繝ｼ繝・・繧ｿ蜀榊叙蠕励お繝ｩ繝ｼ:', error);
     }
   };
 
@@ -453,4 +454,5 @@ export const useUser = () => {
   }
   return context;
 };
+
 
