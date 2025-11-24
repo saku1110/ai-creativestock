@@ -128,13 +128,28 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const fetchUserData = async () => {
       console.log(`${LOG_TAG} fetchUserData start`);
       try {
+        let effectiveUser: User | null = null;
+
         console.log(`${LOG_TAG} auth.getSession start`);
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
+        try {
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) {
+            console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
+          }
+          effectiveUser = sessionData?.session?.user ?? null;
+          console.log(`${LOG_TAG} auth.getSession result`, effectiveUser);
+        } catch (sessionErr) {
+          console.error(`${LOG_TAG} auth.getSession exception`, sessionErr);
         }
-        let effectiveUser = sessionData?.session?.user ?? null;
-        console.log(`${LOG_TAG} auth.getSession result`, effectiveUser);
+
+        // Local storage fallback if SDK session is missing
+        if (!effectiveUser) {
+          const localUser = getLocalSessionUser();
+          if (localUser) {
+            effectiveUser = localUser;
+            console.log(`${LOG_TAG} local session user`, localUser);
+          }
+        }
 
         // Fallback: getCurrentUser が取れるならそこから user を採用
         if (!effectiveUser) {
@@ -400,4 +415,20 @@ export const useUser = () => {
     throw new Error('useUser must be used within a UserProvider');
   }
   return context;
+};
+const getLocalSessionUser = (): User | null => {
+  try {
+    const key = Object.keys(localStorage).find(
+      (k) => k.startsWith('sb-') && k.includes('auth-token')
+    );
+    if (!key) return null;
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const sessionUser = parsed?.currentSession?.user || parsed?.user;
+    return sessionUser ?? null;
+  } catch (err) {
+    console.warn(`${LOG_TAG} local session parse error`, err);
+    return null;
+  }
 };
