@@ -326,13 +326,15 @@ export const database = {
     }
   },
 
-  // サブスクリプション惁E��取征E
+  // サブスクリプション情報取得
   getUserSubscription: async (userId: string) => {
+    console.log('[database.getUserSubscription] fetching for userId:', userId);
     const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
       .single()
+    console.log('[database.getUserSubscription] result:', { data, error: error?.message || error });
     return { data, error }
   },
 
