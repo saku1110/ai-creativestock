@@ -2060,7 +2060,7 @@ const VideoCard: React.FC<{
           <Heart className={`h-4 w-4 ${isFavorited ? 'fill-current' : ''}`} />
         </button>
 
-        <div className="absolute inset-x-3 bottom-3 flex flex-wrap gap-2 md:hidden">
+        <div className="absolute inset-x-3 bottom-3 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={(e) => {
@@ -2090,21 +2090,6 @@ const VideoCard: React.FC<{
       </div>
 
       <div className="flex flex-1 flex-col px-4 py-3.5 md:px-5 md:py-4">
-        <div className="hidden md:flex flex-wrap gap-2 mb-3">
-          {tagList.slice(0, 4).map((tag, index) => (
-            <button
-              key={`${tag}-${index}`}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onTagClick?.(tag);
-              }}
-              className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition-colors duration-200 hover:bg-slate-200"
-            >
-              {formatTag(tag)}
-            </button>
-          ))}
-        </div>
         <div className="mt-auto pt-3 border-t border-slate-100 flex flex-col gap-2">
           <button
             type="button"
