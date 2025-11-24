@@ -5,6 +5,8 @@ import { subscriptionPlans } from '../lib/stripe';
 
 const LOG_TAG = '[useUser]';
 console.log(`${LOG_TAG} module loaded`);
+// 端末に残ったトークンから自動復元しないためのダミー（常に null を返す）
+const getLocalSessionUser = (): User | null => null;
 interface UserProfile {
   id: string;
   email: string;
