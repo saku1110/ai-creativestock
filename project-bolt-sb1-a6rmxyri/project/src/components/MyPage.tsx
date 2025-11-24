@@ -10,6 +10,8 @@ interface MyPageProps {
 
 const MyPage: React.FC<MyPageProps> = ({ onPageChange }) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isCancelRedirecting, setIsCancelRedirecting] = useState(false);
   const { user, subscription, monthlyDownloads, remainingDownloads, loading, isTrialUser, trialDaysRemaining, trialDownloadsRemaining } = useUser();
 
   const planName = useMemo(() => {
@@ -56,6 +58,29 @@ const MyPage: React.FC<MyPageProps> = ({ onPageChange }) => {
     } catch (error) {
       console.error('Customer portal error:', error);
       alert('サブスクリプション管理ページへの遷移に失敗しました。');
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!subscription?.stripe_customer_id) {
+      alert('サブスクリプション情報が見つかりません。');
+      return;
+    }
+    setIsCancelRedirecting(true);
+    try {
+      const result = await stripeService.createCustomerPortalSession(subscription.stripe_customer_id);
+      if (result.error) {
+        alert(result.error);
+        return;
+      }
+      if (result.url) {
+        window.location.href = result.url;
+      }
+    } catch (error) {
+      console.error('Customer portal cancel error:', error);
+      alert('解約ページへの遷移に失敗しました。');
+    } finally {
+      setIsCancelRedirecting(false);
     }
   };
 
@@ -148,13 +173,13 @@ const MyPage: React.FC<MyPageProps> = ({ onPageChange }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <button
-              onClick={handleManageSubscription}
+              onClick={() => onPageChange('pricing')}
               className="cyber-button text-white py-3 px-4 rounded-lg font-bold transition-all flex items-center justify-center space-x-2"
             >
               <Settings className="w-4 h-4" />
-              <span>プラン変更・解約</span>
+              <span>プラン変更</span>
             </button>
             <button
               onClick={() => onPageChange('payment-history')}
@@ -169,6 +194,13 @@ const MyPage: React.FC<MyPageProps> = ({ onPageChange }) => {
             >
               <History className="w-4 h-4" />
               <span>ダウンロード履歴</span>
+            </button>
+            <button
+              onClick={() => setShowCancelConfirm(true)}
+              className="glass-effect border border-red-400/40 text-red-200 hover:text-red-100 py-3 px-4 rounded-lg transition-all font-bold flex items-center justify-center space-x-2"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>解約する</span>
             </button>
           </div>
         </section>
@@ -221,6 +253,40 @@ const MyPage: React.FC<MyPageProps> = ({ onPageChange }) => {
                 className="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-3 px-4 rounded-xl font-bold transition-all"
               >
                 ログアウト
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCancelConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowCancelConfirm(false)} />
+          <div className="relative glass-dark rounded-2xl border border-white/20 p-6 max-w-lg w-full space-y-4">
+            <div>
+              <h3 className="text-xl font-bold text-white mb-2">解約前にご確認ください</h3>
+              <p className="text-gray-300 text-sm mb-3">
+                解約すると次回更新以降はダウンロード上限・新作アクセスなどの特典が停止します。
+              </p>
+              <ul className="text-gray-400 text-sm list-disc pl-5 space-y-1">
+                <li>残りダウンロード枠の利用は更新日まで可能です</li>
+                <li>再開する場合は料金プランページからいつでも申込できます</li>
+                <li>年間プランの場合、期間内の途中解約でも返金は行われません</li>
+              </ul>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:space-x-3 space-y-3 sm:space-y-0">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="flex-1 glass-effect border border-white/20 text-gray-200 hover:text-white py-3 px-4 rounded-xl transition-all font-bold"
+              >
+                続ける（解約しない）
+              </button>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={isCancelRedirecting}
+                className="flex-1 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white py-3 px-4 rounded-xl font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isCancelRedirecting ? '遷移中...' : 'それでも解約する'}
               </button>
             </div>
           </div>
