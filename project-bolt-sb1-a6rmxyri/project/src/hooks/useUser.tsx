@@ -129,7 +129,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       console.log(`${LOG_TAG} fetchUserData start`);
       try {
         console.log(`${LOG_TAG} auth.getCurrentUser start`);
-        const { user: currentUser } = await auth.getCurrentUser();
+        const userResult = await withTimeout(
+          auth.getCurrentUser(),
+          6000,
+          'auth.getCurrentUser'
+        );
+        const currentUser = userResult?.user;
         console.log(`${LOG_TAG} auth.getCurrentUser result`, currentUser);
 
         if (import.meta.env.DEV) {
@@ -203,7 +208,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setMonthlyDownloads((prev) => Math.max(prev, count));
         }
       } catch (error) {
-        console.error('ユーザーデータ取得エラー:', error);
+        console.error(`${LOG_TAG} user data fetch error`, error);
       } finally {
         if (isMounted) {
           setLoading(false);
