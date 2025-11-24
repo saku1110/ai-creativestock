@@ -135,6 +135,21 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
         console.log(`${LOG_TAG} auth.getCurrentUser result`, currentUser);
 
+        // Fallback: getSession が取れるならそこから user を採用
+        let effectiveUser = currentUser;
+        if (!effectiveUser) {
+          try {
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError) {
+              console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
+            }
+            effectiveUser = sessionData?.session?.user ?? null;
+            console.log(`${LOG_TAG} auth.getSession result`, effectiveUser);
+          } catch (sessionErr) {
+            console.error(`${LOG_TAG} auth.getSession exception`, sessionErr);
+          }
+        }
+
         if (import.meta.env.DEV) {
           const status = currentUser ? 'Authenticated' : 'Not authenticated';
           if (lastAuthLogStatus !== status) {
@@ -143,9 +158,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        console.log('[useUser] currentUser', currentUser?.id);
+        console.log('[useUser] currentUser', effectiveUser?.id);
 
-        if (!currentUser || !isMounted) {
+        if (!effectiveUser || !isMounted) {
           setUser(null);
           setProfile(null);
           setSubscription(null);
@@ -154,10 +169,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
-        setUser(currentUser);
+        setUser(effectiveUser);
 
         const profileResult = await withTimeout(
-          database.getUserProfile(currentUser.id),
+          database.getUserProfile(effectiveUser.id),
           6000,
           'getUserProfile'
         );
@@ -186,7 +201,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         console.log(`${LOG_TAG} getUserSubscription start`, currentUser.id);
         const subscriptionResult = await withTimeout(
-          database.getUserSubscription(currentUser.id),
+          database.getUserSubscription(effectiveUser.id),
           6000,
           'getUserSubscription'
         );
