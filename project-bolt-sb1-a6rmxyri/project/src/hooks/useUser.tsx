@@ -129,12 +129,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       console.log(`${LOG_TAG} fetchUserData start`);
       try {
         console.log(`${LOG_TAG} auth.getCurrentUser start`);
-        const userResult = await withTimeout(
-          auth.getCurrentUser(),
-          6000,
-          'auth.getCurrentUser'
-        );
-        const currentUser = userResult?.user;
+        const { user: currentUser, error: currentUserError } = await auth.getCurrentUser();
+        if (currentUserError) {
+          console.warn(`${LOG_TAG} auth.getCurrentUser error`, currentUserError);
+        }
         console.log(`${LOG_TAG} auth.getCurrentUser result`, currentUser);
 
         if (import.meta.env.DEV) {
