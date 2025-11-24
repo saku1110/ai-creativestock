@@ -133,36 +133,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           console.error(`${LOG_TAG} auth.getSession exception`, sessionErr);
         }
 
-        // Local storage fallback if SDK session is missing
-        if (!effectiveUser) {
-          const localUser = getLocalSessionUser();
-          if (localUser) {
-            effectiveUser = localUser;
-            console.log(`${LOG_TAG} local session user`, localUser);
-          }
-          if (!effectiveUser) {
-            const localTokens = getLocalSessionTokens();
-            if (localTokens) {
-              console.log(`${LOG_TAG} auth.setSession start (local tokens)`);
-              try {
-                const { data: setSessionData, error: setSessionError } = await supabase.auth.setSession({
-                  access_token: localTokens.access_token,
-                  refresh_token: localTokens.refresh_token
-                });
-                if (setSessionError) {
-                  console.warn(`${LOG_TAG} auth.setSession error`, setSessionError);
-                }
-                if (setSessionData?.session?.user) {
-                  effectiveUser = setSessionData.session.user;
-                  console.log(`${LOG_TAG} auth.setSession user restored`, effectiveUser);
-                }
-              } catch (setSessionErr) {
-                console.error(`${LOG_TAG} auth.setSession exception`, setSessionErr);
-              }
-            }
-          }
-        }
-
         // Fallback: getCurrentUser 縺悟叙繧後ｋ縺ｪ繧峨◎縺薙°繧・user 繧呈治逕ｨ
         if (!effectiveUser) {
           console.log(`${LOG_TAG} auth.getCurrentUser start`);
@@ -439,6 +409,7 @@ export const useUser = () => {
   }
   return context;
 };
+
 
 
 
