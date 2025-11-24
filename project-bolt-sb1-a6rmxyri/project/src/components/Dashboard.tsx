@@ -66,6 +66,8 @@ type RawSupabaseVideo = {
   beauty_sub_category?: BeautySubCategory | null;
 };
 
+type SortOption = 'newest' | 'popular';
+
 const DASHBOARD_CATEGORY_IDS: VideoAsset['category'][] = [
   'beauty',
   'diet',
@@ -453,6 +455,14 @@ const resolveReviewOrderForAsset = (video: VideoAsset) =>
   findReviewOrder(video.id) ||
   findReviewOrder(video.title);
 
+const getCreatedAtTime = (value?: string | null) => {
+  const parsed = Date.parse(value ?? '');
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getDownloadCount = (value?: number | null) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : 0;
+
 const LOCAL_DASHBOARD_ASSETS: VideoAsset[] = hasLocalDashboardVideos
   ? dedupeVideoAssets(localDashboardVideos.map((video, index) => mapLocalVideoToAsset(video, index)))
   : [];
@@ -466,7 +476,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   const [selectedGenders, setSelectedGenders] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [sortBy, setSortBy] = useState('newest');
+  const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [userFavorites, setUserFavorites] = useState<Set<string>>(new Set());
   const [downloadingVideos, setDownloadingVideos] = useState<Set<string>>(new Set());
@@ -479,6 +489,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentPage]);
+
+  useEffect(() => {
+    if (currentPage === 'dashboard' && sortBy !== 'newest') {
+      setSortBy('newest');
+    }
+  }, [currentPage, sortBy]);
 
   const {
     user,
@@ -1009,13 +1025,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     });
 
     const sorted = [...activeVideos].sort((a, b) => {
-      switch (sortBy) {
-        case 'popular':
-          return b.download_count - a.download_count;
-        case 'newest':
-        default:
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (sortBy === 'popular') {
+        return getDownloadCount(b.download_count) - getDownloadCount(a.download_count);
       }
+      return getCreatedAtTime(b.created_at) - getCreatedAtTime(a.created_at);
     });
 
     return sorted;
@@ -1238,16 +1251,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                       <div>
                         <h1 className="text-2xl font-bold text-slate-900">動画一覧</h1>
                       </div>
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                        <select
-                          value={sortBy}
-                          onChange={(e) => setSortBy(e.target.value)}
-                          className="rounded-full border border-[#e4e5f2] bg-white px-4 py-2 text-sm font-medium text-slate-600 focus:border-[#ff5392] focus:outline-none"
-                        >
-                          <option value="popular">人気順</option>
-                          <option value="newest">新着順</option>
-                        </select>
-                      </div>
                     </div>
                   </div>
 
@@ -1340,6 +1343,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                       <CategoryDetailPage
                         selectedCategories={selectedCategories}
                         videos={filteredVideos}
+                        sortBy={sortBy}
+                        onSortChange={setSortBy}
                         onVideoClick={setSelectedVideoForModal}
                         userFavorites={userFavorites}
                         downloadingVideos={downloadingVideos}
@@ -1379,23 +1384,54 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
 const CategoryDetailPage: React.FC<{
   selectedCategories: Set<string>;
   videos: VideoAsset[];
+  sortBy: SortOption;
+  onSortChange: (value: SortOption) => void;
   onVideoClick: (video: VideoAsset) => void;
   userFavorites: Set<string>;
   downloadingVideos: Set<string>;
   onDownload: (video: VideoAsset) => void;
   onToggleFavorite: (videoId: string) => void;
   onBack: () => void;
-}> = ({ selectedCategories, videos, onVideoClick, userFavorites, downloadingVideos, onDownload, onToggleFavorite, onBack }) => {
+}> = ({
+  selectedCategories,
+  videos,
+  sortBy,
+  onSortChange,
+  onVideoClick,
+  userFavorites,
+  downloadingVideos,
+  onDownload,
+  onToggleFavorite,
+  onBack
+}) => {
   const [currentPageNum, setCurrentPageNum] = useState(1);
   const videosPerPage = 20; // 5×4 = 20枚
   
-  const categoryName = Array.from(selectedCategories)[0];
-  const categoryVideos = videos.filter(video => selectedCategories.has(video.category));
+  const categoryName = useMemo(() => Array.from(selectedCategories)[0], [selectedCategories]);
+  const categoryVideos = useMemo(
+    () => videos.filter(video => selectedCategories.has(video.category)),
+    [videos, selectedCategories]
+  );
+
+  const sortedCategoryVideos = useMemo(() => {
+    const sorted = [...categoryVideos];
+    sorted.sort((a, b) => {
+      if (sortBy === 'popular') {
+        return getDownloadCount(b.download_count) - getDownloadCount(a.download_count);
+      }
+      return getCreatedAtTime(b.created_at) - getCreatedAtTime(a.created_at);
+    });
+    return sorted;
+  }, [categoryVideos, sortBy]);
+
+  useEffect(() => {
+    setCurrentPageNum(1);
+  }, [categoryName, sortBy]);
   
-  const totalPages = Math.ceil(categoryVideos.length / videosPerPage);
+  const totalPages = Math.ceil(sortedCategoryVideos.length / videosPerPage);
   const startIndex = (currentPageNum - 1) * videosPerPage;
   const endIndex = startIndex + videosPerPage;
-  const currentVideos = categoryVideos.slice(startIndex, endIndex);
+  const currentVideos = sortedCategoryVideos.slice(startIndex, endIndex);
   
   const categoryNames = {
     beauty: '美容',
@@ -1411,16 +1447,46 @@ const CategoryDetailPage: React.FC<{
     <div className="space-y-10">
       {/* カテゴリーヘッダー */}
       <div className="rounded-[32px] border border-gray-100 bg-white p-8 shadow-[0_35px_65px_-40px_rgba(15,23,42,0.5)]">
-        <button 
-          onClick={onBack}
-          className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors duration-300 hover:text-slate-800"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          ダッシュボードに戻る
-        </button>
-        <h1 className="text-3xl font-bold text-slate-900">
-          {categoryNames[categoryName as keyof typeof categoryNames] || categoryName}動画一覧
-        </h1>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <button
+              onClick={onBack}
+              className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors duration-300 hover:text-slate-800"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              ダッシュボードに戻る
+            </button>
+            <h1 className="text-3xl font-bold text-slate-900">
+              {categoryNames[categoryName as keyof typeof categoryNames] || categoryName}の動画一覧
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-slate-500">並び替え</span>
+            <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
+              <button
+                onClick={() => onSortChange('newest')}
+                className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-200 ${
+                  sortBy === 'newest'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-white text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                新着順
+              </button>
+              <button
+                onClick={() => onSortChange('popular')}
+                className={`ml-1 px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-200 ${
+                  sortBy === 'popular'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-white text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                人気順
+              </button>
+            </div>
+          </div>
+        </div>
         {/* <p className="mt-2 text-sm text-slate-500">
           {categoryVideos.length}件の動画が見つかりました。最新のUGC素材を活用して広告制作を加速させましょう。
         </p> */}
