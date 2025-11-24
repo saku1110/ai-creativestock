@@ -851,26 +851,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       return;
     }
 
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    let alreadyDownloadedThisMonth = false;
+    let alreadyDownloaded = false;
     try {
       const { data: existing } = await supabase
         .from('download_history')
         .select('id')
         .eq('user_id', user.id)
         .eq('video_id', video.id)
-        .gte('downloaded_at', startOfMonth.toISOString())
         .limit(1);
-      alreadyDownloadedThisMonth = (existing?.length || 0) > 0;
+      alreadyDownloaded = (existing?.length || 0) > 0;
     } catch (error) {
       console.error('既存ダウンロード確認エラー:', error);
     }
 
     let historyRecorded = false;
-    if (!alreadyDownloadedThisMonth) {
+    if (!alreadyDownloaded) {
       try {
         await database.addDownloadHistory(user.id, video.id);
         historyRecorded = true;
