@@ -81,6 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payment_method_types: ['link', 'card'],
       success_url: successUrl || `${req.headers.origin}/payment/success`,
       cancel_url: cancelUrl || `${req.headers.origin}/payment/cancel`,
+      allow_promotion_codes: true,
       metadata: {
         user_id: userId,
         plan_id: planId || '',
