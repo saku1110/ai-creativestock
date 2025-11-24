@@ -356,9 +356,6 @@ function App() {
   // Auth initialization and watcher
   useEffect(() => {
     const initializeAuth = async () => {
-    // Keep loading on during auth bootstrap to avoid premature LP redirect
-    setIsLoading(true);
-
     const searchParams = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const accessToken = hashParams.get('access_token') ?? searchParams.get('access_token');
@@ -374,6 +371,10 @@ function App() {
       isNewUserRef: isNewUserRegistrationRef.current,
       url: window.location.href
     });
+
+    // 公開ページかつトークン無しならローディングを出さない
+    const shouldShowLoader = !!accessToken || !isPublicPage(currentPage);
+    setIsLoading(shouldShowLoader);
 
     let handled = false;
 
@@ -840,6 +841,7 @@ const renderContent = () => {
 }
 
 export default App;
+
 
 
 
