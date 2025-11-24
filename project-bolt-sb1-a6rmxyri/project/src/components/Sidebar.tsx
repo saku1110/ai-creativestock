@@ -46,11 +46,16 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
         daysLeft: trialDaysRemaining
       };
     }
-    
+
+    // subscriptionPlansからプラン名を取得
+    const currentPlan = subscriptionPlans.find(
+      (p) => p.id === resolvedPlanId || p.aliases?.includes(resolvedPlanId || '')
+    );
+
     switch (resolvedPlanId) {
       case 'standard':
         return {
-          name: 'スタンダード',
+          name: currentPlan?.name || 'スタンダード',
           icon: Star,
           color: 'text-gray-400',
           bgColor: 'bg-gray-700',
@@ -59,7 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
         };
       case 'pro':
         return {
-          name: 'プロ',
+          name: currentPlan?.name || 'プロ',
           icon: Zap,
           color: 'text-cyan-400',
           bgColor: 'bg-cyan-900',
@@ -69,7 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
       case 'business':
       case 'enterprise':
         return {
-          name: 'ビジネス',
+          name: currentPlan?.name || 'ビジネス',
           icon: Crown,
           color: 'text-purple-400',
           bgColor: 'bg-purple-900',
@@ -82,8 +87,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
           icon: Star,
           color: 'text-gray-500',
           bgColor: 'bg-gray-800',
-          downloads: displayedRemaining,
-          limit: planLimit
+          downloads: 0,
+          limit: 0
         };
     }
   };
@@ -260,39 +265,63 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
               <div className={`text-sm font-bold ${planInfo.color}`}>
                 {planInfo.name}
               </div>
+              {/* サブスクリプションステータス表示 */}
+              {subscription && subscription.status && (
+                <div className={`text-xs mt-0.5 ${
+                  subscription.status === 'active' ? 'text-green-400' :
+                  subscription.status === 'trial' ? 'text-yellow-400' :
+                  subscription.status === 'canceled' ? 'text-red-400' :
+                  'text-gray-400'
+                }`}>
+                  {subscription.status === 'active' ? '有効' :
+                   subscription.status === 'trial' ? 'トライアル中' :
+                   subscription.status === 'canceled' ? 'キャンセル済み' :
+                   subscription.status === 'past_due' ? '支払い遅延' :
+                   subscription.status}
+                </div>
+              )}
             </div>
           </div>
-          
+
           {/* ダウンロード残数 */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-400">今月の残り</span>
-              <span className="text-white font-bold">
-                {planInfo.downloads}/{planInfo.limit}本
-              </span>
-            </div>
-            
-            {/* プログレスバー */}
-            <div className="w-full bg-gray-700 rounded-full h-2">
-              <div 
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  planInfo.downloads > planInfo.limit * 0.7 ? 'bg-green-500' :
-                  planInfo.downloads > planInfo.limit * 0.3 ? 'bg-yellow-500' :
-                  'bg-red-500'
-                }`}
-                style={{ 
-                  width: `${planInfo.limit > 0 ? (planInfo.downloads / planInfo.limit) * 100 : 0}%` 
-                }}
-              />
-            </div>
-            
-            {/* 有効期限 */}
-            {isTrialUser && planInfo.daysLeft !== undefined && (
-              <div className="mt-2 text-xs text-gray-400">
-                有効期限: あと{planInfo.daysLeft}日
+          {(resolvedPlanId || isTrialUser) && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">今月の残り</span>
+                <span className="text-white font-bold">
+                  {planInfo.downloads}/{planInfo.limit}本
+                </span>
               </div>
-            )}
-          </div>
+
+              {/* プログレスバー */}
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    planInfo.downloads > planInfo.limit * 0.7 ? 'bg-green-500' :
+                    planInfo.downloads > planInfo.limit * 0.3 ? 'bg-yellow-500' :
+                    'bg-red-500'
+                  }`}
+                  style={{
+                    width: `${planInfo.limit > 0 ? (planInfo.downloads / planInfo.limit) * 100 : 0}%`
+                  }}
+                />
+              </div>
+
+              {/* 有効期限 */}
+              {isTrialUser && planInfo.daysLeft !== undefined && (
+                <div className="mt-2 text-xs text-gray-400">
+                  有効期限: あと{planInfo.daysLeft}日
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 未登録の場合のメッセージ */}
+          {!resolvedPlanId && !isTrialUser && user && (
+            <div className="text-xs text-gray-400 mt-2">
+              プランを選択してダウンロードを開始
+            </div>
+          )}
         </div>
       </div>
     </div>
