@@ -132,7 +132,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         console.log(`${LOG_TAG} auth.getSession start`);
         try {
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          const sessionResult = await withTimeout(
+            supabase.auth.getSession(),
+            6000,
+            'supabase.auth.getSession'
+          );
+          const sessionData = sessionResult?.data;
+          const sessionError = sessionResult?.error;
           if (sessionError) {
             console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
           }
