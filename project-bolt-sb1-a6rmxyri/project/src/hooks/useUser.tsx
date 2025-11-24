@@ -148,13 +148,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         console.log(`${LOG_TAG} auth.getSession start`);
         try {
-          const sessionResult = await withTimeout(
-            supabase.auth.getSession(),
-            6000,
-            'supabase.auth.getSession'
-          );
-          const sessionData = sessionResult?.data;
-          const sessionError = sessionResult?.error;
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
           if (sessionError) {
             console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
           }
@@ -241,7 +235,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const monthlyResult = await withTimeout(
-          database.getMonthlyDownloadCount(currentUser.id),
+          database.getMonthlyDownloadCount(effectiveUser.id),
           6000,
           'getMonthlyDownloadCount'
         );
