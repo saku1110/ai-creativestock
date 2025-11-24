@@ -45,15 +45,19 @@ import { pageSEOData, getPageType } from './utils/seoUtils';
 import { User } from '@supabase/supabase-js';
 
 function App() {
-  // URLã¨ã‚¯ã‚¨ãƒªã‹ã‚‰åˆæœŸãƒšãEã‚¸ã‚’åˆ¤å®šï¼Econtact ç­‰ãEãƒ‘ã‚¹å„ªå…ˆï¼E
+  // URLã¨ã‚¯ã‚¨ãƒªã‹ã‚‰åˆæœŸãƒšï¿½Eã‚¸ã‚’åˆ¤å®šï¼Econtact ç­‰ï¿½Eãƒ‘ã‚¹å„ªå…ˆï¼E
   const urlParams = new URLSearchParams(window.location.search);
-  const pathSegment = (typeof window !== 'undefined'
-    ? window.location.pathname.split('/').filter(Boolean)[0]
-    : '') || '';
+  const pathSegments = (typeof window !== 'undefined'
+    ? window.location.pathname.split('/').filter(Boolean)
+    : []);
+  const [pathSegment = '', subPathSegment = ''] = pathSegments;
+  const isStripeCancelReturn = pathSegment === 'payment' && subPathSegment === 'cancel';
   const PATH_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
-  const initialVariant = (PATH_PAGES.includes(pathSegment)
-    ? pathSegment
-    : (urlParams.get('variant') || 'landing'));
+  const initialVariant = isStripeCancelReturn
+    ? 'pricing'
+    : (PATH_PAGES.includes(pathSegment)
+      ? pathSegment
+      : (urlParams.get('variant') || 'landing'));
   const REGISTRATION_RECENT_MS = 10 * 60 * 1000;
   const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
   const LOADER_FAILSAFE_MS = 12000;
@@ -77,9 +81,10 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isValidAuthProvider, setIsValidAuthProvider] = useState(false);
   const [isNewUserRegistration, setIsNewUserRegistration] = useState(false);
-  const isNewUserRegistrationRef = useRef(false); // åŒæœŸãƒ•ãƒ©ã‚°ç®¡çE”¨
+  const isNewUserRegistrationRef = useRef(false); // åŒæœŸãƒ•ãƒ©ã‚°ç®¡çEï¿½ï¿½
   const initialAuthModeRef = useRef<string | null>(null);
   const postRegistrationHandledRef = useRef(false);
+  const stripeCancelReturnRef = useRef(isStripeCancelReturn);
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
 
   const clearSupabaseStorage = () => {
@@ -99,7 +104,18 @@ function App() {
     currentPageRef.current = currentPage;
   }, [currentPage]);
 
-  // ãƒšãEã‚¸é·ç§»æ™‚ã«æœ€ä¸Šéƒ¨ã«ã‚¹ã‚¯ãƒ­ãƒ¼ãƒ«
+  // Stripeã‚­ãƒ£ãƒ³ã‚»ãƒ«ã§æˆ»ã£ãŸã¨ãã¯URLã‚‚çŠ¶æ…‹ã‚‚æ–™é‡‘ãƒ—ãƒ©ãƒ³ã«å›ºå®šã™ã‚‹
+  useEffect(() => {
+    if (isStripeCancelReturn) {
+      stripeCancelReturnRef.current = true;
+      try {
+        window.history.replaceState({}, document.title, '/pricing');
+      } catch {}
+      setCurrentPage('pricing');
+    }
+  }, [isStripeCancelReturn]);
+
+  // ãƒšï¿½Eã‚¸é·ç§»æ™‚ã«æœ€ä¸Šéƒ¨ã«ã‚¹ã‚¯ãƒ­ãƒ¼ãƒ«
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentPage]);
@@ -123,14 +139,14 @@ function App() {
     }
   }, [isLoggedIn, currentPage]);
 
-  // èªè¨¼ãƒ—ãƒ­ãƒã‚¤ãƒ€ãƒ¼ãƒã‚§ãƒE‚¯é–¢æ•°
+  // èªè¨¼ãƒ—ãƒ­ãƒã‚¤ãƒ€ãƒ¼ãƒã‚§ãƒEï¿½ï¿½é–¢æ•°
   const checkAuthProvider = (user: User): boolean => {
-    // é–‹ç™ºç’°å¢E§ã¯ãƒ¢ãƒE‚¯ãƒ¦ãƒ¼ã‚¶ãƒ¼ã‚’è¨±å¯
+    // é–‹ç™ºç’°å¢Eï¿½ï¿½ã¯ãƒ¢ãƒEï¿½ï¿½ãƒ¦ãƒ¼ã‚¶ãƒ¼ã‚’è¨±å¯
     if (isDevEnv) {
       return true;
     }
 
-    // ãƒ¦ãƒ¼ã‚¶ãƒ¼ã®èªè¨¼ãƒ—ãƒ­ãƒã‚¤ãƒ€ãƒ¼ã‚’ãƒã‚§ãƒE‚¯
+    // ãƒ¦ãƒ¼ã‚¶ãƒ¼ã®èªè¨¼ãƒ—ãƒ­ãƒã‚¤ãƒ€ãƒ¼ã‚’ãƒã‚§ãƒEï¿½ï¿½
     const authProvider = user.app_metadata?.provider;
     const validProviders = ['google', 'email', 'apple'];
     
@@ -189,7 +205,7 @@ function App() {
   };
 
   const ensureProfile = async (user: User) => {
-    // Šù‘¶ƒvƒƒtƒ@ƒCƒ‹‚ğæ‚èA‚È‚¯‚ê‚Îì¬‚ğ‚İ‚é
+    // ï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½È‚ï¿½ï¿½ï¿½Îì¬ï¿½ï¿½ï¿½ï¿½ï¿½İ‚ï¿½
     const existing = await fetchProfileRecord(user.id);
     if (existing?.id) return existing;
     return await upsertProfileRecord(user);
@@ -210,7 +226,7 @@ function App() {
     const modeIsRegistration = modeHint === 'registration';
     const createdRecently = wasCreatedRecently(user);
 
-    // ƒvƒƒtƒ@ƒCƒ‹‚ªæ‚ê‚È‚©‚Á‚½ê‡‚Íu“o˜^’¼Œãƒ‚[ƒhv‚Ì‚Æ‚«‚¾‚¯‰‰ñˆµ‚¢‚É‚·‚é
+    // ï¿½vï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡ï¿½Íuï¿½oï¿½^ï¿½ï¿½ï¿½ãƒ‚ï¿½[ï¿½hï¿½vï¿½Ì‚Æ‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ñˆµ‚ï¿½ï¿½É‚ï¿½ï¿½ï¿½
     if (!hasProfile) {
       return modeIsRegistration || createdRecently;
     }
@@ -295,8 +311,8 @@ function App() {
       if (shouldNotify) {
         try {
           handleApiError(
-            new Error('‹–‰Â‚³‚ê‚Ä‚¢‚È‚¢ƒƒOƒCƒ“•û–@‚Å‚·BGoogle / Apple / ƒ[ƒ‹ƒAƒhƒŒƒX‚ÅƒƒOƒCƒ“‚µ‚Ä‚­‚¾‚³‚¢B'),
-            '”FØƒGƒ‰['
+            new Error('ï¿½ï¿½ï¿½Â‚ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½Oï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½@ï¿½Å‚ï¿½ï¿½BGoogle / Apple / ï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½Aï¿½hï¿½ï¿½ï¿½Xï¿½Åƒï¿½ï¿½Oï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B'),
+            'ï¿½Fï¿½ØƒGï¿½ï¿½ï¿½['
           );
         } catch {}
       } else {
@@ -312,18 +328,22 @@ function App() {
     setIsLoggedIn(true);
 
     const activePage = currentPageRef.current;
-    // Šù‚ÉV‹K“o˜^ƒtƒ‰ƒO‚ª—§‚Á‚Ä‚¢‚éê‡‚Í‘¦ pricing ‚Ö
     const initialFirstLogin = isNewUserRegistrationRef.current;
-    if (initialFirstLogin) {
+    const returningFromStripeCancel = stripeCancelReturnRef.current || isStripeCancelReturn;
+    const shouldStayOnPricing = initialFirstLogin || returningFromStripeCancel;
+    if (shouldStayOnPricing) {
       setCurrentPage('pricing');
+      stripeCancelReturnRef.current = false;
     } else {
       const targetPage = !isPublicPage(activePage)
         ? activePage
-        : ((activePage === 'landing' || activePage === 'pricing') ? 'dashboard' : (activePage || 'dashboard'));
+        : (activePage === 'pricing'
+            ? 'pricing'
+            : ((activePage === 'landing') ? 'dashboard' : (activePage || 'dashboard')));
       setCurrentPage(targetPage);
     }
 
-    // ƒvƒƒtƒ@ƒCƒ‹æ“¾/ì¬‚Æ‰‰ñ”»’è‚ÍƒoƒbƒNƒOƒ‰ƒEƒ“ƒh‚ÅÀ{‚µAUI‚ğ~‚ß‚È‚¢
+    // ï¿½vï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½æ“¾/ï¿½ì¬ï¿½Æï¿½ï¿½ñ”»’ï¿½Íƒoï¿½bï¿½Nï¿½Oï¿½ï¿½ï¿½Eï¿½ï¿½ï¿½hï¿½Åï¿½ï¿½{ï¿½ï¿½ï¿½AUIï¿½ï¿½ï¿½~ï¿½ß‚È‚ï¿½
     void (async () => {
       let profile = null;
       try {
@@ -372,7 +392,7 @@ function App() {
       url: window.location.href
     });
 
-    // ŒöŠJƒy[ƒW‚©‚Âƒg[ƒNƒ“–³‚µ‚È‚çƒ[ƒfƒBƒ“ƒO‚ğo‚³‚È‚¢
+    // ï¿½ï¿½ï¿½Jï¿½yï¿½[ï¿½Wï¿½ï¿½ï¿½Âƒgï¿½[ï¿½Nï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚çƒï¿½[ï¿½fï¿½Bï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½oï¿½ï¿½ï¿½È‚ï¿½
     const shouldShowLoader = !!accessToken || !isPublicPage(currentPage);
     setIsLoading(shouldShowLoader);
 
@@ -393,7 +413,7 @@ function App() {
           handled = !!user;
         } catch (error) {
           console.error('OAuth session setup error:', error);
-          try { handleApiError(error, '”FØƒGƒ‰[‚ª”­¶‚µ‚Ü‚µ‚½'); } catch {}
+          try { handleApiError(error, 'ï¿½Fï¿½ØƒGï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½'); } catch {}
         } finally {
           try { window.history.replaceState({}, document.title, window.location.pathname); } catch {}
         }
@@ -442,11 +462,11 @@ function App() {
         !!(searchParams.get('access_token') || searchParams.get('refresh_token') || searchParams.get('mode')) ||
         window.location.hash.includes('access_token');
       if (!isDevEnv && hasAuthCallbackParams) {
-        handleApiError(error, '”FØƒGƒ‰[‚ª”­¶‚µ‚Ü‚µ‚½');
+        handleApiError(error, 'ï¿½Fï¿½ØƒGï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½');
       }
       setCurrentPage('landing');
     } finally {
-      // UI‚Í”ñ•\¦A”FØ‚ÍƒoƒbƒNƒOƒ‰ƒEƒ“ƒh‚ÅŒp‘±
+  // Loading screenï¿½Aï¿½Fï¿½Ø‚Íƒoï¿½bï¿½Nï¿½Oï¿½ï¿½ï¿½Eï¿½ï¿½ï¿½hï¿½ÅŒpï¿½ï¿½
       setIsLoading(false);
     }
   };    initializeAuth();
@@ -477,18 +497,18 @@ function App() {
     };
   }, []);
 
-  // ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯å‡¦çE èªè¨¼å®ŒäºE¾Œã«ãƒ•ãƒ©ã‚°ã‚’åEç¢ºèªE
+  // ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯å‡¦çE èªè¨¼å®ŒäºEï¿½ï¿½ã«ãƒ•ãƒ©ã‚°ã‚’ï¿½Eç¢ºèªE
   useEffect(() => {
     if (isLoggedIn && currentPage === 'dashboard' && (isNewUserRegistration || isNewUserRegistrationRef.current)) {
-      console.log('=== ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯å‡¦çE®Ÿè¡E===');
-      console.log('æ–°è¦ãƒ¦ãƒ¼ã‚¶ãƒ¼ãŒãƒ€ãƒE‚·ãƒ¥ãƒœãEãƒ‰ã«ãE‚‹ãŸã‚æ–™éßãƒ—ãƒ©ãƒ³ãƒšãEã‚¸ã«ä¿®æ­£');
+      console.log('=== ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯å‡¦çEï¿½ï¿½è¡E===');
+      console.log('æ–°è¦ãƒ¦ãƒ¼ã‚¶ãƒ¼ãŒãƒ€ãƒEï¿½ï¿½ãƒ¥ãƒœï¿½Eãƒ‰ã«ãEï¿½ï¿½ãŸã‚æ–™ï¿½ï¿½ãƒ—ãƒ©ãƒ³ãƒšï¿½Eã‚¸ã«ä¿®æ­£');
       console.log('ãƒ•ãƒ©ã‚°çŠ¶æ…E', { 
         isNewUserRegistration, 
         isNewUserRef: isNewUserRegistrationRef.current,
         currentPage 
       });
       setCurrentPage('pricing');
-      // ãƒ•ãƒ©ã‚°ã‚’ãƒªã‚»ãƒEƒˆ
+      // ãƒ•ãƒ©ã‚°ã‚’ãƒªã‚»ãƒEï¿½ï¿½
       isNewUserRegistrationRef.current = false;
       setIsNewUserRegistration(false);
     }
@@ -505,18 +525,18 @@ function App() {
       }
 
       if (!userData?.id) {
-        handleApiError(new Error('ƒƒOƒCƒ“‚ª•K—v‚Å‚·'), 'ŠÇ—ƒy[ƒWƒAƒNƒZƒX');
+        handleApiError(new Error('ï¿½ï¿½ï¿½Oï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½Å‚ï¿½'), 'ï¿½Ç—ï¿½ï¿½yï¿½[ï¿½Wï¿½Aï¿½Nï¿½Zï¿½X');
         return;
       }
 
       try {
         const { isAdmin } = await database.checkAdminStatus(userData.id);
         if (!isAdmin) {
-          handleApiError(new Error('ŠÇ—Ò‚Ì‚İƒAƒNƒZƒX‰Â”\‚Å‚·'), 'ŠÇ—ƒy[ƒWƒAƒNƒZƒX');
+          handleApiError(new Error('ï¿½Ç—ï¿½ï¿½Ò‚Ì‚İƒAï¿½Nï¿½Zï¿½Xï¿½Â”\ï¿½Å‚ï¿½'), 'ï¿½Ç—ï¿½ï¿½yï¿½[ï¿½Wï¿½Aï¿½Nï¿½Zï¿½X');
           return;
         }
       } catch (error) {
-        handleApiError(error, 'ƒAƒvƒŠƒP[ƒVƒ‡ƒ“ƒGƒ‰[');
+        handleApiError(error, 'ï¿½Aï¿½vï¿½ï¿½ï¿½Pï¿½[ï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½Gï¿½ï¿½ï¿½[');
         return;
       }
     }
@@ -524,46 +544,46 @@ function App() {
   };
 
   const handleAuthRequest = () => {
-    isNewUserRegistrationRef.current = false; // refã‚’åEã«è¨­å®E
+    isNewUserRegistrationRef.current = false; // refã‚’ï¿½Eã«è¨­å®E
     setAuthMode('login');
     console.log('handleAuthRequest: æ—¢å­˜ãƒ¦ãƒ¼ã‚¶ãƒ¼ãƒ•ãƒ©ã‚°ã‚’è¨­å®E- ref:', isNewUserRegistrationRef.current);
     setShowAuthModal(true);
   };
 
   const handleLoginRequest = () => {
-    isNewUserRegistrationRef.current = false; // refã‚’åEã«è¨­å®E
+    isNewUserRegistrationRef.current = false; // refã‚’ï¿½Eã«è¨­å®E
     setAuthMode('login');
     console.log('handleLoginRequest: æ—¢å­˜ãƒ¦ãƒ¼ã‚¶ãƒ¼ãƒ­ã‚°ã‚¤ãƒ³ãƒ•ãƒ©ã‚°ã‚’è¨­å®E- ref:', isNewUserRegistrationRef.current);
     setShowAuthModal(true);
   };
 
   const handleRegistrationRequest = () => {
-    // ãƒ­ã‚°ã‚¤ãƒ³ã—ã¦ãEªãE ´åˆãEèªè¨¼ãƒ¢ãƒ¼ãƒ€ãƒ«ã‚’è¡¨ç¤º
+    // ãƒ­ã‚°ã‚¤ãƒ³ã—ã¦ãEï¿½ï¿½ãEï¿½ï¿½åˆï¿½Eèªè¨¼ãƒ¢ãƒ¼ãƒ€ãƒ«ã‚’è¡¨ç¤º
     if (!isLoggedIn) {
-      isNewUserRegistrationRef.current = true; // refã‚’åEã«è¨­å®E
+      isNewUserRegistrationRef.current = true; // refã‚’ï¿½Eã«è¨­å®E
       setIsNewUserRegistration(true); // æ–°è¦ç™»éŒ²ãªã®ã§ãƒ•ãƒ©ã‚°ã‚’trueã«
       console.log('handleRegistrationRequest: æ–°è¦ç™»éŒ²ãƒ•ãƒ©ã‚°ã‚’è¨­å®E- ref:', isNewUserRegistrationRef.current);
       setShowAuthModal(true);
       setAuthMode('register');
     }
-    // ãƒ­ã‚°ã‚¤ãƒ³æ¸ˆã¿ã®å ´åˆãEæ–™éßãƒšãEã‚¸ã¸
+    // ãƒ­ã‚°ã‚¤ãƒ³æ¸ˆã¿ã®å ´åˆï¿½Eæ–™ï¿½ï¿½ãƒšï¿½Eã‚¸ã¸
     setCurrentPage('pricing');
   };
 
   const handleContactRequest = () => {
-    // å•ã„åˆã‚ã›ãEãƒšãEã‚¸é·ç§»ã§è¡¨ç¤ºEEPã«æˆ»ã‚‰ãªãE¼E
+    // å•ã„åˆã‚ã›ï¿½Eãƒšï¿½Eã‚¸é·ç§»ã§è¡¨ç¤ºï¿½Eï¿½EPã«æˆ»ã‚‰ãªãEï¿½ï¿½E
     setShowContactModal(false);
     setCurrentPage('contact');
     try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch {}
   };
 
   const handlePurchaseRequest = () => {
-    // ãƒ­ã‚°ã‚¤ãƒ³ã—ã¦ãEªãE ´åˆãEèªè¨¼ãƒ¢ãƒ¼ãƒ€ãƒ«ã‚’è¡¨ç¤º
+    // ãƒ­ã‚°ã‚¤ãƒ³ã—ã¦ãEï¿½ï¿½ãEï¿½ï¿½åˆï¿½Eèªè¨¼ãƒ¢ãƒ¼ãƒ€ãƒ«ã‚’è¡¨ç¤º
     if (!isLoggedIn) {
       setShowAuthModal(true);
       return;
     }
-    // ãƒ­ã‚°ã‚¤ãƒ³æ¸ˆã¿ã®å ´åˆãEæ–™éßãƒšãEã‚¸ã¸
+    // ãƒ­ã‚°ã‚¤ãƒ³æ¸ˆã¿ã®å ´åˆï¿½Eæ–™ï¿½ï¿½ãƒšï¿½Eã‚¸ã¸
     setCurrentPage('pricing');
   };
 
@@ -602,7 +622,7 @@ function App() {
     } catch (error) {
       console.error('logout error:', error);
       if (!isDevEnv) {
-        try { handleApiError(error as Error, 'ƒƒOƒAƒEƒg‚É¸”s‚µ‚Ü‚µ‚½'); } catch {}
+        try { handleApiError(error as Error, 'ï¿½ï¿½ï¿½Oï¿½Aï¿½Eï¿½gï¿½Éï¿½ï¿½sï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½'); } catch {}
       }
     } finally {
       try {
@@ -642,7 +662,7 @@ const renderContent = () => {
     }
 
     if (!isLoggedIn) {
-      // æœªãƒ­ã‚°ã‚¤ãƒ³æ™E ãƒ©ãƒ³ãƒE‚£ãƒ³ã‚°ãƒšãEã‚¸é¸æŠE
+      // æœªãƒ­ã‚°ã‚¤ãƒ³æ™E ãƒ©ãƒ³ãƒEï¿½ï¿½ãƒ³ã‚°ãƒšï¿½Eã‚¸é¸æŠE
       if (currentPage === 'simple-landing') {
         // ã‚·ãƒ³ãƒ—ãƒ«LPã‚’è¡¨ç¤º
         return (
@@ -664,7 +684,7 @@ const renderContent = () => {
           />
         );
       } else if (currentPage === 'landing') {
-        // å¾“æ¥ã®LPã‚’è¡¨ç¤ºEˆé»’èƒŒæ™¯EE
+        // å¾“æ¥ã®LPã‚’è¡¨ç¤ºï¿½Eï¿½é»’èƒŒæ™¯ï¿½Eï¿½E
         return (
           <>
             <Hero onAuthRequest={handleRegistrationRequest} onPurchaseRequest={handlePurchaseRequest} onLoginRequest={handleLoginRequest} />
@@ -692,15 +712,15 @@ const renderContent = () => {
             <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
               <span className="text-white text-2xl">!</span>
             </div>
-            <h2 className="text-2xl font-bold mb-4">—˜—p‚Å‚«‚È‚¢ƒƒOƒCƒ“•û–@‚Å‚·</h2>
+            <h2 className="text-2xl font-bold mb-4">ï¿½ï¿½ï¿½pï¿½Å‚ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½Oï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½@ï¿½Å‚ï¿½</h2>
             <p className="text-gray-400 mb-6 leading-relaxed">
-              Google / Apple / ƒ[ƒ‹ƒAƒhƒŒƒX‚ÅƒƒOƒCƒ“‚µ‚Ä‚­‚¾‚³‚¢B
+              Google / Apple / ï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½Aï¿½hï¿½ï¿½ï¿½Xï¿½Åƒï¿½ï¿½Oï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½B
             </p>
             <button
               onClick={handleLogout}
               className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
             >
-              ƒƒOƒCƒ“ƒy[ƒW‚É–ß‚é
+              ï¿½ï¿½ï¿½Oï¿½Cï¿½ï¿½ï¿½yï¿½[ï¿½Wï¿½É–ß‚ï¿½
             </button>
           </div>
         </div>
@@ -741,19 +761,19 @@ const renderContent = () => {
     }
   };
 
-  // ãƒ­ãƒ¼ãƒE‚£ãƒ³ã‚°ä¸­ã®è¡¨ç¤º
+  // ãƒ­ãƒ¼ãƒEï¿½ï¿½ãƒ³ã‚°ä¸­ã®è¡¨ç¤º
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">“Ç‚İ‚İ’†...</p>
+          <p className="text-gray-400">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // SEOãƒEEã‚¿ã‚’å–å¾E
+  // SEOãƒEï¿½Eã‚¿ã‚’å–å¾E
   const pageType = getPageType(currentPage);
   const seoData = pageType ? pageSEOData[pageType] : pageSEOData.dashboard;
   const pathname = isLoggedIn ? `/${currentPage}` : '/';
@@ -761,7 +781,7 @@ const renderContent = () => {
   return (
     <HelmetProvider>
       <ErrorBoundary onError={(error, errorInfo) => {
-        handleApiError(error, 'ƒAƒvƒŠƒP[ƒVƒ‡ƒ“ƒGƒ‰[');
+        handleApiError(error, 'ï¿½Aï¿½vï¿½ï¿½ï¿½Pï¿½[ï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½Gï¿½ï¿½ï¿½[');
       }}>
         <div className="min-h-screen bg-black force-white-h2">
           {/* SEOãƒ¡ã‚¿ã‚¿ã‚° */}
@@ -774,7 +794,7 @@ const renderContent = () => {
           
           <div className="min-h-screen">
             
-            {/* ã‚·ãƒ³ãƒ—ãƒ«LPã¨ç™½èƒŒæ™¯LPã®å ´åˆãEãƒ˜ãƒƒãƒ€ãƒ¼ãƒ»ãƒ•ãƒƒã‚¿ãƒ¼ã‚’è¡¨ç¤ºã—ãªãE*/}
+            {/* ã‚·ãƒ³ãƒ—ãƒ«LPã¨ç™½èƒŒæ™¯LPã®å ´åˆï¿½Eãƒ˜ãƒƒãƒ€ãƒ¼ãƒ»ãƒ•ãƒƒã‚¿ãƒ¼ã‚’è¡¨ç¤ºã—ãªãE*/}
             {(currentPage === 'simple-landing' || currentPage === 'white-landing') ? (
               <div>
                 {renderContent()}
@@ -795,7 +815,7 @@ const renderContent = () => {
                   />
                 </div>
                 
-                {/* ã‚³ãƒ³ãƒEƒ³ãƒEƒ¨åˆE*/}
+                {/* ã‚³ãƒ³ãƒEï¿½ï¿½ãƒEï¿½ï¿½åˆE*/}
                 <div className="bg-black" style={{ paddingTop: '80px' }}>
                   {renderContent()}
                 </div>
@@ -826,7 +846,7 @@ const renderContent = () => {
               onClose={() => setShowContactModal(false)}
             />
             
-            {/* ã‚¨ãƒ©ãƒ¼ãƒˆãEã‚¹ãƒE*/}
+            {/* ã‚¨ãƒ©ãƒ¼ãƒˆï¿½Eã‚¹ãƒE*/}
             <ErrorToast 
               errors={errors}
               onRemove={removeError}
@@ -841,6 +861,9 @@ const renderContent = () => {
 }
 
 export default App;
+
+
+
 
 
 
