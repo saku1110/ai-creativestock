@@ -5,23 +5,6 @@ import { subscriptionPlans } from '../lib/stripe';
 
 const LOG_TAG = '[useUser]';
 console.log(`${LOG_TAG} module loaded`);
-const getLocalSessionUser = (): User | null => {
-  try {
-    const key = Object.keys(localStorage).find(
-      (k) => k.startsWith('sb-') && k.includes('auth-token')
-    );
-    if (!key) return null;
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const sessionUser = parsed?.currentSession?.user || parsed?.user;
-    return sessionUser ?? null;
-  } catch (err) {
-    console.warn(`${LOG_TAG} local session parse error`, err);
-    return null;
-  }
-};
-
 interface UserProfile {
   id: string;
   email: string;
@@ -454,5 +437,6 @@ export const useUser = () => {
   }
   return context;
 };
+
 
 

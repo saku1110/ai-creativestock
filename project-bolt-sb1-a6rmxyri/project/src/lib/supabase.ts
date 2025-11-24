@@ -329,12 +329,42 @@ export const database = {
   // サブスクリプション情報取得
   getUserSubscription: async (userId: string) => {
     console.log('[database.getUserSubscription] fetching for userId:', userId);
+
+    // Try direct REST API call to bypass potential SDK issues
+    if (supabaseUrl && supabaseAnonKey) {
+      try {
+        const url = `${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${userId}&select=*`;
+        console.log('[database.getUserSubscription] trying direct fetch:', url);
+        const response = await fetch(url, {
+          headers: {
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        console.log('[database.getUserSubscription] fetch response status:', response.status);
+        if (response.ok) {
+          const rows = await response.json();
+          console.log('[database.getUserSubscription] direct fetch result:', rows);
+          if (Array.isArray(rows) && rows.length > 0) {
+            return { data: rows[0], error: null };
+          }
+          return { data: null, error: { code: 'PGRST116', message: 'No rows found' } };
+        }
+        const errorText = await response.text();
+        console.error('[database.getUserSubscription] fetch error:', errorText);
+      } catch (fetchErr) {
+        console.error('[database.getUserSubscription] fetch exception:', fetchErr);
+      }
+    }
+
+    // Fallback to SDK
     const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
       .single()
-    console.log('[database.getUserSubscription] result:', { data, error: error?.message || error });
+    console.log('[database.getUserSubscription] SDK result:', { data, error: error?.message || error });
     return { data, error }
   },
 
