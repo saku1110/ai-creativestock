@@ -153,12 +153,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         console.log(`${LOG_TAG} auth.getSession start`);
         try {
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          const sessionPromise = supabase.auth.getSession();
+          const timeoutPromise = new Promise<{ data: { session: null }; error: null }>((resolve) =>
+            setTimeout(() => {
+              console.warn(`${LOG_TAG} auth.getSession timeout after 5s`);
+              resolve({ data: { session: null }, error: null });
+            }, 5000)
+          );
+          const { data: sessionData, error: sessionError } = await Promise.race([sessionPromise, timeoutPromise]);
           if (sessionError) {
             console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
           }
           effectiveUser = sessionData?.session?.user ?? null;
-          console.log(`${LOG_TAG} auth.getSession result`, effectiveUser);
+          console.log(`${LOG_TAG} auth.getSession result`, effectiveUser?.id || 'no user');
         } catch (sessionErr) {
           console.error(`${LOG_TAG} auth.getSession exception`, sessionErr);
         }
