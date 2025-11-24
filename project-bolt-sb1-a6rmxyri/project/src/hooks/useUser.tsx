@@ -22,28 +22,6 @@ const getLocalSessionUser = (): User | null => {
   }
 };
 
-const getLocalSessionTokens = (): { access_token: string; refresh_token: string } | null => {
-  try {
-    const key = Object.keys(localStorage).find(
-      (k) => k.startsWith('sb-') && k.includes('auth-token')
-    );
-    if (!key) return null;
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const session = parsed?.currentSession || parsed?.session;
-    const access_token = session?.access_token || parsed?.access_token;
-    const refresh_token = session?.refresh_token || parsed?.refresh_token;
-    if (access_token && refresh_token) {
-      return { access_token, refresh_token };
-    }
-    return null;
-  } catch (err) {
-    console.warn(`${LOG_TAG} local token parse error`, err);
-    return null;
-  }
-};
-
 interface UserProfile {
   id: string;
   email: string;
@@ -141,8 +119,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let isMounted = true;
-    // Fail-safe: loading解除が何らかの理由で実行されない場合に備える
-    const loadingTimeout = setTimeout(() => {
+    // Fail-safe: loading解除が何らか�E琁E��で実行されなぁE��合に備えめE    const loadingTimeout = setTimeout(() => {
       if (isMounted) setLoading(false);
     }, 12000);
 
@@ -200,7 +177,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        // Fallback: getCurrentUser が取れるならそこから user を採用
+        // Fallback: getCurrentUser が取れるならそこかめEuser を採用
         if (!effectiveUser) {
           console.log(`${LOG_TAG} auth.getCurrentUser start`);
           const { user: currentUser, error: currentUserError } = await auth.getCurrentUser();
@@ -387,7 +364,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, [user?.id]);
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user) return { error: 'ユーザーが未ログインです' };
+    if (!user) return { error: 'ユーザーが未ログインでぁE };
 
     try {
       const { data, error } = await database.updateUserProfile(user.id, updates);
@@ -415,7 +392,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       const { count } = await database.getMonthlyDownloadCount(user.id);
       setMonthlyDownloads((prev) => Math.max(prev, count));
     } catch (error) {
-      console.error('ユーザーデータ再取得エラー:', error);
+      console.error('ユーザーチE�Eタ再取得エラー:', error);
     }
   };
 
@@ -476,3 +453,4 @@ export const useUser = () => {
   }
   return context;
 };
+
