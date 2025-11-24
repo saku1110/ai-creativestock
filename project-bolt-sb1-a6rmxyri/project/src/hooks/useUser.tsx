@@ -365,7 +365,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, [user?.id]);
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user) return { error: '繝ｦ繝ｼ繧ｶ繝ｼ縺梧悴繝ｭ繧ｰ繧､繝ｳ縺ｧ縺・ };
+    if (!user) return { error: 'ユーザーが未ログインです' };
 
     try {
       const { data, error } = await database.updateUserProfile(user.id, updates);
