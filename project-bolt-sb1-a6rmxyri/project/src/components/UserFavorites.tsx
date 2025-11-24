@@ -122,7 +122,7 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
 
     try {
       setLoading(true);
-      const { data, error } = await database
+      const { data, error } = await supabase
         .from('user_favorites')
         .select(
           `
@@ -150,7 +150,7 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
     if (!user) return;
 
     try {
-      const { data, error } = await database
+      const { data, error } = await supabase
         .from('user_favorites')
         .select(
           `
@@ -221,7 +221,7 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
 
   const removeFavorite = async (favoriteId: string) => {
     try {
-      const { error } = await database.from('user_favorites').delete().eq('id', favoriteId);
+      const { error } = await supabase.from('user_favorites').delete().eq('id', favoriteId);
       if (error) {
         console.error('Remove favorite error:', error);
         return;
@@ -268,7 +268,7 @@ const UserFavorites: React.FC<UserFavoritesProps> = ({ onPageChange = () => {} }
 
     let alreadyDownloadedThisMonth = false;
     try {
-      const { data: existing } = await database
+      const { data: existing } = await supabase
         .from('download_history')
         .select('id')
         .eq('user_id', user.id)

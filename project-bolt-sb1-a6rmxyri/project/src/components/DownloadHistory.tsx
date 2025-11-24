@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Grid, List, Search, Filter, Clock } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useUser } from '../hooks/useUser';
-import { database } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
 
 interface VideoAsset {
@@ -110,7 +110,7 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = ({ onPageChange = () => 
 
     try {
       setLoading(true);
-      const { data, error } = await database
+      const { data, error } = await supabase
         .from('download_history')
         .select(
           `
@@ -138,7 +138,7 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = ({ onPageChange = () => 
     if (!user) return;
 
     try {
-      const { data, error } = await database
+      const { data, error } = await supabase
         .from('download_history')
         .select(
           `

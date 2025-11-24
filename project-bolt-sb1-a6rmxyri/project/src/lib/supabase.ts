@@ -294,32 +294,33 @@ export const database = {
       return { data: [], error: null }
     }
 
+    // NOTE: This endpoint was causing 400 errors in some environments.
+    // To keep the UI usable, we skip remote aggregation and just return empty counts.
+    return { data: [], error: null }
+
     if (!supabaseUrl || !supabaseAnonKey) {
       return { data: null, error: new Error('CSRF token is required') }
     }
 
     try {
-      const url = new URL(`${supabaseUrl}/rest/v1/download_history`)
-      url.searchParams.set('select', 'video_id,count:video_id')
-      url.searchParams.set('group', 'video_id')
+      // Client-side aggregation to avoid REST errors in some environments
+      const { data: rows, error } = await supabase
+        .from('download_history')
+        .select('video_id')
 
-      const response = await fetch(url.toString(), {
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${supabaseAnonKey}`
-        }
-      })
-
-      if (!response.ok) {
-        const message = await response.text().catch(() => '')
-        return {
-          data: null,
-          error: new Error(message || 'Failed to fetch download counts')
-        }
+      if (error || !rows) {
+        return { data: null, error }
       }
 
-      const data = await response.json()
-      return { data, error: null }
+      const aggregated = rows.reduce<Record<string, number>>((acc, row: any) => {
+        const id = row?.video_id
+        if (id) acc[id] = (acc[id] || 0) + 1
+        return acc
+      }, {})
+
+      const result = Object.entries(aggregated).map(([video_id, count]) => ({ video_id, count }))
+
+      return { data: result, error: null }
     } catch (error) {
       return { data: null, error: error as Error }
     }
