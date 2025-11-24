@@ -93,6 +93,14 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = ({ onPageChange = () => 
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('newest');
 
+  // ローディングが永続しないようフェールセーフ
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     if (!user) {
       setDownloads([]);
