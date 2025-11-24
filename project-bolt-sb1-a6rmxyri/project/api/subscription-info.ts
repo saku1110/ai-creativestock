@@ -12,19 +12,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : null;
-  if (!token) {
-    return res.status(401).json({ error: 'Missing bearer token' });
-  }
-
   try {
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
-    if (userError || !userData?.user) {
-      return res.status(401).json({ error: 'Invalid token' });
+    // 優先: Bearer token で検証
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : null;
+    let userId = req.query.userId as string | undefined;
+
+    if (token) {
+      const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+      if (userError || !userData?.user) {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+      userId = userData.user.id;
     }
 
-    const userId = userData.user.id;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
 
     const { data: subscription, error: subError } = await supabaseAdmin
       .from('subscriptions')

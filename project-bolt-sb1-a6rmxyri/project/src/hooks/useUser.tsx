@@ -1,12 +1,11 @@
-﻿import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { auth, database, supabase } from '../lib/supabase';
 import { subscriptionPlans } from '../lib/stripe';
 
 const LOG_TAG = '[useUser]';
 console.log(`${LOG_TAG} module loaded`);
-// 端末に残ったトークンから自動復元しないためのダミー（常に null を返す）
-const getLocalSessionUser = (): User | null => null;
+
 interface UserProfile {
   id: string;
   email: string;
@@ -42,7 +41,6 @@ interface UserContextValue {
   trialDaysRemaining: number;
   trialDownloadsRemaining: number;
   loading: boolean;
-  // Record a download locally to keep UI in sync while server updates propagate
   recordDownload: () => void;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ data?: UserProfile | null; error?: unknown }>;
   refreshUserData: () => Promise<void>;
@@ -104,7 +102,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let isMounted = true;
-    // Fail-safe: loading解除が実行されない場合の保険
     const loadingTimeout = setTimeout(() => {
       if (isMounted) setLoading(false);
     }, 12000);
@@ -113,6 +110,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       console.log(`${LOG_TAG} fetchUserData start`);
       try {
         let effectiveUser: User | null = null;
+        let accessToken: string | null = null;
 
         console.log(`${LOG_TAG} auth.getSession start`);
         try {
@@ -121,12 +119,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
           }
           effectiveUser = sessionData?.session?.user ?? null;
+          accessToken = sessionData?.session?.access_token ?? null;
           console.log(`${LOG_TAG} auth.getSession result`, effectiveUser?.id || 'no user');
         } catch (sessionErr) {
           console.error(`${LOG_TAG} auth.getSession exception`, sessionErr);
         }
 
-        // Fallback: getCurrentUser 縺悟叙繧後ｋ縺ｪ繧峨◎縺薙°繧・user 繧呈治逕ｨ
+        // Fallback: try getCurrentUser when session is missing
         if (!effectiveUser) {
           console.log(`${LOG_TAG} auth.getCurrentUser start`);
           const { user: currentUser, error: currentUserError } = await auth.getCurrentUser();
@@ -176,7 +175,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           if (profileError && (profileError as any)?.code === 'PGRST116') {
             const { data: newProfile, error: createError } = await database.updateUserProfile(effectiveUser.id, {
               email: effectiveUser.email,
-              name: effectiveUser.user_metadata?.full_name || effectiveUser.email?.split('@')[0] || '繧ｲ繧ｹ繝医Θ繝ｼ繧ｶ繝ｼ',
+              name: effectiveUser.user_metadata?.full_name || effectiveUser.email?.split('@')[0] || 'ゲストユーザー',
               avatar_url: effectiveUser.user_metadata?.avatar_url
             });
             if (!createError && newProfile && isMounted) {
@@ -193,7 +192,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         try {
           let subscriptionData: UserSubscription | null = null;
 
-          // Try server-side API first (more robust when client auth is flaky)
+          // Prefer server-side API (not affected by client auth edge cases)
           if (accessToken) {
             const resp = await fetch('/api/subscription-info', {
               headers: {
@@ -282,7 +281,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setMonthlyDownloads((prev) => Math.max(prev, count));
         }
       } catch (error) {
-        console.error('譛域ｬ｡繝繧ｦ繝ｳ繝ｭ繝ｼ繝画焚蜷梧悄繧ｨ繝ｩ繝ｼ:', error);
+        console.error('月次ダウンロード数同期エラー:', error);
       }
     };
 
@@ -293,7 +292,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setSubscription(resolveTestSubscription(data));
         }
       } catch (error) {
-        console.error('繧ｵ繝悶せ繧ｯ繝ｪ繝励す繝ｧ繝ｳ蜷梧悄繧ｨ繝ｩ繝ｼ:', error);
+        console.error('サブスクリプション同期エラー:', error);
       }
     };
 
@@ -331,7 +330,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, [user?.id]);
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user) return { error: 'ユーザーが未ログインです' };
+    if (!user) return { error: 'ユーザーがログインしていません' };
 
     try {
       const { data, error } = await database.updateUserProfile(user.id, updates);
@@ -359,7 +358,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       const { count } = await database.getMonthlyDownloadCount(user.id);
       setMonthlyDownloads((prev) => Math.max(prev, count));
     } catch (error) {
-      console.error('繝ｦ繝ｼ繧ｶ繝ｼ繝・・繧ｿ蜀榊叙蠕励お繝ｩ繝ｼ:', error);
+      console.error('ユーザーデータ再取得エラー:', error);
     }
   };
 
@@ -420,8 +419,3 @@ export const useUser = () => {
   }
   return context;
 };
-
-
-
-
-
