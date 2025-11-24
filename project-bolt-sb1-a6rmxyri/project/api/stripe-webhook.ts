@@ -41,17 +41,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const planId = rawPlanId === 'enterprise' ? 'business' : rawPlanId
 
         if (userId && customerId) {
-          // 既存行があれば更新、なければ作成
+          // Stripe側の期間情報を取得（fallbackで+30日）
+          let periodStart = new Date()
+          let periodEnd = new Date()
+          periodEnd.setDate(periodEnd.getDate() + 30)
+          let cancelAtPeriodEnd = false
+          let status: 'active' | 'trial' = 'active'
+
+          if (subscriptionId) {
+            try {
+              const sub = await stripe.subscriptions.retrieve(subscriptionId)
+              periodStart = new Date((sub.current_period_start || Math.floor(Date.now() / 1000)) * 1000)
+              periodEnd = new Date((sub.current_period_end || Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60) * 1000)
+              cancelAtPeriodEnd = sub.cancel_at_period_end ?? false
+              status = sub.status === 'trialing' ? 'trial' : 'active'
+            } catch (err) {
+              console.error('Failed to retrieve subscription details', err)
+            }
+          }
+
           await supabaseAdmin.from('subscriptions').upsert({
             user_id: userId,
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
             plan: planId && ['standard', 'pro', 'business'].includes(planId) ? planId : 'standard',
-            status: 'active',
+            status,
             monthly_download_limit: planId === 'business' ? 50 : planId === 'pro' ? 30 : 15,
-            current_period_start: new Date(),
-            current_period_end: null,
-            cancel_at_period_end: false
+            current_period_start: periodStart,
+            current_period_end: periodEnd,
+            cancel_at_period_end: cancelAtPeriodEnd
           }, { onConflict: 'user_id' })
         }
         break
