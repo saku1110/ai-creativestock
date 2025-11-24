@@ -133,6 +133,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
+        console.log('[useUser] currentUser', currentUser?.id);
+
         if (!currentUser || !isMounted) {
           setUser(null);
           setProfile(null);
@@ -178,6 +180,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           'getUserSubscription'
         );
         const subscriptionData = subscriptionResult?.data;
+        console.log('[useUser] subscriptionResult', { data: subscriptionResult?.data, error: subscriptionResult?.error });
         if (isMounted) {
           setSubscription(resolveTestSubscription(subscriptionData));
         }

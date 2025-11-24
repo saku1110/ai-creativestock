@@ -41,6 +41,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const planId = rawPlanId === 'enterprise' ? 'business' : rawPlanId
 
         if (userId && customerId) {
+          console.log('checkout.session.completed payload', {
+            userId,
+            customerId,
+            subscriptionId,
+            planId,
+            billing
+          })
           // Stripe側の期間情報を取得（fallbackで+30日）
           let periodStart = new Date()
           let periodEnd = new Date()
@@ -75,6 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.error('supabase subscriptions upsert error', upsertError)
             throw upsertError
           }
+          console.log('subscriptions upsert success', { userId, customerId, subscriptionId })
         }
         break
       }
@@ -134,7 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     res.status(200).json({ received: true })
   } catch (err: any) {
-    console.error('stripe-webhook handler error', err)
+    console.error('stripe-webhook handler error', err?.message || err, err)
     res.status(500).json({ error: 'Webhook handler error' })
   }
 }
