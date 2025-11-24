@@ -191,16 +191,34 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         console.log(`${LOG_TAG} getUserSubscription start`, effectiveUser.id);
         try {
-          const subPromise = database.getUserSubscription(effectiveUser.id);
-          const subTimeout = new Promise<{ data: null; error: { message: string } }>((resolve) =>
-            setTimeout(() => {
-              console.warn(`${LOG_TAG} getUserSubscription timeout after 5s`);
-              resolve({ data: null, error: { message: 'timeout' } });
-            }, 5000)
-          );
-          const subscriptionResult = await Promise.race([subPromise, subTimeout]);
-          const subscriptionData = subscriptionResult?.data;
-          console.log('[useUser] subscriptionResult', { data: subscriptionResult?.data, error: subscriptionResult?.error });
+          let subscriptionData: UserSubscription | null = null;
+
+          // Try server-side API first (more robust when client auth is flaky)
+          if (accessToken) {
+            const resp = await fetch('/api/subscription-info', {
+              headers: {
+                Authorization: `Bearer ${accessToken}`
+              }
+            });
+            if (resp.ok) {
+              const json = await resp.json();
+              subscriptionData = json.subscription ?? null;
+              console.log('[useUser] subscriptionResult via api', subscriptionData);
+            } else {
+              console.warn('[useUser] subscription-info api failed', resp.status);
+            }
+          }
+
+          // Fallback to Supabase client if API not available or no token
+          if (!subscriptionData) {
+            const subscriptionResult = await database.getUserSubscription(effectiveUser.id);
+            subscriptionData = subscriptionResult?.data ?? null;
+            console.log('[useUser] subscriptionResult via supabase', {
+              data: subscriptionResult?.data,
+              error: subscriptionResult?.error
+            });
+          }
+
           if (isMounted) {
             setSubscription(resolveTestSubscription(subscriptionData));
           }
