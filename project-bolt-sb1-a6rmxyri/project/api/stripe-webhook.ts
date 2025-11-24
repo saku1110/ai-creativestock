@@ -60,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
           }
 
-          await supabaseAdmin.from('subscriptions').upsert({
+          const { error: upsertError } = await supabaseAdmin.from('subscriptions').upsert({
             user_id: userId,
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
@@ -71,6 +71,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             current_period_end: periodEnd,
             cancel_at_period_end: cancelAtPeriodEnd
           }, { onConflict: 'user_id' })
+          if (upsertError) {
+            console.error('supabase subscriptions upsert error', upsertError)
+            throw upsertError
+          }
         }
         break
       }
@@ -97,7 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             incomplete_expired: 'canceled'
           }
 
-          await supabaseAdmin.from('subscriptions')
+          const { error: updateError } = await supabaseAdmin.from('subscriptions')
             .update({
               stripe_subscription_id: sub.id,
               status: statusMap[sub.status] || 'active',
@@ -106,12 +110,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               cancel_at_period_end: sub.cancel_at_period_end ?? false
             })
             .eq('stripe_customer_id', customerId)
+          if (updateError) {
+            console.error('supabase subscriptions update error', updateError)
+            throw updateError
+          }
 
           // checkout_sessions の状態更新
           if (data?.user_id) {
-            await supabaseAdmin.from('checkout_sessions')
+            const { error: checkoutUpdateError } = await supabaseAdmin.from('checkout_sessions')
               .update({ status: 'completed', completed_at: new Date() })
               .eq('user_id', data.user_id)
+            if (checkoutUpdateError) {
+              console.error('checkout_sessions update error', checkoutUpdateError)
+              throw checkoutUpdateError
+            }
           }
         }
         break
