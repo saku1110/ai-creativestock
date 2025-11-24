@@ -189,27 +189,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         setUser(effectiveUser);
 
-        const profileResult = await withTimeout(
-          database.getUserProfile(effectiveUser.id),
-          6000,
-          'getUserProfile'
-        );
-        const profileData = profileResult?.data;
-        const profileError: any = profileResult?.error;
+        const { data: profileData, error: profileError } = await database.getUserProfile(effectiveUser.id);
+        if (profileError) {
+          console.warn(`${LOG_TAG} getUserProfile error`, profileError);
+        }
 
-        if (profileError && profileError.code === 'PGRST116') {
-          const createResult = await withTimeout(
-            database.updateUserProfile(effectiveUser.id, {
-              email: effectiveUser.email,
-              name: effectiveUser.user_metadata?.full_name || effectiveUser.email?.split('@')[0] || 'ゲストユーザー',
-              avatar_url: effectiveUser.user_metadata?.avatar_url
-            }),
-            6000,
-            'updateUserProfile'
-          );
-          const newProfile = createResult?.data;
-          const createError = createResult?.error;
-
+        if (profileError && (profileError as any)?.code === 'PGRST116') {
+          const { data: newProfile, error: createError } = await database.updateUserProfile(effectiveUser.id, {
+            email: effectiveUser.email,
+            name: effectiveUser.user_metadata?.full_name || effectiveUser.email?.split('@')[0] || 'ゲストユーザー',
+            avatar_url: effectiveUser.user_metadata?.avatar_url
+          });
           if (!createError && newProfile && isMounted) {
             setProfile(newProfile);
           }
@@ -218,11 +208,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
 
         console.log(`${LOG_TAG} getUserSubscription start`, effectiveUser.id);
-        const subscriptionResult = await withTimeout(
-          database.getUserSubscription(effectiveUser.id),
-          6000,
-          'getUserSubscription'
-        );
+        const subscriptionResult = await database.getUserSubscription(effectiveUser.id);
         const subscriptionData = subscriptionResult?.data;
         console.log('[useUser] subscriptionResult', { data: subscriptionResult?.data, error: subscriptionResult?.error });
         if (isMounted) {
