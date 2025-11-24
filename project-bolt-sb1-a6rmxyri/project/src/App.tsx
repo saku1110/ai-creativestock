@@ -82,6 +82,19 @@ function App() {
   const postRegistrationHandledRef = useRef(false);
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
 
+  const clearSupabaseStorage = () => {
+    try {
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith('sb-') || key.toLowerCase().includes('supabase'))
+        .forEach((key) => localStorage.removeItem(key));
+      Object.keys(sessionStorage)
+        .filter((key) => key.startsWith('sb-') || key.toLowerCase().includes('supabase'))
+        .forEach((key) => sessionStorage.removeItem(key));
+    } catch (error) {
+      console.warn('supabase storage clear skipped', error);
+    }
+  };
+
   useEffect(() => {
     currentPageRef.current = currentPage;
   }, [currentPage]);
@@ -402,9 +415,23 @@ function App() {
           try {
             const { user } = await auth.getCurrentUser();
             await handleAuthenticatedSession(user ?? null, { modeHint: mode });
+            handled = !!user;
           } catch (error) {
             console.error('Deferred auth initialization error:', error);
           }
+        }
+
+        // still no user: clear stale Supabase storage and retry once
+        if (!handled) {
+          clearSupabaseStorage();
+          setTimeout(async () => {
+            try {
+              const { user } = await auth.getCurrentUser();
+              await handleAuthenticatedSession(user ?? null, { modeHint: mode });
+            } catch (error) {
+              console.error('Deferred auth initialization retry error:', error);
+            }
+          }, 500);
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
