@@ -234,8 +234,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         console.log(`${LOG_TAG} getUserProfile start`, effectiveUser.id);
         try {
-          const { data: profileData, error: profileError } = await database.getUserProfile(effectiveUser.id);
-          if (profileError) {
+          const profilePromise = database.getUserProfile(effectiveUser.id);
+          const profileTimeout = new Promise<{ data: null; error: { message: string } }>((resolve) =>
+            setTimeout(() => {
+              console.warn(`${LOG_TAG} getUserProfile timeout after 5s`);
+              resolve({ data: null, error: { message: 'timeout' } });
+            }, 5000)
+          );
+          const { data: profileData, error: profileError } = await Promise.race([profilePromise, profileTimeout]);
+          console.log(`${LOG_TAG} getUserProfile result`, { data: profileData?.id, error: profileError });
+          if (profileError && profileError.message !== 'timeout') {
             console.warn(`${LOG_TAG} getUserProfile error`, profileError);
           }
 
@@ -257,7 +265,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         console.log(`${LOG_TAG} getUserSubscription start`, effectiveUser.id);
         try {
-          const subscriptionResult = await database.getUserSubscription(effectiveUser.id);
+          const subPromise = database.getUserSubscription(effectiveUser.id);
+          const subTimeout = new Promise<{ data: null; error: { message: string } }>((resolve) =>
+            setTimeout(() => {
+              console.warn(`${LOG_TAG} getUserSubscription timeout after 5s`);
+              resolve({ data: null, error: { message: 'timeout' } });
+            }, 5000)
+          );
+          const subscriptionResult = await Promise.race([subPromise, subTimeout]);
           const subscriptionData = subscriptionResult?.data;
           console.log('[useUser] subscriptionResult', { data: subscriptionResult?.data, error: subscriptionResult?.error });
           if (isMounted) {
