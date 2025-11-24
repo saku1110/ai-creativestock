@@ -128,7 +128,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const fetchUserData = async () => {
       console.log(`${LOG_TAG} fetchUserData start`);
       try {
+        console.log(`${LOG_TAG} auth.getCurrentUser start`);
         const { user: currentUser } = await auth.getCurrentUser();
+        console.log(`${LOG_TAG} auth.getCurrentUser result`, currentUser);
 
         if (import.meta.env.DEV) {
           const status = currentUser ? 'Authenticated' : 'Not authenticated';
@@ -179,6 +181,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           setProfile(profileData);
         }
 
+        console.log(`${LOG_TAG} getUserSubscription start`, currentUser.id);
         const subscriptionResult = await withTimeout(
           database.getUserSubscription(currentUser.id),
           6000,
