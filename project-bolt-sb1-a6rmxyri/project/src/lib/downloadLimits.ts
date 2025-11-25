@@ -569,14 +569,25 @@ export const useDownloadLimits = (userId: string) => {
   const [usage, setUsage] = React.useState<DownloadUsage | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [downloadedVideoIds, setDownloadedVideoIds] = React.useState<Set<string>>(new Set());
 
   const refreshUsage = React.useCallback(async () => {
     if (!userId) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
+      // ダウンロード済み動画IDリストを取得
+      const { data: downloads } = await supabase
+        .from('download_history')
+        .select('video_id')
+        .eq('user_id', userId);
+
+      if (downloads) {
+        setDownloadedVideoIds(new Set(downloads.map((d: { video_id: string }) => d.video_id)));
+      }
+
       const usageData = await DownloadLimitManager.getUserDownloadUsage(userId);
       setUsage(usageData);
     } catch (err) {
@@ -590,9 +601,13 @@ export const useDownloadLimits = (userId: string) => {
     refreshUsage();
   }, [refreshUsage]);
 
+  const isVideoDownloaded = React.useCallback((videoId: string) => {
+    return downloadedVideoIds.has(videoId);
+  }, [downloadedVideoIds]);
+
   const checkDownload = React.useCallback(async (videoId: string) => {
     if (!userId) return { allowed: false, reason: 'ユーザーが認証されていません' };
-    
+
     return await DownloadLimitManager.checkDownloadPermission(userId, videoId);
   }, [userId]);
 
@@ -605,11 +620,15 @@ export const useDownloadLimits = (userId: string) => {
 
     console.log('[useDownloadLimits] calling DownloadLimitManager.executeDownload');
     const result = await DownloadLimitManager.executeDownload(userId, videoId);
-    
-    if (result.success && result.usage) {
-      setUsage(result.usage);
+
+    if (result.success) {
+      // ダウンロード済みリストに追加
+      setDownloadedVideoIds(prev => new Set(prev).add(videoId));
+      if (result.usage) {
+        setUsage(result.usage);
+      }
     }
-    
+
     return result;
   }, [userId]);
 
@@ -622,7 +641,9 @@ export const useDownloadLimits = (userId: string) => {
     refreshUsage,
     checkDownload,
     executeDownload,
-    warningMessage
+    warningMessage,
+    downloadedVideoIds,
+    isVideoDownloaded
   };
 };
 

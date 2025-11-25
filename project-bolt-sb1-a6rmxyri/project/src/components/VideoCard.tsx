@@ -53,7 +53,8 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   }, [attemptInlinePlay, isPreviewReady]);
   
   const { user } = useUser();
-  const { usage, executeDownload, checkDownload, warningMessage } = useDownloadLimits(user?.id || '');
+  const { usage, executeDownload, checkDownload, warningMessage, isVideoDownloaded } = useDownloadLimits(user?.id || '');
+  const isAlreadyDownloaded = isVideoDownloaded(video.id);
 
   const showDownloadStatus = useCallback((message: string) => {
     setDownloadStatus(message);
@@ -138,11 +139,12 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   };
 
   const getDownloadButtonState = () => {
-    if (!user) return { disabled: true, text: '\\u30ed\\u30b0\\u30a4\\u30f3\\u304c\\u5fc5\\u8981\\u3067\\u3059', color: 'bg-gray-600' };
-    if (!isSubscribed) return { disabled: true, text: '\\u8981\\u30b5\\u30d6\\u30b9\\u30af\\u30ea\\u30d7\\u30b7\\u30e7\\u30f3', color: 'bg-gray-600' };
-    if (isDownloading) return { disabled: true, text: '\\u30c0\\u30a6\\u30f3\\u30ed\\u30fc\\u30c9\\u4e2d...', color: 'bg-blue-600' };
-    if (usage?.isLimitExceeded) return { disabled: true, text: '\\u5236\\u9650\\u5230\\u9054', color: 'bg-red-600' };
-    return { disabled: false, text: '\\u30c0\\u30a6\\u30f3\\u30ed\\u30fc\\u30c9', color: 'bg-green-600 hover:bg-green-700' };
+    if (!user) return { disabled: true, text: 'ログインが必要です', color: 'bg-gray-600' };
+    if (!isSubscribed) return { disabled: true, text: '要サブスクリプション', color: 'bg-gray-600' };
+    if (isDownloading) return { disabled: true, text: 'ダウンロード中...', color: 'bg-blue-600' };
+    if (usage?.isLimitExceeded) return { disabled: true, text: '制限到達', color: 'bg-red-600' };
+    if (isAlreadyDownloaded) return { disabled: false, text: 'ダウンロード済み', color: 'bg-gray-500 hover:bg-gray-600' };
+    return { disabled: false, text: 'ダウンロード', color: 'bg-green-600 hover:bg-green-700' };
   };
 const downloadButtonState = getDownloadButtonState();
 
