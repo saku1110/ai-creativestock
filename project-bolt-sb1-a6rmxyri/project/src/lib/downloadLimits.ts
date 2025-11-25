@@ -67,7 +67,42 @@ export class DownloadLimitManager {
    */
   static async getUserDownloadLimit(userId: string): Promise<DownloadLimitConfig | null> {
     try {
-      // ユーザーのサブスクリプション情報を取得
+      // まずサーバーAPIを使用（RLSをバイパス）
+      try {
+        const params = new URLSearchParams();
+        params.set('userId', userId);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const resp = await fetch(`/api/subscription-info?${params.toString()}`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (resp.ok) {
+          const json = await resp.json();
+          const subscription = json.subscription;
+
+          if (subscription && (subscription.status === 'active' || subscription.status === 'trial')) {
+            const planId = subscription.plan || subscription.plan_id;
+            const plan = getPlanById(planId);
+            if (plan) {
+              const createdAt = subscription.current_period_start || subscription.created_at;
+              return {
+                planId: planId,
+                monthlyLimit: plan.monthlyDownloads,
+                resetDay: createdAt ? new Date(createdAt).getDate() : 1,
+                gracePeriod: ['business', 'enterprise'].includes(planId) ? 5 : 2
+              };
+            }
+          }
+        }
+      } catch (apiError) {
+        console.warn('サブスクリプションAPI取得エラー、フォールバックを試行:', apiError);
+      }
+
+      // フォールバック: 直接Supabaseアクセス
       const { data: subscription, error } = await supabase
         .from('subscriptions')
         .select('plan_id, status, created_at')
