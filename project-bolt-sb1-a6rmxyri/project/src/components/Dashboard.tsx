@@ -23,6 +23,7 @@ import type { BeautySubCategory } from '../utils/categoryInference';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
 import { downloadFileFromUrl } from '../utils/downloadFile';
 import { assetsMatchByFilename, dedupeVideoAssets } from '../utils/videoAssetTools';
+import { convertToOriginalUrl } from '../lib/downloadLimits';
 
 interface VideoAsset {
   id: string;
@@ -815,7 +816,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   }, [user, userFavorites]);
 
   const handleDownload = useCallback(async (video: VideoAsset) => {
-    const downloadUrl = video.original_file_url || video.file_url;
+    const rawUrl = video.original_file_url || video.file_url;
+    // ウォーターマーク付きURLをオリジナルURLに変換
+    const downloadUrl = convertToOriginalUrl(rawUrl);
     if (!downloadUrl) {
       alert('ダウンロードURLを取得できませんでした。');
       return;
