@@ -312,29 +312,44 @@ export class DownloadLimitManager {
         };
       }
 
-      // ダウンロード履歴を記録
-      const { error: historyError } = await supabase
+      // 既にダウンロード済みかチェック（同じ動画の重複ダウンロードはカウントしない）
+      const { data: existingDownload } = await supabase
         .from('download_history')
-        .insert({
-          user_id: userId,
-          video_id: videoId,
-          downloaded_at: new Date().toISOString()
-        });
+        .select('id')
+        .eq('user_id', userId)
+        .eq('video_id', videoId)
+        .limit(1)
+        .maybeSingle();
 
-      if (historyError) {
-        console.error('ダウンロード履歴記録エラー:', historyError);
-        return {
-          success: false,
-          error: 'ダウンロード履歴の記録に失敗しました'
-        };
-      }
+      const isFirstDownload = !existingDownload;
 
-      // 動画のダウンロード数を更新（RPC経由で安全にインクリメント）
-      const { error: updateError } = await supabase
-        .rpc('increment_download_count', { video_uuid: videoId });
+      if (isFirstDownload) {
+        // 初回ダウンロードの場合のみ履歴を記録
+        const { error: historyError } = await supabase
+          .from('download_history')
+          .insert({
+            user_id: userId,
+            video_id: videoId,
+            downloaded_at: new Date().toISOString()
+          });
 
-      if (updateError) {
-        console.error('ダウンロード数更新エラー:', updateError);
+        if (historyError) {
+          console.error('ダウンロード履歴記録エラー:', historyError);
+          return {
+            success: false,
+            error: 'ダウンロード履歴の記録に失敗しました'
+          };
+        }
+
+        // 初回のみダウンロード数をインクリメント
+        const { error: updateError } = await supabase
+          .rpc('increment_download_count', { video_uuid: videoId });
+
+        if (updateError) {
+          console.error('ダウンロード数更新エラー:', updateError);
+        }
+      } else {
+        console.log('[downloadLimits] 既にダウンロード済みの動画のため、カウントをスキップ');
       }
 
       // 更新後の使用状況を取得
