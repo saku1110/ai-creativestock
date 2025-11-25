@@ -331,41 +331,34 @@ export const database = {
   getUserSubscription: async (userId: string) => {
     console.log('[database.getUserSubscription] fetching for userId:', userId);
 
-    // Try direct REST API call to bypass potential SDK issues
-    if (supabaseUrl && supabaseAnonKey) {
-      try {
-        const url = `${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${userId}&select=*`;
-        console.log('[database.getUserSubscription] trying direct fetch:', url);
-        const response = await fetch(url, {
-          headers: {
-            'apikey': supabaseAnonKey,
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        console.log('[database.getUserSubscription] fetch response status:', response.status);
-        if (response.ok) {
-          const rows = await response.json();
-          console.log('[database.getUserSubscription] direct fetch result:', rows);
-          if (Array.isArray(rows) && rows.length > 0) {
-            return { data: rows[0], error: null };
-          }
-          return { data: null, error: { code: 'PGRST116', message: 'No rows found' } };
+    // サーバーAPI経由でRLSをバイパス（推奨）
+    try {
+      const params = new URLSearchParams();
+      params.set('userId', userId);
+      const resp = await fetch(`/api/subscription-info?${params.toString()}`);
+      console.log('[database.getUserSubscription] API response status:', resp.status);
+
+      if (resp.ok) {
+        const json = await resp.json();
+        console.log('[database.getUserSubscription] API result:', json);
+        if (json.subscription) {
+          return { data: json.subscription, error: null };
         }
-        const errorText = await response.text();
-        console.error('[database.getUserSubscription] fetch error:', errorText);
-      } catch (fetchErr) {
-        console.error('[database.getUserSubscription] fetch exception:', fetchErr);
+        return { data: null, error: { code: 'PGRST116', message: 'No subscription found' } };
       }
+      const errorText = await resp.text();
+      console.error('[database.getUserSubscription] API error:', errorText);
+    } catch (fetchErr) {
+      console.error('[database.getUserSubscription] API exception:', fetchErr);
     }
 
-    // Fallback to SDK
+    // フォールバック: 直接Supabase（RLSにブロックされる可能性あり）
     const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
       .single()
-    console.log('[database.getUserSubscription] SDK result:', { data, error: error?.message || error });
+    console.log('[database.getUserSubscription] SDK fallback result:', { data, error: error?.message || error });
     return { data, error }
   },
 
