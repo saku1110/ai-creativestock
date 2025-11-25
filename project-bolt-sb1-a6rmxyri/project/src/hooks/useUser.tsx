@@ -136,6 +136,24 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           effectiveUser = currentUser ?? null;
         }
 
+        // Final fallback: try to recover user/access token from localStorage (Supabase stores auth-token there)
+        if (!effectiveUser && typeof localStorage !== 'undefined') {
+          try {
+            const tokenKey = Object.keys(localStorage).find((k) => k.includes('auth-token'));
+            if (tokenKey) {
+              const parsed = JSON.parse(localStorage.getItem(tokenKey) || '{}');
+              const session = parsed.currentSession || parsed;
+              if (session?.user) {
+                effectiveUser = session.user as User;
+                accessToken = session.access_token || accessToken;
+                console.log(`${LOG_TAG} recovered user from localStorage token`, effectiveUser.id);
+              }
+            }
+          } catch (e) {
+            console.warn(`${LOG_TAG} localStorage token parse failed`, e);
+          }
+        }
+
         if (import.meta.env.DEV) {
           const status = effectiveUser ? 'Authenticated' : 'Not authenticated';
           if (lastAuthLogStatus !== status) {
@@ -192,7 +210,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         try {
           let subscriptionData: UserSubscription | null = null;
 
-          // Prefer server-side API (not affected by client auth edge cases)
+          // Prefer server-side API (service role) so RLSに左右されない
           const tryServerApi = async () => {
             try {
               const params = new URLSearchParams();
@@ -201,7 +219,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
               if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
               const resp = await fetch(`/api/subscription-info?${params.toString()}`, { headers });
-              if (!resp.ok) return null;
+              if (!resp.ok) {
+                console.warn('[useUser] subscription-info api failed', resp.status);
+                return null;
+              }
               const json = await resp.json();
               return json.subscription ?? null;
             } catch (e) {
