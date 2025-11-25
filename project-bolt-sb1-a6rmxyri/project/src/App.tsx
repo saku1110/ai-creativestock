@@ -41,6 +41,7 @@ import SimpleLandingPage from './components/simple/SimpleLandingPage';
 import WhiteLandingPage from './components/WhiteLandingPage';
 import { auth, database, supabase } from './lib/supabase';
 import { useErrorHandler } from './hooks/useErrorHandler';
+import { UserProvider } from './hooks/useUser';
 import { pageSEOData, getPageType } from './utils/seoUtils';
 import { User } from '@supabase/supabase-js';
 
@@ -780,6 +781,7 @@ const renderContent = () => {
 
   return (
     <HelmetProvider>
+      <UserProvider initialUser={userData}>
       <ErrorBoundary onError={(error, errorInfo) => {
         handleApiError(error, '�A�v���P�[�V�����G���[');
       }}>
@@ -856,6 +858,7 @@ const renderContent = () => {
           </div>
         </div>
       </ErrorBoundary>
+      </UserProvider>
     </HelmetProvider>
   );
 }

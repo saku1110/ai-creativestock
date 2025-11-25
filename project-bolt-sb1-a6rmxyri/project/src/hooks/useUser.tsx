@@ -50,9 +50,14 @@ const UserContext = createContext<UserContextValue | undefined>(undefined);
 
 let lastAuthLogStatus: 'Authenticated' | 'Not authenticated' | null = null;
 
-export const UserProvider = ({ children }: { children: ReactNode }) => {
-  console.log(`${LOG_TAG} provider render`);
-  const [user, setUser] = useState<User | null>(null);
+interface UserProviderProps {
+  children: ReactNode;
+  initialUser?: User | null;
+}
+
+export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
+  console.log(`${LOG_TAG} provider render`, { hasInitialUser: !!initialUser });
+  const [user, setUser] = useState<User | null>(initialUser ?? null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
   const [monthlyDownloads, setMonthlyDownloads] = useState<number>(0);
@@ -106,63 +111,68 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       if (isMounted) setLoading(false);
     }, 12000);
 
-    const fetchUserData = async () => {
-      console.log(`${LOG_TAG} fetchUserData start`);
+    const fetchUserData = async (providedUser?: User | null) => {
+      console.log(`${LOG_TAG} fetchUserData start`, { providedUser: providedUser?.id });
       try {
-        let effectiveUser: User | null = null;
+        let effectiveUser: User | null = providedUser ?? null;
         let accessToken: string | null = null;
 
-        console.log(`${LOG_TAG} before getSession`, { supabaseAuth: !!supabase?.auth });
-        console.log(`${LOG_TAG} auth.getSession start`);
-        try {
-          // timeout付きで getSession を叩く（ハング防止）
-          const sessionPromise = supabase.auth.getSession();
-          const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
-            setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), 6000)
-          );
-          const { data: sessionData, error: sessionError } = await Promise.race([sessionPromise, timeoutPromise]);
-
-          if (sessionError && sessionError.message !== 'timeout') {
-            console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
-          }
-          if (sessionError?.message === 'timeout') {
-            console.warn(`${LOG_TAG} auth.getSession timed out after 6s`);
-          }
-
-          effectiveUser = sessionData?.session?.user ?? null;
-          accessToken = sessionData?.session?.access_token ?? null;
-          console.log(`${LOG_TAG} auth.getSession result`, effectiveUser?.id || 'no user');
-        } catch (sessionErr) {
-          console.error(`${LOG_TAG} auth.getSession exception`, sessionErr);
-        }
-
-        // Fallback: try getCurrentUser when session is missing
+        // initialUser が渡されている場合は getSession() をスキップ
         if (!effectiveUser) {
-          console.log(`${LOG_TAG} auth.getCurrentUser start`);
-          const { user: currentUser, error: currentUserError } = await auth.getCurrentUser();
-          if (currentUserError) {
-            console.warn(`${LOG_TAG} auth.getCurrentUser error`, currentUserError);
-          }
-          console.log(`${LOG_TAG} auth.getCurrentUser result`, currentUser);
-          effectiveUser = currentUser ?? null;
-        }
-
-        // Final fallback: try to recover user/access token from localStorage (Supabase stores auth-token there)
-        if (!effectiveUser && typeof localStorage !== 'undefined') {
+          console.log(`${LOG_TAG} before getSession`, { supabaseAuth: !!supabase?.auth });
+          console.log(`${LOG_TAG} auth.getSession start`);
           try {
-            const tokenKey = Object.keys(localStorage).find((k) => k.includes('auth-token'));
-            if (tokenKey) {
-              const parsed = JSON.parse(localStorage.getItem(tokenKey) || '{}');
-              const session = parsed.currentSession || parsed;
-              if (session?.user) {
-                effectiveUser = session.user as User;
-                accessToken = session.access_token || accessToken;
-                console.log(`${LOG_TAG} recovered user from localStorage token`, effectiveUser.id);
-              }
+            // timeout付きで getSession を叩く（ハング防止）
+            const sessionPromise = supabase.auth.getSession();
+            const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
+              setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), 6000)
+            );
+            const { data: sessionData, error: sessionError } = await Promise.race([sessionPromise, timeoutPromise]);
+
+            if (sessionError && sessionError.message !== 'timeout') {
+              console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
             }
-          } catch (e) {
-            console.warn(`${LOG_TAG} localStorage token parse failed`, e);
+            if (sessionError?.message === 'timeout') {
+              console.warn(`${LOG_TAG} auth.getSession timed out after 6s`);
+            }
+
+            effectiveUser = sessionData?.session?.user ?? null;
+            accessToken = sessionData?.session?.access_token ?? null;
+            console.log(`${LOG_TAG} auth.getSession result`, effectiveUser?.id || 'no user');
+          } catch (sessionErr) {
+            console.error(`${LOG_TAG} auth.getSession exception`, sessionErr);
           }
+
+          // Fallback: try getCurrentUser when session is missing
+          if (!effectiveUser) {
+            console.log(`${LOG_TAG} auth.getCurrentUser start`);
+            const { user: currentUser, error: currentUserError } = await auth.getCurrentUser();
+            if (currentUserError) {
+              console.warn(`${LOG_TAG} auth.getCurrentUser error`, currentUserError);
+            }
+            console.log(`${LOG_TAG} auth.getCurrentUser result`, currentUser);
+            effectiveUser = currentUser ?? null;
+          }
+
+          // Final fallback: try to recover user/access token from localStorage (Supabase stores auth-token there)
+          if (!effectiveUser && typeof localStorage !== 'undefined') {
+            try {
+              const tokenKey = Object.keys(localStorage).find((k) => k.includes('auth-token'));
+              if (tokenKey) {
+                const parsed = JSON.parse(localStorage.getItem(tokenKey) || '{}');
+                const session = parsed.currentSession || parsed;
+                if (session?.user) {
+                  effectiveUser = session.user as User;
+                  accessToken = session.access_token || accessToken;
+                  console.log(`${LOG_TAG} recovered user from localStorage token`, effectiveUser.id);
+                }
+              }
+            } catch (e) {
+              console.warn(`${LOG_TAG} localStorage token parse failed`, e);
+            }
+          }
+        } else {
+          console.log(`${LOG_TAG} using provided user, skipping getSession`, effectiveUser.id);
         }
 
         if (import.meta.env.DEV) {
@@ -280,13 +290,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    fetchUserData();
+    // initialUser が渡されている場合はそれを使用
+    fetchUserData(initialUser ?? undefined);
 
     let authSubscription: { unsubscribe: () => void } | undefined;
     const { data: { subscription: authSub } } = auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        setUser(session.user);
-        await fetchUserData();
+      const sessionData = session as { user?: User | null } | null;
+      if (event === 'SIGNED_IN' && sessionData?.user) {
+        setUser(sessionData.user);
+        await fetchUserData(sessionData.user);
       } else if (event === 'SIGNED_OUT') {
         if (!isMounted) return;
         setUser(null);
@@ -303,7 +315,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       clearTimeout(loadingTimeout);
       authSubscription?.unsubscribe();
     };
-  }, []);
+  }, [initialUser]);
 
   useEffect(() => {
     if (!user?.id) return;
