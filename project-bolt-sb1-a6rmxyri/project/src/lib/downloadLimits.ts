@@ -5,12 +5,23 @@ import { subscriptionPlans, getPlanById } from './stripe';
 /**
  * ウォーターマーク付き動画URLをオリジナル動画URLに変換
  * 例: local-content/dashboard/beauty/video-wm-alpha200.mp4
- *   → local-content/dashboard-originals/beauty/video.mp4
+ *   → local-content/dashboard-originals/video.mp4
+ *
+ * dashboard-originalsフォルダには直接すべての動画が入っている（サブフォルダなし）
  */
 export function convertToOriginalUrl(watermarkedUrl: string): string {
-  return watermarkedUrl
-    .replace('/dashboard/', '/dashboard-originals/')
-    .replace(/-wm-alpha200(\.[^.]+)$/, '$1');
+  // URLからファイル名を抽出
+  const fileName = watermarkedUrl.split('/').pop() || '';
+  // -wm-alpha200 を削除
+  const originalFileName = fileName.replace(/-wm-alpha200/, '');
+  // /dashboard/任意のサブパス/ を /dashboard-originals/ に置換
+  const dashboardIndex = watermarkedUrl.lastIndexOf('/dashboard/');
+  if (dashboardIndex === -1) {
+    // /dashboard/ がない場合はそのまま返す
+    return watermarkedUrl;
+  }
+  const baseUrl = watermarkedUrl.substring(0, dashboardIndex + 1);
+  return `${baseUrl}dashboard-originals/${originalFileName}`;
 }
 
 /**
