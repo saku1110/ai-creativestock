@@ -115,10 +115,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         console.log(`${LOG_TAG} before getSession`, { supabaseAuth: !!supabase?.auth });
         console.log(`${LOG_TAG} auth.getSession start`);
         try {
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-          if (sessionError) {
+          // timeout付きで getSession を叩く（ハング防止）
+          const sessionPromise = supabase.auth.getSession();
+          const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
+            setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), 6000)
+          );
+          const { data: sessionData, error: sessionError } = await Promise.race([sessionPromise, timeoutPromise]);
+
+          if (sessionError && sessionError.message !== 'timeout') {
             console.warn(`${LOG_TAG} auth.getSession error`, sessionError);
           }
+          if (sessionError?.message === 'timeout') {
+            console.warn(`${LOG_TAG} auth.getSession timed out after 6s`);
+          }
+
           effectiveUser = sessionData?.session?.user ?? null;
           accessToken = sessionData?.session?.access_token ?? null;
           console.log(`${LOG_TAG} auth.getSession result`, effectiveUser?.id || 'no user');
