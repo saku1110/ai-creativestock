@@ -546,6 +546,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     hasActiveSubscription &&
     (!hasDownloadCap || safeRemaining > 0)
   );
+  // サブスク加入済みだが制限到達の場合
+  const limitReached = Boolean(
+    user &&
+    hasActiveSubscription &&
+    hasDownloadCap &&
+    safeRemaining <= 0
+  );
 
   const planTheme = useMemo(() => {
     if (isTrialUser) {
@@ -1250,6 +1257,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                         onTagClick={handleTagClick}
                                         onCategoryClick={handleCategoryClick}
                                         canDownload={canDownloadVideos}
+                                        limitReached={limitReached}
                                       />
                                     ))}
                                   </div>
@@ -1266,6 +1274,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                       onTagClick={handleTagClick}
                                       onCategoryClick={handleCategoryClick}
                                       canDownload={canDownloadVideos}
+                                      limitReached={limitReached}
                                     />
                                     {categories
                                       .filter(cat => cat.id !== 'all')
@@ -1285,6 +1294,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                             onTagClick={handleTagClick}
                                             onCategoryClick={handleCategoryClick}
                                             canDownload={canDownloadVideos}
+                                            limitReached={limitReached}
                                             onShowAll={() => {
                                               handleCategoryClick(category.id);
                                             }}
@@ -1538,6 +1548,7 @@ const VideoSection: React.FC<{
   onTagClick?: (tag: string) => void;
   onCategoryClick?: (categoryId: string) => void;
   canDownload: boolean;
+  limitReached?: boolean;
   onShowAll?: () => void;
 }> = ({
   title,
@@ -1550,6 +1561,7 @@ const VideoSection: React.FC<{
   onTagClick,
   onCategoryClick,
   canDownload,
+  limitReached,
   onShowAll,
 }) => {
   if (videos.length === 0) return null;
@@ -1573,6 +1585,7 @@ const VideoSection: React.FC<{
             onTagClick={onTagClick}
             onCategoryClick={onCategoryClick}
             canDownload={canDownload}
+            limitReached={limitReached}
           />
         ))}
       </div>
@@ -1850,7 +1863,8 @@ const VideoCard: React.FC<{
   onTagClick?: (tag: string) => void;
   onCategoryClick?: (categoryId: string) => void;
   canDownload?: boolean;
-}> = ({ video, onClick, isFavorited, isDownloading, onDownload, onToggleFavorite, onTagClick, onCategoryClick, canDownload }) => {
+  limitReached?: boolean;
+}> = ({ video, onClick, isFavorited, isDownloading, onDownload, onToggleFavorite, onTagClick, onCategoryClick, canDownload, limitReached }) => {
   const [isHovered, setIsHovered] = useState(false);
   const hoverVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -2083,8 +2097,12 @@ const VideoCard: React.FC<{
               )}
             </button>
           ) : (
-            <div className="w-full rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-500">
-              {'\u30d7\u30e9\u30f3\u52a0\u5165\u3067\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u53ef\u80fd'}
+            <div className={`w-full rounded-lg border border-dashed px-3 py-2 text-center text-xs font-semibold ${
+              limitReached
+                ? 'border-amber-300 bg-amber-50 text-amber-600'
+                : 'border-slate-300 bg-white text-slate-500'
+            }`}>
+              {limitReached ? '制限到達・プランアップグレード' : 'プラン加入でダウンロード可能'}
             </div>
           )}
         </div>
