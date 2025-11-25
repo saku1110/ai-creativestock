@@ -193,20 +193,24 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           let subscriptionData: UserSubscription | null = null;
 
           // Prefer server-side API (not affected by client auth edge cases)
-          if (accessToken) {
-            const resp = await fetch('/api/subscription-info', {
-              headers: {
-                Authorization: `Bearer ${accessToken}`
-              }
-            });
-            if (resp.ok) {
+          const tryServerApi = async () => {
+            try {
+              const params = new URLSearchParams();
+              params.set('userId', effectiveUser!.id);
+              const headers: Record<string, string> = {};
+              if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+              const resp = await fetch(`/api/subscription-info?${params.toString()}`, { headers });
+              if (!resp.ok) return null;
               const json = await resp.json();
-              subscriptionData = json.subscription ?? null;
-              console.log('[useUser] subscriptionResult via api', subscriptionData);
-            } else {
-              console.warn('[useUser] subscription-info api failed', resp.status);
+              return json.subscription ?? null;
+            } catch (e) {
+              console.warn('[useUser] subscription-info api exception', e);
+              return null;
             }
-          }
+          };
+
+          subscriptionData = await tryServerApi();
 
           // Fallback to Supabase client if API not available or no token
           if (!subscriptionData) {
