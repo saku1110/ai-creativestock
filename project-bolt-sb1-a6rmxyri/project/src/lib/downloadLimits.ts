@@ -3,6 +3,17 @@ import { supabase } from './supabase';
 import { subscriptionPlans, getPlanById } from './stripe';
 
 /**
+ * ウォーターマーク付き動画URLをオリジナル動画URLに変換
+ * 例: local-content/dashboard/beauty/video-wm-alpha200.mp4
+ *   → local-content/dashboard-originals/beauty/video.mp4
+ */
+export function convertToOriginalUrl(watermarkedUrl: string): string {
+  return watermarkedUrl
+    .replace('/dashboard/', '/dashboard-originals/')
+    .replace(/-wm-alpha200(\.[^.]+)$/, '$1');
+}
+
+/**
  * ダウンロード制限の設定
  */
 export interface DownloadLimitConfig {
@@ -271,9 +282,12 @@ export class DownloadLimitManager {
       // 更新後の使用状況を取得
       const updatedUsage = await this.getUserDownloadUsage(userId);
 
+      // ウォーターマーク付きURLをオリジナルURLに変換
+      const originalUrl = convertToOriginalUrl(video.file_url);
+
       return {
         success: true,
-        downloadUrl: video.file_url,
+        downloadUrl: originalUrl,
         usage: updatedUsage || undefined
       };
     } catch (error) {

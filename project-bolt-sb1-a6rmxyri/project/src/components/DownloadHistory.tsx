@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import { useUser } from '../hooks/useUser';
 import { supabase } from '../lib/supabase';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
+import { convertToOriginalUrl } from '../lib/downloadLimits';
 
 interface VideoAsset {
   id: string;
@@ -259,9 +260,11 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = ({ onPageChange = () => 
     }
 
     try {
+      // ウォーターマーク付きURLをオリジナルURLに変換
+      const originalUrl = convertToOriginalUrl(record.video.file_url);
       const link = document.createElement('a');
-      link.href = record.video.file_url;
-      link.download = getNextDownloadFilename(record.video.file_url);
+      link.href = originalUrl;
+      link.download = getNextDownloadFilename(originalUrl);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
