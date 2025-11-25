@@ -379,9 +379,23 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
 
     const syncSubscription = async () => {
       try {
-        const { data } = await database.getUserSubscription(user.id);
-        if (isActive) {
-          setSubscription(resolveTestSubscription(data));
+        // サーバーAPIを使用（RLSをバイパス）
+        const params = new URLSearchParams();
+        params.set('userId', user.id);
+        const resp = await fetch(`/api/subscription-info?${params.toString()}`);
+        if (resp.ok) {
+          const json = await resp.json();
+          console.log('[useUser] syncSubscription via server API', json.subscription);
+          if (isActive) {
+            setSubscription(resolveTestSubscription(json.subscription ?? null));
+          }
+        } else {
+          // フォールバック: Supabaseクライアントを使用
+          console.warn('[useUser] syncSubscription server API failed, using fallback');
+          const { data } = await database.getUserSubscription(user.id);
+          if (isActive) {
+            setSubscription(resolveTestSubscription(data));
+          }
         }
       } catch (error) {
         console.error('サブスクリプション同期エラー:', error);
