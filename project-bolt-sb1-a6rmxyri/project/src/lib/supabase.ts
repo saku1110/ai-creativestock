@@ -209,7 +209,8 @@ export const auth = {
       notifyAuth('SIGNED_OUT')
       return { error: null }
     }
-    const { error } = await supabase.auth.signOut()
+    // scope: 'global' でサーバー側のすべてのリフレッシュトークンを無効化
+    const { error } = await supabase.auth.signOut({ scope: 'global' })
     return { error }
   },
 

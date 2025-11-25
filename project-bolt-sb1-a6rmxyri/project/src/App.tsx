@@ -636,7 +636,8 @@ function App() {
       } catch {}
 
       console.log('logout done - redirect to landing');
-      try { window.location.href = '/'; } catch {}
+      // replace を使用して履歴に残さない（戻るボタン対策）
+      try { window.location.replace('/'); } catch {}
     }
   };
 

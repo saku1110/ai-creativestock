@@ -89,7 +89,6 @@ const MyPage: React.FC<MyPageProps> = ({ onPageChange }) => {
       if (import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development') {
         localStorage.removeItem('dev_user');
         localStorage.removeItem('dev_logged_in');
-        window.location.href = '/';
       } else {
         await auth.signOut();
       }
@@ -98,6 +97,17 @@ const MyPage: React.FC<MyPageProps> = ({ onPageChange }) => {
       alert('ログアウトに失敗しました。時間をおいて再度お試しください。');
     } finally {
       setShowLogoutConfirm(false);
+      // Supabase 関連のストレージをクリア
+      try {
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith('sb-') || key.toLowerCase().includes('supabase'))
+          .forEach((key) => localStorage.removeItem(key));
+        Object.keys(sessionStorage)
+          .filter((key) => key.startsWith('sb-') || key.toLowerCase().includes('supabase'))
+          .forEach((key) => sessionStorage.removeItem(key));
+      } catch {}
+      // replace を使用して履歴に残さない（戻るボタン対策）
+      window.location.replace('/');
     }
   };
 
