@@ -91,20 +91,27 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   };
 
   const handleDownload = async () => {
+    console.log('[VideoCard] handleDownload called, user:', user, 'user?.id:', user?.id, 'video.id:', video.id);
+
     if (!user) {
+      console.log('[VideoCard] no user, requesting auth');
       onAuthRequest?.();
       return;
     }
 
     if (!isSubscribed) {
+      console.log('[VideoCard] not subscribed, showing alert');
       alert('\\u30c0\\u30a6\\u30f3\\u30ed\\u30fc\\u30c9\\u306b\\u306f\\u30b5\\u30d6\\u30b9\\u30af\\u30ea\\u30d7\\u30b7\\u30e7\\u30f3\\u767b\\u9332\\u304c\\u5fc5\\u8981\\u3067\\u3059');
       return;
     }
 
+    console.log('[VideoCard] proceeding with download');
     setIsDownloading(true);
-    
+
     try {
+      console.log('[VideoCard] calling executeDownload');
       const result = await executeDownload(video.id);
+      console.log('[VideoCard] executeDownload result:', result);
       
       if (result.success && result.downloadUrl) {
         // �_�E�����[�hURL���g�p���ăt�@�C�����_�E�����[�h

@@ -582,8 +582,13 @@ export const useDownloadLimits = (userId: string) => {
   }, [userId]);
 
   const executeDownload = React.useCallback(async (videoId: string) => {
-    if (!userId) return { success: false, error: 'ユーザーが認証されていません' };
-    
+    console.log('[useDownloadLimits] executeDownload called, userId:', userId, 'videoId:', videoId);
+    if (!userId) {
+      console.log('[useDownloadLimits] userId is empty, returning early');
+      return { success: false, error: 'ユーザーが認証されていません' };
+    }
+
+    console.log('[useDownloadLimits] calling DownloadLimitManager.executeDownload');
     const result = await DownloadLimitManager.executeDownload(userId, videoId);
     
     if (result.success && result.usage) {
