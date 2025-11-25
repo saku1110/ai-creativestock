@@ -328,6 +328,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- ダウンロード数をインクリメントする関数
+CREATE OR REPLACE FUNCTION increment_download_count(video_uuid UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE video_assets
+  SET download_count = download_count + 1
+  WHERE id = video_uuid;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 認証済みユーザーに実行権限を付与
+GRANT EXECUTE ON FUNCTION increment_download_count(UUID) TO authenticated;
+
 -- Security functions
 CREATE OR REPLACE FUNCTION log_audit_event(
     p_user_id UUID,

@@ -260,13 +260,9 @@ export class DownloadLimitManager {
         };
       }
 
-      // 動画のダウンロード数を更新
+      // 動画のダウンロード数を更新（RPC経由で安全にインクリメント）
       const { error: updateError } = await supabase
-        .from('video_assets')
-        .update({
-          download_count: supabase.rpc('increment', { x: 1 })
-        })
-        .eq('id', videoId);
+        .rpc('increment_download_count', { video_uuid: videoId });
 
       if (updateError) {
         console.error('ダウンロード数更新エラー:', updateError);
