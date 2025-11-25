@@ -112,6 +112,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         let effectiveUser: User | null = null;
         let accessToken: string | null = null;
 
+        console.log(`${LOG_TAG} before getSession`, { supabaseAuth: !!supabase?.auth });
         console.log(`${LOG_TAG} auth.getSession start`);
         try {
           const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
