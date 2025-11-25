@@ -71,22 +71,29 @@ export class DownloadLimitManager {
       try {
         const params = new URLSearchParams();
         params.set('userId', userId);
+        params.set('_t', Date.now().toString()); // キャッシュバスター
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+        console.log('[downloadLimits] fetching subscription via API for userId:', userId);
         const resp = await fetch(`/api/subscription-info?${params.toString()}`, {
-          signal: controller.signal
+          signal: controller.signal,
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
         });
         clearTimeout(timeoutId);
 
+        console.log('[downloadLimits] API response status:', resp.status);
         if (resp.ok) {
           const json = await resp.json();
           const subscription = json.subscription;
+          console.log('[downloadLimits] API subscription result:', subscription);
 
           if (subscription && (subscription.status === 'active' || subscription.status === 'trial')) {
             const planId = subscription.plan || subscription.plan_id;
             const plan = getPlanById(planId);
+            console.log('[downloadLimits] planId:', planId, 'plan found:', !!plan);
             if (plan) {
               const createdAt = subscription.current_period_start || subscription.created_at;
               return {
@@ -99,19 +106,23 @@ export class DownloadLimitManager {
           }
         }
       } catch (apiError) {
-        console.warn('サブスクリプションAPI取得エラー、フォールバックを試行:', apiError);
+        console.warn('[downloadLimits] サブスクリプションAPI取得エラー、フォールバックを試行:', apiError);
       }
 
       // フォールバック: 直接Supabaseアクセス
+      console.log('[downloadLimits] falling back to direct Supabase access');
       const { data: subscription, error } = await supabase
         .from('subscriptions')
-        .select('plan_id, status, created_at')
+        .select('plan, status, created_at')
         .eq('user_id', userId)
         .eq('status', 'active')
         .single();
 
+      console.log('[downloadLimits] fallback result:', { subscription, error: error?.message });
+
       if (error || !subscription) {
         // サブスクリプションがない場合はフリープラン扱い
+        console.log('[downloadLimits] no subscription found, using free plan');
         return {
           planId: 'free',
           monthlyLimit: 3, // フリープランは月3回まで
@@ -120,19 +131,20 @@ export class DownloadLimitManager {
         };
       }
 
-      const plan = getPlanById(subscription.plan_id);
+      const plan = getPlanById(subscription.plan);
       if (!plan) {
+        console.log('[downloadLimits] plan not found for:', subscription.plan);
         return null;
       }
 
       return {
-        planId: subscription.plan_id,
+        planId: subscription.plan,
         monthlyLimit: plan.monthlyDownloads,
         resetDay: new Date(subscription.created_at).getDate(),
-        gracePeriod: ['business', 'enterprise'].includes(subscription.plan_id) ? 5 : 2
+        gracePeriod: ['business', 'enterprise'].includes(subscription.plan) ? 5 : 2
       };
     } catch (error) {
-      console.error('ダウンロード制限取得エラー:', error);
+      console.error('[downloadLimits] ダウンロード制限取得エラー:', error);
       return null;
     }
   }
