@@ -289,11 +289,18 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
           }
         };
 
-        // ダウンロード数取得関数
+        // ダウンロード数取得関数（タイムアウト付き）
         const fetchDownloadCount = async () => {
           console.log(`${LOG_TAG} getMonthlyDownloadCount start`, effectiveUser!.id);
           try {
-            const { count } = await database.getMonthlyDownloadCount(effectiveUser!.id);
+            const countPromise = database.getMonthlyDownloadCount(effectiveUser!.id);
+            const countTimeout = new Promise<{ count: number }>((resolve) =>
+              setTimeout(() => {
+                console.warn(`${LOG_TAG} getMonthlyDownloadCount timeout after 5s`);
+                resolve({ count: 0 });
+              }, 5000)
+            );
+            const { count } = await Promise.race([countPromise, countTimeout]);
             console.log(`${LOG_TAG} getMonthlyDownloadCount result`, count);
             return count;
           } catch (monthlyErr) {
