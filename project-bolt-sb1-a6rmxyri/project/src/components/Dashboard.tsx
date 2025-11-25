@@ -23,7 +23,7 @@ import type { BeautySubCategory } from '../utils/categoryInference';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
 import { downloadFileFromUrl } from '../utils/downloadFile';
 import { assetsMatchByFilename, dedupeVideoAssets } from '../utils/videoAssetTools';
-import { convertToOriginalUrl } from '../lib/downloadLimits';
+import { convertToOriginalUrl, DownloadLimitManager } from '../lib/downloadLimits';
 
 interface VideoAsset {
   id: string;
@@ -816,68 +816,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   }, [user, userFavorites]);
 
   const handleDownload = useCallback(async (video: VideoAsset) => {
-    const rawUrl = video.original_file_url || video.file_url;
-    // ウォーターマーク付きURLをオリジナルURLに変換
-    const downloadUrl = convertToOriginalUrl(rawUrl);
-    if (!downloadUrl) {
-      alert('ダウンロードURLを取得できませんでした。');
-      return;
-    }
+    console.log('[Dashboard] handleDownload called, user:', user?.id, 'video.id:', video.id);
 
     if (!user) {
-      alert('\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u6a5f\u80fd\u3092\u5229\u7528\u3059\u308b\u306b\u306f\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059');
-      return;
-    }
-
-    if (!hasActiveSubscription) {
-      alert('\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u306b\u306f\u6599\u91d1\u30d7\u30e9\u30f3\u3078\u306e\u52a0\u5165\u304c\u5fc5\u8981\u3067\u3059');
-      return;
-    }
-
-    if (hasDownloadCap && safeRemaining <= 0) {
-      alert('\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u5236\u9650\u306b\u9054\u3057\u307e\u3057\u305f\u3002\u30d7\u30e9\u30f3\u3092\u30a2\u30c3\u30d7\u30b0\u30ec\u30fc\u30c9\u3057\u3066\u304f\u3060\u3055\u3044\u3002');
+      alert('ダウンロード機能を利用するにはログインが必要です');
       return;
     }
 
     setDownloadingVideos(prev => new Set(prev).add(video.id));
 
     try {
-      await downloadFileFromUrl(downloadUrl, getNextDownloadFilename(downloadUrl));
-    } catch (error) {
-      console.error('ダウンロードエラー:', error);
-      alert('ダウンロードに失敗しました。時間をおいて再試行してください。');
-      setDownloadingVideos(prev => {
-        const next = new Set(prev);
-        next.delete(video.id);
-        return next;
-      });
-      return;
-    }
+      // DownloadLimitManager経由でダウンロード（サブスクリプション・履歴・制限を一括管理）
+      console.log('[Dashboard] calling DownloadLimitManager.executeDownload');
+      const result = await DownloadLimitManager.executeDownload(user.id, video.id);
+      console.log('[Dashboard] executeDownload result:', result);
 
-    let alreadyDownloaded = false;
-    try {
-      const { data: existing } = await supabase
-        .from('download_history')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('video_id', video.id)
-        .limit(1);
-      alreadyDownloaded = (existing?.length || 0) > 0;
-    } catch (error) {
-      console.error('既存ダウンロード確認エラー:', error);
-    }
-
-    let historyRecorded = false;
-    if (!alreadyDownloaded) {
-      try {
-        await database.addDownloadHistory(user.id, video.id);
-        historyRecorded = true;
-      } catch (error) {
-        console.error('ダウンロード履歴の登録に失敗しました:', error);
+      if (!result.success) {
+        alert(result.error || 'ダウンロードに失敗しました');
+        return;
       }
-    }
 
-    if (historyRecorded) {
+      if (result.downloadUrl) {
+        await downloadFileFromUrl(result.downloadUrl, getNextDownloadFilename(result.downloadUrl));
+      }
+
+      // 成功時のUI更新
       setVideos((prev) =>
         prev.map((entry) =>
           entry.id === video.id
@@ -891,20 +854,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
           : prev
       );
       recordDownload();
-    }
-
-    if (historyRecorded) {
       await refreshUserData();
+    } catch (error) {
+      console.error('ダウンロードエラー:', error);
+      alert('ダウンロードに失敗しました。時間をおいて再試行してください。');
+    } finally {
+      setTimeout(() => {
+        setDownloadingVideos(prev => {
+          const next = new Set(prev);
+          next.delete(video.id);
+          return next;
+        });
+      }, 1200);
     }
-
-    setTimeout(() => {
-      setDownloadingVideos(prev => {
-        const next = new Set(prev);
-        next.delete(video.id);
-        return next;
-      });
-    }, 1200);
-  }, [user, hasActiveSubscription, hasDownloadCap, safeRemaining, downloadLimit, monthlyDownloads, refreshUserData, recordDownload]);
+  }, [user, refreshUserData, recordDownload]);
 
   const handleClearFilters = useCallback(() => {
     setSelectedCategories(new Set(['all']));
