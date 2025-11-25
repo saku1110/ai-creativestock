@@ -232,22 +232,36 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
           let subscriptionData: UserSubscription | null = null;
 
           // Prefer server-side API (service role) so RLSに左右されない
-          const tryServerApi = async () => {
+          const tryServerApi = async (): Promise<UserSubscription | null> => {
             try {
               const params = new URLSearchParams();
               params.set('userId', effectiveUser!.id);
               const headers: Record<string, string> = {};
               if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-              const resp = await fetch(`/api/subscription-info?${params.toString()}`, { headers });
+              // タイムアウト付きでfetch
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+              const resp = await fetch(`/api/subscription-info?${params.toString()}`, {
+                headers,
+                signal: controller.signal
+              });
+              clearTimeout(timeoutId);
+
               if (!resp.ok) {
                 console.warn('[useUser] subscription-info api failed', resp.status);
                 return null;
               }
               const json = await resp.json();
+              console.log('[useUser] subscription-info api result', json.subscription);
               return json.subscription ?? null;
             } catch (e) {
-              console.warn('[useUser] subscription-info api exception', e);
+              if ((e as Error).name === 'AbortError') {
+                console.warn('[useUser] subscription-info api timeout');
+              } else {
+                console.warn('[useUser] subscription-info api exception', e);
+              }
               return null;
             }
           };
