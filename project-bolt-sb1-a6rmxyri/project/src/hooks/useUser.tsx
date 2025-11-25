@@ -196,104 +196,127 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
 
         setUser(effectiveUser);
 
-        console.log(`${LOG_TAG} getUserProfile start`, effectiveUser.id);
-        try {
-          const profilePromise = database.getUserProfile(effectiveUser.id);
-          const profileTimeout = new Promise<{ data: null; error: { message: string } }>((resolve) =>
-            setTimeout(() => {
-              console.warn(`${LOG_TAG} getUserProfile timeout after 5s`);
-              resolve({ data: null, error: { message: 'timeout' } });
-            }, 5000)
-          );
-          const { data: profileData, error: profileError } = await Promise.race([profilePromise, profileTimeout]);
-          console.log(`${LOG_TAG} getUserProfile result`, { data: profileData?.id, error: profileError });
-          if (profileError && profileError.message !== 'timeout') {
-            console.warn(`${LOG_TAG} getUserProfile error`, profileError);
-          }
+        // 並列でデータ取得（パフォーマンス向上）
+        console.log(`${LOG_TAG} fetching profile, subscription, downloads in parallel`, effectiveUser.id);
 
-          if (profileError && (profileError as any)?.code === 'PGRST116') {
-            const { data: newProfile, error: createError } = await database.updateUserProfile(effectiveUser.id, {
-              email: effectiveUser.email,
-              name: effectiveUser.user_metadata?.full_name || effectiveUser.email?.split('@')[0] || 'ゲストユーザー',
-              avatar_url: effectiveUser.user_metadata?.avatar_url
-            });
-            if (!createError && newProfile && isMounted) {
-              setProfile(newProfile);
+        // Profile取得関数
+        const fetchProfile = async () => {
+          console.log(`${LOG_TAG} getUserProfile start`, effectiveUser!.id);
+          try {
+            const profilePromise = database.getUserProfile(effectiveUser!.id);
+            const profileTimeout = new Promise<{ data: null; error: { message: string } }>((resolve) =>
+              setTimeout(() => {
+                console.warn(`${LOG_TAG} getUserProfile timeout after 5s`);
+                resolve({ data: null, error: { message: 'timeout' } });
+              }, 5000)
+            );
+            const { data: profileData, error: profileError } = await Promise.race([profilePromise, profileTimeout]);
+            console.log(`${LOG_TAG} getUserProfile result`, { data: profileData?.id, error: profileError });
+            if (profileError && profileError.message !== 'timeout') {
+              console.warn(`${LOG_TAG} getUserProfile error`, profileError);
             }
-          } else if (profileData && isMounted) {
-            setProfile(profileData);
-          }
-        } catch (profileErr) {
-          console.error(`${LOG_TAG} getUserProfile exception`, profileErr);
-        }
 
-        console.log(`${LOG_TAG} getUserSubscription start`, effectiveUser.id);
-        try {
-          let subscriptionData: UserSubscription | null = null;
-
-          // Prefer server-side API (service role) so RLSに左右されない
-          const tryServerApi = async (): Promise<UserSubscription | null> => {
-            try {
-              const params = new URLSearchParams();
-              params.set('userId', effectiveUser!.id);
-              const headers: Record<string, string> = {};
-              if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-
-              // タイムアウト付きでfetch
-              const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-              const resp = await fetch(`/api/subscription-info?${params.toString()}`, {
-                headers,
-                signal: controller.signal
+            if (profileError && (profileError as any)?.code === 'PGRST116') {
+              const { data: newProfile, error: createError } = await database.updateUserProfile(effectiveUser!.id, {
+                email: effectiveUser!.email,
+                name: effectiveUser!.user_metadata?.full_name || effectiveUser!.email?.split('@')[0] || 'ゲストユーザー',
+                avatar_url: effectiveUser!.user_metadata?.avatar_url
               });
-              clearTimeout(timeoutId);
+              return newProfile;
+            }
+            return profileData;
+          } catch (profileErr) {
+            console.error(`${LOG_TAG} getUserProfile exception`, profileErr);
+            return null;
+          }
+        };
 
-              if (!resp.ok) {
-                console.warn('[useUser] subscription-info api failed', resp.status);
+        // Subscription取得関数
+        const fetchSubscription = async () => {
+          console.log(`${LOG_TAG} getUserSubscription start`, effectiveUser!.id);
+          try {
+            // Prefer server-side API (service role) so RLSに左右されない
+            const tryServerApi = async (): Promise<UserSubscription | null> => {
+              try {
+                const params = new URLSearchParams();
+                params.set('userId', effectiveUser!.id);
+                const headers: Record<string, string> = {};
+                if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+                // タイムアウト付きでfetch
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                const resp = await fetch(`/api/subscription-info?${params.toString()}`, {
+                  headers,
+                  signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!resp.ok) {
+                  console.warn('[useUser] subscription-info api failed', resp.status);
+                  return null;
+                }
+                const json = await resp.json();
+                console.log('[useUser] subscription-info api result', json.subscription);
+                return json.subscription ?? null;
+              } catch (e) {
+                if ((e as Error).name === 'AbortError') {
+                  console.warn('[useUser] subscription-info api timeout');
+                } else {
+                  console.warn('[useUser] subscription-info api exception', e);
+                }
                 return null;
               }
-              const json = await resp.json();
-              console.log('[useUser] subscription-info api result', json.subscription);
-              return json.subscription ?? null;
-            } catch (e) {
-              if ((e as Error).name === 'AbortError') {
-                console.warn('[useUser] subscription-info api timeout');
-              } else {
-                console.warn('[useUser] subscription-info api exception', e);
-              }
-              return null;
+            };
+
+            let subscriptionData = await tryServerApi();
+
+            // Fallback to Supabase client if API not available or no token
+            if (!subscriptionData) {
+              const subscriptionResult = await database.getUserSubscription(effectiveUser!.id);
+              subscriptionData = subscriptionResult?.data ?? null;
+              console.log('[useUser] subscriptionResult via supabase', {
+                data: subscriptionResult?.data,
+                error: subscriptionResult?.error
+              });
             }
-          };
 
-          subscriptionData = await tryServerApi();
-
-          // Fallback to Supabase client if API not available or no token
-          if (!subscriptionData) {
-            const subscriptionResult = await database.getUserSubscription(effectiveUser.id);
-            subscriptionData = subscriptionResult?.data ?? null;
-            console.log('[useUser] subscriptionResult via supabase', {
-              data: subscriptionResult?.data,
-              error: subscriptionResult?.error
-            });
+            return subscriptionData;
+          } catch (subErr) {
+            console.error(`${LOG_TAG} getUserSubscription exception`, subErr);
+            return null;
           }
+        };
 
-          if (isMounted) {
-            setSubscription(resolveTestSubscription(subscriptionData));
+        // ダウンロード数取得関数
+        const fetchDownloadCount = async () => {
+          console.log(`${LOG_TAG} getMonthlyDownloadCount start`, effectiveUser!.id);
+          try {
+            const { count } = await database.getMonthlyDownloadCount(effectiveUser!.id);
+            console.log(`${LOG_TAG} getMonthlyDownloadCount result`, count);
+            return count;
+          } catch (monthlyErr) {
+            console.error(`${LOG_TAG} getMonthlyDownloadCount exception`, monthlyErr);
+            return 0;
           }
-        } catch (subErr) {
-          console.error(`${LOG_TAG} getUserSubscription exception`, subErr);
-        }
+        };
 
-        console.log(`${LOG_TAG} getMonthlyDownloadCount start`, effectiveUser.id);
-        try {
-          const { count } = await database.getMonthlyDownloadCount(effectiveUser.id);
-          console.log(`${LOG_TAG} getMonthlyDownloadCount result`, count);
-          if (isMounted && typeof count === 'number') {
-            setMonthlyDownloads((prev) => Math.max(prev, count));
+        // 並列実行
+        const [profileData, subscriptionData, downloadCount] = await Promise.all([
+          fetchProfile(),
+          fetchSubscription(),
+          fetchDownloadCount()
+        ]);
+
+        console.log(`${LOG_TAG} parallel fetch complete`, { profileData: !!profileData, subscriptionData: !!subscriptionData, downloadCount });
+
+        if (isMounted) {
+          if (profileData) setProfile(profileData);
+          setSubscription(resolveTestSubscription(subscriptionData));
+          if (typeof downloadCount === 'number') {
+            setMonthlyDownloads((prev) => Math.max(prev, downloadCount));
           }
-        } catch (monthlyErr) {
-          console.error(`${LOG_TAG} getMonthlyDownloadCount exception`, monthlyErr);
         }
       } catch (error) {
         console.error(`${LOG_TAG} user data fetch error`, error);
