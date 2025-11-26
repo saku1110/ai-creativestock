@@ -474,6 +474,20 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
     new Date(subscription.current_period_end) > new Date()
   );
 
+  // デバッグログ: hasActiveSubscription の計算値
+  console.log('[useUser] hasActiveSubscription debug:', {
+    subscription: subscription ? {
+      id: subscription.id,
+      plan: subscription.plan,
+      status: subscription.status,
+      current_period_end: subscription.current_period_end,
+      monthly_download_limit: subscription.monthly_download_limit
+    } : null,
+    statusCheck: subscription ? (subscription.status === 'active' || subscription.status === 'trial') : false,
+    periodCheck: subscription ? new Date(subscription.current_period_end) > new Date() : false,
+    hasActiveSubscription
+  });
+
   const isTrialUser = subscription?.status === 'trial' || false;
 
   const trialDaysRemaining = subscription?.trial_end_date

@@ -546,6 +546,25 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     hasActiveSubscription &&
     (!hasDownloadCap || safeRemaining > 0)
   );
+
+  // デバッグログ: canDownloadVideos の計算値を出力
+  useEffect(() => {
+    console.log('[Dashboard] canDownloadVideos debug:', {
+      user: !!user,
+      userId: user?.id,
+      hasActiveSubscription,
+      hasDownloadCap,
+      safeRemaining,
+      remainingDownloads,
+      monthlyDownloadLimit,
+      downloadLimit,
+      isTrialUser,
+      trialDownloadsRemaining,
+      subscription: subscription ? { plan: (subscription as any).plan, plan_type: (subscription as any).plan_type, status: subscription.status } : null,
+      canDownloadVideos
+    });
+  }, [user, hasActiveSubscription, hasDownloadCap, safeRemaining, remainingDownloads, monthlyDownloadLimit, downloadLimit, isTrialUser, trialDownloadsRemaining, subscription, canDownloadVideos]);
+
   // サブスク加入済みだが制限到達の場合
   const limitReached = Boolean(
     user &&
