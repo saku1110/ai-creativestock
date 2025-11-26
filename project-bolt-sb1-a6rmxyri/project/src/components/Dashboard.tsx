@@ -847,19 +847,23 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
         await downloadFileFromUrl(result.downloadUrl, getNextDownloadFilename(result.downloadUrl));
       }
 
-      // 成功時のUI更新
-      setVideos((prev) =>
-        prev.map((entry) =>
-          entry.id === video.id
-            ? { ...entry, download_count: entry.download_count + 1 }
-            : entry
-        )
-      );
-      setSelectedVideoForModal((prev) =>
-        prev && prev.id === video.id
-          ? { ...prev, download_count: prev.download_count + 1 }
-          : prev
-      );
+      // 成功時のUI更新（初回ダウンロードの場合のみカウントを増やす）
+      if (!result.alreadyDownloaded) {
+        setVideos((prev) =>
+          prev.map((entry) =>
+            entry.id === video.id
+              ? { ...entry, download_count: entry.download_count + 1 }
+              : entry
+          )
+        );
+        setSelectedVideoForModal((prev) =>
+          prev && prev.id === video.id
+            ? { ...prev, download_count: prev.download_count + 1 }
+            : prev
+        );
+      } else {
+        console.log('[Dashboard] 既にダウンロード済みのため、カウントを更新しない');
+      }
       recordDownload();
       await refreshUserData();
     } catch (error) {

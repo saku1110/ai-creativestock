@@ -176,19 +176,28 @@ export class DownloadLimitManager {
       const nextResetDate = new Date(cycleStart);
       nextResetDate.setMonth(nextResetDate.getMonth() + 1);
 
-      // 現在の請求サイクルでのダウンロード数を取得
-    const { data: downloads, error } = await supabase
-      .from('download_history')
-      .select('video_id')
-      .eq('user_id', userId)
-      .gte('downloaded_at', cycleStart.toISOString())
-      .lte('downloaded_at', now.toISOString());
+      // サーバーAPI経由で現在の請求サイクルでのダウンロード数を取得（RLSをバイパス）
+      let currentUsage = 0;
+      try {
+        const usageResp = await fetch(`/api/download-history?userId=${userId}&action=usage&since=${cycleStart.toISOString()}`);
+        const usageResult = await usageResp.json();
+        console.log('[downloadLimits] usage API result:', usageResult);
+        currentUsage = usageResult.count || 0;
+      } catch (apiError) {
+        console.warn('[downloadLimits] usage API error, falling back to direct query:', apiError);
+        // フォールバック: 直接Supabaseクエリ（RLSにブロックされる可能性あり）
+        const { data: downloads, error } = await supabase
+          .from('download_history')
+          .select('video_id')
+          .eq('user_id', userId)
+          .gte('downloaded_at', cycleStart.toISOString())
+          .lte('downloaded_at', now.toISOString());
 
-    if (error) {
-      throw error;
-    }
-
-    const currentUsage = downloads ? new Set(downloads.map((d: any) => d.video_id)).size : 0;
+        if (error) {
+          throw error;
+        }
+        currentUsage = downloads ? new Set(downloads.map((d: any) => d.video_id)).size : 0;
+      }
       const remaining = Math.max(0, limitConfig.monthlyLimit - currentUsage);
       const isLimitExceeded = currentUsage >= limitConfig.monthlyLimit;
 
@@ -287,6 +296,7 @@ export class DownloadLimitManager {
     error?: string;
     downloadUrl?: string;
     usage?: DownloadUsage;
+    alreadyDownloaded?: boolean;
   }> {
     try {
       // ダウンロード権限をチェック
@@ -312,44 +322,34 @@ export class DownloadLimitManager {
         };
       }
 
-      // 既にダウンロード済みかチェック（同じ動画の重複ダウンロードはカウントしない）
-      const { data: existingDownload } = await supabase
-        .from('download_history')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('video_id', videoId)
-        .limit(1)
-        .maybeSingle();
+      // サーバーAPI経由でダウンロード履歴を記録（RLSをバイパス）
+      let alreadyDownloaded = false;
+      try {
+        const recordResp = await fetch(`/api/download-history?userId=${userId}&videoId=${videoId}&action=record`, {
+          method: 'POST'
+        });
+        const recordResult = await recordResp.json();
+        console.log('[downloadLimits] record API result:', recordResult);
 
-      const isFirstDownload = !existingDownload;
-
-      if (isFirstDownload) {
-        // 初回ダウンロードの場合のみ履歴を記録
-        const { error: historyError } = await supabase
-          .from('download_history')
-          .insert({
-            user_id: userId,
-            video_id: videoId,
-            downloaded_at: new Date().toISOString()
-          });
-
-        if (historyError) {
-          console.error('ダウンロード履歴記録エラー:', historyError);
+        if (!recordResult.success) {
+          console.error('ダウンロード履歴記録エラー:', recordResult.error);
           return {
             success: false,
             error: 'ダウンロード履歴の記録に失敗しました'
           };
         }
 
-        // 初回のみダウンロード数をインクリメント
-        const { error: updateError } = await supabase
-          .rpc('increment_download_count', { video_uuid: videoId });
+        alreadyDownloaded = recordResult.alreadyDownloaded || false;
 
-        if (updateError) {
-          console.error('ダウンロード数更新エラー:', updateError);
+        if (alreadyDownloaded) {
+          console.log('[downloadLimits] 既にダウンロード済みの動画のため、カウントをスキップ');
         }
-      } else {
-        console.log('[downloadLimits] 既にダウンロード済みの動画のため、カウントをスキップ');
+      } catch (apiError) {
+        console.error('ダウンロード履歴API呼び出しエラー:', apiError);
+        return {
+          success: false,
+          error: 'ダウンロード履歴の記録に失敗しました'
+        };
       }
 
       // 更新後の使用状況を取得
@@ -361,7 +361,8 @@ export class DownloadLimitManager {
       return {
         success: true,
         downloadUrl: originalUrl,
-        usage: updatedUsage || undefined
+        usage: updatedUsage || undefined,
+        alreadyDownloaded
       };
     } catch (error) {
       console.error('ダウンロード実行エラー:', error);
@@ -578,14 +579,25 @@ export const useDownloadLimits = (userId: string) => {
     setError(null);
 
     try {
-      // ダウンロード済み動画IDリストを取得
-      const { data: downloads } = await supabase
-        .from('download_history')
-        .select('video_id')
-        .eq('user_id', userId);
+      // サーバーAPI経由でダウンロード済み動画IDリストを取得（RLSをバイパス）
+      try {
+        const listResp = await fetch(`/api/download-history?userId=${userId}&action=list`);
+        const listResult = await listResp.json();
+        console.log('[useDownloadLimits] list API result:', listResult);
+        if (listResult.videoIds) {
+          setDownloadedVideoIds(new Set(listResult.videoIds));
+        }
+      } catch (apiError) {
+        console.warn('[useDownloadLimits] list API error, falling back to direct query:', apiError);
+        // フォールバック: 直接Supabaseクエリ（RLSにブロックされる可能性あり）
+        const { data: downloads } = await supabase
+          .from('download_history')
+          .select('video_id')
+          .eq('user_id', userId);
 
-      if (downloads) {
-        setDownloadedVideoIds(new Set(downloads.map((d: { video_id: string }) => d.video_id)));
+        if (downloads) {
+          setDownloadedVideoIds(new Set(downloads.map((d: { video_id: string }) => d.video_id)));
+        }
       }
 
       const usageData = await DownloadLimitManager.getUserDownloadUsage(userId);
@@ -622,8 +634,10 @@ export const useDownloadLimits = (userId: string) => {
     const result = await DownloadLimitManager.executeDownload(userId, videoId);
 
     if (result.success) {
-      // ダウンロード済みリストに追加
-      setDownloadedVideoIds(prev => new Set(prev).add(videoId));
+      // alreadyDownloadedがfalse（初回ダウンロード）の場合のみローカルSetに追加
+      if (!result.alreadyDownloaded) {
+        setDownloadedVideoIds(prev => new Set(prev).add(videoId));
+      }
       if (result.usage) {
         setUsage(result.usage);
       }
