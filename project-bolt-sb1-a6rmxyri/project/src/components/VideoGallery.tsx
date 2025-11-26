@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { localLpGridVideos } from '../local-content';
-import { fetchSupabaseVideos, fetchSupabaseImages, stem } from '../lib/media';
+import { fetchSupabaseVideos, stem } from '../lib/media';
 
 interface VideoGalleryProps {
   onTrialRequest: () => void;
@@ -10,7 +10,6 @@ type GalleryVideo = {
   id: string;
   title: string;
   src: string;
-  thumbnail?: string;
 };
 
 const MAX_GALLERY_ITEMS = 16;
@@ -67,21 +66,8 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
   useEffect(() => {
     (async () => {
       try {
-        // 動画とサムネイル画像を並行取得
-        const [vids, imgs] = await Promise.all([
-          fetchSupabaseVideos({ bucket: 'local-content', prefix: 'lp-grid', limit: 32, expires: 3600 }),
-          fetchSupabaseImages({ bucket: 'local-content', prefix: 'lp-grid', limit: 100, expires: 3600 })
-        ]);
+        const vids = await fetchSupabaseVideos({ bucket: 'local-content', prefix: 'lp-grid', limit: 32, expires: 3600 });
         if (!vids || vids.length === 0) return;
-
-        // 画像をstem名でマップ化（動画と画像のマッチング用）
-        const thumbMap = new Map<string, string>();
-        imgs.forEach(img => {
-          const imgStem = stem(img.path);
-          if (!thumbMap.has(imgStem)) {
-            thumbMap.set(imgStem, img.url);
-          }
-        });
 
         const seenPaths = new Set<string>();
         const items: GalleryVideo[] = [];
@@ -93,8 +79,7 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
           items.push({
             id: `sb-${idx}-${v.path}`,
             title: videoStem.replace(/[-_]+/g, ' ').replace(/\s{2,}/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-            src: v.url,
-            thumbnail: thumbMap.get(videoStem)
+            src: v.url
           });
         });
         setRemoteVideos(items);
@@ -118,20 +103,6 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
   const play = async (id: string) => {
     const el = refs.current[id];
     if (!el) return;
-
-    // srcが未設定の場合はdata-srcから設定
-    if (!el.src && el.dataset.src) {
-      el.src = el.dataset.src;
-      // 読み込み完了を待つ
-      await new Promise<void>((resolve) => {
-        const onCanPlay = () => {
-          el.removeEventListener('canplay', onCanPlay);
-          resolve();
-        };
-        el.addEventListener('canplay', onCanPlay, { once: true });
-        el.load();
-      });
-    }
 
     const p = el.play();
     if (p && typeof (p as Promise<void>).catch === 'function') {
@@ -158,23 +129,14 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
               onTouchStart={() => { if (hoveredVideo === video.id) { stop(video.id); setHoveredVideo(null); } else { setHoveredVideo(video.id); play(video.id); } }}
             >
               <div className="relative aspect-[9/16] bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden border border-gray-700 transition-all duration-300 shadow-2xl">
-                {/* サムネイル画像（先に表示） */}
-                {video.thumbnail && (
-                  <img
-                    src={video.thumbnail}
-                    alt={video.title}
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${hoveredVideo === video.id ? 'opacity-0' : 'opacity-100'}`}
-                    loading="lazy"
-                  />
-                )}
-                {/* 動画（ホバー時に表示） */}
+                {/* 動画（最初のフレームがサムネイルとして表示） */}
                 <video
                   ref={(el) => { refs.current[video.id] = el; }}
-                  data-src={video.src}
-                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${hoveredVideo === video.id ? 'opacity-100' : 'opacity-0'}`}
+                  src={video.src}
+                  className="absolute inset-0 w-full h-full object-cover"
                   muted
                   playsInline
-                  preload="none"
+                  preload="metadata"
                 />
               </div>
             </div>
