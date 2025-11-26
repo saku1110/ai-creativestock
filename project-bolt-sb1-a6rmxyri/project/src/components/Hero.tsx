@@ -160,9 +160,21 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
       try {
         const items = await fetchSupabaseVideos({ bucket: 'local-content', prefix: 'hero', limit: 50, expires: 21600 });
         if (items && items.length > 0) {
-          setRemoteVideos(
-            items.map((it, idx) => ({ id: `sb-${idx}-${it.path}`, title: it.path.split('/').pop() || 'Clip', src: it.url }))
-          );
+          // 動画リストを作成
+          let videoList = items.map((it, idx) => ({ id: `sb-${idx}-${it.path}`, title: it.path.split('/').pop() || 'Clip', src: it.url }));
+
+          // 特定の動画を2番目に配置（Masterpiece__top_quality__ultra_detailed...）
+          const targetFilename = 'Masterpiece__top_quality__ultra_detailed__photorealistic__4K__cinematic_shot__shallow_d1752043157362';
+          const targetIndex = videoList.findIndex(v => v.src.includes(targetFilename));
+          if (targetIndex > 1) {
+            const [targetVideo] = videoList.splice(targetIndex, 1);
+            videoList.splice(1, 0, targetVideo);
+          } else if (targetIndex === 0) {
+            // すでに1番目にある場合、2番目と入れ替え
+            [videoList[0], videoList[1]] = [videoList[1], videoList[0]];
+          }
+
+          setRemoteVideos(videoList);
         }
       } catch {
         // ignore
