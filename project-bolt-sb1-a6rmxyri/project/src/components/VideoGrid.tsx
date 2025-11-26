@@ -311,7 +311,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({ onAuthRequest, isLoggedIn = false
   useEffect(() => {
     (async () => {
       try {
-        const vids = await fetchSupabaseVideos({ bucket: 'local-content', prefix: 'lp-grid', limit: 500, expires: 3600 });
+        const vids = await fetchSupabaseVideos({ bucket: 'local-content', prefix: 'lp-grid', limit: 32, expires: 3600 });
         if (!vids || vids.length === 0) return;
 
         const assets: VideoAsset[] = vids.map((v, idx) => {

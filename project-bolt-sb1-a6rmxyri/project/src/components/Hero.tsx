@@ -80,6 +80,27 @@ const HeroVideoCard: React.FC<HeroVideoCardProps> = ({ video, register, onReady 
     }
   }, [video.src, onReady]);
 
+  // 動画ループ時のフェード処理（終了直前→0秒の切り替わりを滑らかに）
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+
+    const handleTimeUpdate = () => {
+      if (!el.duration || !isFinite(el.duration)) return;
+      const remaining = el.duration - el.currentTime;
+      // 終了0.3秒前からフェードアウト開始
+      if (remaining <= 0.3 && remaining > 0) {
+        el.style.opacity = '0';
+      } else if (el.currentTime < 0.3) {
+        // 0秒から0.3秒でフェードイン
+        el.style.opacity = '1';
+      }
+    };
+
+    el.addEventListener('timeupdate', handleTimeUpdate);
+    return () => el.removeEventListener('timeupdate', handleTimeUpdate);
+  }, []);
+
   useEffect(() => {
     const cleanup = register(containerRef.current, videoRef.current);
     return () => {
@@ -97,9 +118,11 @@ const HeroVideoCard: React.FC<HeroVideoCardProps> = ({ video, register, onReady 
         <video
           ref={videoRef}
           src={video.src}
-          className="w-full h-full object-cover" crossOrigin="anonymous"
+          className="w-full h-full object-cover transition-opacity duration-300" crossOrigin="anonymous"
           muted
-          playsInline autoPlay onError={() => onReady(video.src)}
+          playsInline
+          autoPlay
+          onError={() => onReady(video.src)}
           onLoadedMetadata={() => onReady(video.src)}
           onCanPlay={() => onReady(video.src)}
           preload="metadata"
@@ -129,6 +152,8 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
   const [isReady, setIsReady] = useState(false);
   const isReadyRef = useRef(isReady);
   const loadedVideosRef = useRef<Set<string>>(new Set());
+  // 動画srcごとの再生位置を追跡（ループ時の同期用）
+  const videoTimeMapRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     (async () => {
@@ -196,7 +221,14 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
   useEffect(() => {
     isReadyRef.current = isReady;
     if (!isReady) {
-      itemsRef.current.forEach((state) => { if (state.isPlaying) { state.isPlaying = false; state.video.pause(); } });
+      itemsRef.current.forEach((state) => {
+        if (state.isPlaying) {
+          // 停止前に再生位置を保存
+          videoTimeMapRef.current.set(state.video.src, state.video.currentTime);
+          state.isPlaying = false;
+          state.video.pause();
+        }
+      });
       return;
     }
     itemsRef.current.forEach((state, container) => {
@@ -206,7 +238,11 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
       const ratio = visible / width;
       if (ratio >= 0.5 && !state.isPlaying) {
         state.isPlaying = true;
-        state.video.currentTime = 0;
+        // 同じsrcの動画の再生位置を引き継ぐ
+        const savedTime = videoTimeMapRef.current.get(state.video.src);
+        if (savedTime !== undefined && isFinite(savedTime)) {
+          state.video.currentTime = savedTime;
+        }
         playSilently(state.video);
       }
     });
@@ -223,9 +259,22 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
           return;
         }
         if (!document.hidden && entry.intersectionRatio >= 0.1) {
-          if (!state.isPlaying) { state.isPlaying = true; video.currentTime = 0; playSilently(video); }
+          if (!state.isPlaying) {
+            state.isPlaying = true;
+            // 同じsrcの動画の再生位置を引き継ぐ
+            const savedTime = videoTimeMapRef.current.get(video.src);
+            if (savedTime !== undefined && isFinite(savedTime)) {
+              video.currentTime = savedTime;
+            }
+            playSilently(video);
+          }
         } else if (entry.intersectionRatio <= 0.02) {
-          if (state.isPlaying) { state.isPlaying = false; video.pause(); }
+          if (state.isPlaying) {
+            // 停止前に再生位置を保存
+            videoTimeMapRef.current.set(video.src, video.currentTime);
+            state.isPlaying = false;
+            video.pause();
+          }
         }
       });
     }, { root: null, threshold: [0, 0.02, 0.1, 0.25, 0.5, 0.75, 1] });
@@ -237,7 +286,14 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
-        itemsRef.current.forEach((state) => { if (state.isPlaying) { state.isPlaying = false; state.video.pause(); } });
+        itemsRef.current.forEach((state) => {
+          if (state.isPlaying) {
+            // 停止前に再生位置を保存
+            videoTimeMapRef.current.set(state.video.src, state.video.currentTime);
+            state.isPlaying = false;
+            state.video.pause();
+          }
+        });
       } else {
         if (!isReadyRef.current) return;
         itemsRef.current.forEach((state, container) => {
@@ -245,7 +301,15 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
           const width = rect.width || 1;
           const visible = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
           const ratio = visible / width;
-          if (ratio >= 0.5 && !state.isPlaying) { state.isPlaying = true; state.video.currentTime = 0; playSilently(state.video); }
+          if (ratio >= 0.5 && !state.isPlaying) {
+            state.isPlaying = true;
+            // 同じsrcの動画の再生位置を引き継ぐ
+            const savedTime = videoTimeMapRef.current.get(state.video.src);
+            if (savedTime !== undefined && isFinite(savedTime)) {
+              state.video.currentTime = savedTime;
+            }
+            playSilently(state.video);
+          }
         });
       }
     };
@@ -291,6 +355,12 @@ const Hero: React.FC<HeroProps> = ({ onAuthRequest, onPurchaseRequest, onLoginRe
           scrollProgressRef.current %= maxShift;
         }
         el.scrollLeft = scrollProgressRef.current;
+        // 再生中の動画のcurrentTimeをvideoTimeMapRefに同期
+        itemsRef.current.forEach((state) => {
+          if (state.isPlaying && !state.video.paused && isFinite(state.video.currentTime)) {
+            videoTimeMapRef.current.set(state.video.src, state.video.currentTime);
+          }
+        });
       }
       animationFrame = requestAnimationFrame(tick);
     };

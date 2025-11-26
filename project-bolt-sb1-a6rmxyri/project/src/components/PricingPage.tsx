@@ -8,11 +8,19 @@ interface PricingPageProps {
   isNewUser?: boolean;
 }
 
+// プランレベル定義（アップグレード/ダウングレード判定用）
+const PLAN_LEVELS: Record<string, number> = {
+  standard: 1,
+  pro: 2,
+  business: 3,
+  enterprise: 4
+};
+
 const PricingPage: React.FC<PricingPageProps> = ({ onPageChange, isNewUser = false }) => {
   const [loading, setLoading] = useState<string | null>(null);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('yearly');
   const [showSkipButton, setShowSkipButton] = useState(false);
-  const { user } = useUser();
+  const { user, subscription, hasActiveSubscription } = useUser();
 
   // LPと同じプラン定義
   const plans = [
@@ -124,12 +132,40 @@ const PricingPage: React.FC<PricingPageProps> = ({ onPageChange, isNewUser = fal
     }
   }, [isNewUser]);
 
+  // ボタン表示ロジック
+  const getButtonState = (planId: string, isCustom?: boolean) => {
+    // エンタープライズは常にお問い合わせ
+    if (isCustom) {
+      return { text: 'お問い合わせ', disabled: false, variant: 'contact' as const };
+    }
+
+    // 未ログインまたはサブスク未加入
+    if (!hasActiveSubscription || !subscription?.plan) {
+      return { text: '今すぐ始める', disabled: false, variant: 'subscribe' as const };
+    }
+
+    const currentPlan = subscription.plan;
+
+    // 現在のプラン
+    if (currentPlan === planId) {
+      return { text: '現在のプラン', disabled: true, variant: 'current' as const };
+    }
+
+    // アップグレード/ダウングレード判定
+    const currentLevel = PLAN_LEVELS[currentPlan] || 0;
+    const targetLevel = PLAN_LEVELS[planId] || 0;
+
+    if (targetLevel > currentLevel) {
+      return { text: 'アップグレード', disabled: false, variant: 'upgrade' as const };
+    } else {
+      return { text: 'ダウングレード', disabled: false, variant: 'downgrade' as const };
+    }
+  };
+
   const handleSubscribe = async (planId: string, isCustom?: boolean) => {
     // エンタープライズプランの場合はお問い合わせページへ遷移
     if (isCustom) {
-      if (onPageChange) {
-        onPageChange('contact');
-      }
+      onPageChange?.('contact');
       return;
     }
 
@@ -141,15 +177,33 @@ const PricingPage: React.FC<PricingPageProps> = ({ onPageChange, isNewUser = fal
     setLoading(planId);
 
     try {
-      const result = await stripeService.subscribeToPlan(planId, billingPeriod === 'yearly' ? 'yearly' : 'monthly', user.id);
+      // 既存会員の場合はCustomer Portalにリダイレクト
+      if (hasActiveSubscription && subscription?.stripe_customer_id) {
+        const { url, error } = await stripeService.createCustomerPortalSession(
+          subscription.stripe_customer_id,
+          `${window.location.origin}/pricing`
+        );
+
+        if (error) {
+          alert(error);
+          return;
+        }
+
+        if (url) {
+          window.location.href = url;
+          return;
+        }
+      }
+
+      // 新規会員は通常のチェックアウト
+      const result = await stripeService.subscribeToPlan(
+        planId,
+        billingPeriod === 'yearly' ? 'yearly' : 'monthly',
+        user.id
+      );
 
       if (!result.success) {
         alert(result.error || '購入処理に失敗しました');
-      } else {
-        // 成功した場合、ダッシュボードへ遷移
-        if (onPageChange) {
-          onPageChange('dashboard');
-        }
       }
     } catch (error) {
       console.error('Subscription error:', error);
@@ -303,28 +357,37 @@ const PricingPage: React.FC<PricingPageProps> = ({ onPageChange, isNewUser = fal
 
               {/* CTAボタン */}
               <div>
-                <button
-                  onClick={() => handleSubscribe(plan.id, plan.isCustom)}
-                  disabled={loading === plan.id}
-                  className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 ${
-                    plan.isCustom
-                      ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white hover:scale-105 shadow-lg hover:shadow-orange-500/25'
-                      : plan.popular
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:scale-105 shadow-lg hover:shadow-blue-500/25'
-                      : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:scale-105 shadow-lg hover:shadow-green-500/25'
-                  } ${loading === plan.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {loading === plan.id ? (
-                    <div className="flex items-center justify-center space-x-2">
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>処理中...</span>
-                    </div>
-                  ) : plan.isCustom ? (
-                    'お問い合わせ'
-                  ) : (
-                    '今すぐ始める'
-                  )}
-                </button>
+                {(() => {
+                  const buttonState = getButtonState(plan.id, plan.isCustom);
+                  return (
+                    <button
+                      onClick={() => handleSubscribe(plan.id, plan.isCustom)}
+                      disabled={loading === plan.id || buttonState.disabled}
+                      className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 ${
+                        buttonState.disabled
+                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          : buttonState.variant === 'contact'
+                          ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white hover:scale-105 shadow-lg hover:shadow-orange-500/25'
+                          : buttonState.variant === 'upgrade'
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:scale-105 shadow-lg hover:shadow-blue-500/25'
+                          : buttonState.variant === 'downgrade'
+                          ? 'bg-gradient-to-r from-gray-500 to-gray-600 text-white hover:scale-105 shadow-lg hover:shadow-gray-500/25'
+                          : plan.popular
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:scale-105 shadow-lg hover:shadow-blue-500/25'
+                          : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:scale-105 shadow-lg hover:shadow-green-500/25'
+                      } ${loading === plan.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {loading === plan.id ? (
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>処理中...</span>
+                        </div>
+                      ) : (
+                        buttonState.text
+                      )}
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           ))}

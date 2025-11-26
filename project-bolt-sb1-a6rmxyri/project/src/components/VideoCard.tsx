@@ -154,6 +154,13 @@ const downloadButtonState = getDownloadButtonState();
 
   const startInline = () => {
     if (!video.videoUrl) return;
+
+    // srcが未設定の場合は設定
+    const el = videoRef.current;
+    if (el && !el.src) {
+      el.src = video.videoUrl;
+    }
+
     setShouldInlinePlay(true);
     attemptInlinePlay();
   };
@@ -221,10 +228,9 @@ const downloadButtonState = getDownloadButtonState();
           {video.videoUrl && (
             <video
               ref={videoRef}
-              src={video.videoUrl}
               muted
               playsInline
-              preload="auto"
+              preload="none"
               loop
               poster={video.thumbnailUrl}
               onClick={handleTapToggle}

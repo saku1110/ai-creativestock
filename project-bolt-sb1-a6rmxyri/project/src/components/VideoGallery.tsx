@@ -66,7 +66,7 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
   useEffect(() => {
     (async () => {
       try {
-        const vids = await fetchSupabaseVideos({ bucket: 'local-content', prefix: 'lp-grid', limit: 200, expires: 3600 });
+        const vids = await fetchSupabaseVideos({ bucket: 'local-content', prefix: 'lp-grid', limit: 32, expires: 3600 });
         if (!vids || vids.length === 0) return;
         const seenPaths = new Set<string>();
         const items: GalleryVideo[] = [];
@@ -98,9 +98,24 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const refs = useRef<Record<string, HTMLVideoElement | null>>({});
 
-  const play = (id: string) => {
+  const play = async (id: string) => {
     const el = refs.current[id];
     if (!el) return;
+
+    // srcが未設定の場合はdata-srcから設定
+    if (!el.src && el.dataset.src) {
+      el.src = el.dataset.src;
+      // 読み込み完了を待つ
+      await new Promise<void>((resolve) => {
+        const onCanPlay = () => {
+          el.removeEventListener('canplay', onCanPlay);
+          resolve();
+        };
+        el.addEventListener('canplay', onCanPlay, { once: true });
+        el.load();
+      });
+    }
+
     const p = el.play();
     if (p && typeof (p as Promise<void>).catch === 'function') {
       (p as Promise<void>).catch(() => {});
@@ -128,11 +143,11 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
               <div className="relative aspect-[9/16] bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden border border-gray-700 transition-all duration-300 shadow-2xl">
                 <video
                   ref={(el) => { refs.current[video.id] = el; }}
-                  src={video.src}
+                  data-src={video.src}
                   className="w-full h-full object-cover"
                   muted
                   playsInline
-                  preload="metadata"
+                  preload="none"
                 />
               </div>
             </div>

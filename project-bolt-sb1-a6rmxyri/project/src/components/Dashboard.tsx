@@ -932,6 +932,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     setSelectedGenders(new Set());
     setShowOnlyFavorites(false);
     setSearchQuery('');
+    setCurrentPage('dashboard'); // ダッシュボードトップに戻る
     searchInputRef.current?.focus();
   }, []);
 
