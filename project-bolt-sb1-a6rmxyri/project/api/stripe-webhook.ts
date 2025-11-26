@@ -126,7 +126,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               priceLookupKey: firstItem?.price?.lookup_key,
               priceNickname: firstItem?.price?.nickname,
               unitAmount: firstItem?.price?.unit_amount,
-              planAmount: (firstItem as any)?.plan?.amount
+              planAmount: (firstItem as any)?.plan?.amount,
+              recurringInterval: firstItem?.price?.recurring?.interval
             } : null
           })
 
@@ -206,9 +207,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // 金額からプランを判定（最終手段）
             if (!planId && priceAmount) {
+              // 年額の場合は12で割って月額換算
+              const interval = firstItem?.price?.recurring?.interval
+              const monthlyAmount = interval === 'year' ? Math.round(priceAmount / 12) : priceAmount
+
               // 月額料金でプラン判定: 14800=standard, 29800=pro, 49800+=business
-              // 年額の場合も月額換算で判定
-              const monthlyAmount = priceAmount
               if (monthlyAmount <= 15000) {
                 planId = 'standard'
               } else if (monthlyAmount <= 30000) {
@@ -216,7 +219,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               } else {
                 planId = 'business'
               }
-              console.log('planId from price amount:', planId, { priceAmount, monthlyAmount })
+              console.log('planId from price amount:', planId, { priceAmount, interval, monthlyAmount })
             }
           }
 
