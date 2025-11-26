@@ -113,28 +113,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           let planId: string | null = null
 
           // デバッグ: subscription items の詳細をログ
+          const firstItem = sub.items?.data?.[0]
+          const priceAmount = firstItem?.price?.unit_amount || (firstItem as any)?.plan?.amount
           console.log('subscription items debug', {
             hasItems: !!sub.items?.data?.length,
             itemsCount: sub.items?.data?.length || 0,
-            firstItem: sub.items?.data?.[0] ? {
-              priceId: sub.items.data[0]?.price?.id,
-              productId: sub.items.data[0]?.price?.product,
-              priceMetadata: sub.items.data[0]?.price?.metadata,
-              priceLookupKey: sub.items.data[0]?.price?.lookup_key,
-              priceNickname: sub.items.data[0]?.price?.nickname
+            priceAmount,
+            firstItem: firstItem ? {
+              priceId: firstItem?.price?.id,
+              productId: firstItem?.price?.product,
+              priceMetadata: firstItem?.price?.metadata,
+              priceLookupKey: firstItem?.price?.lookup_key,
+              priceNickname: firstItem?.price?.nickname,
+              unitAmount: firstItem?.price?.unit_amount,
+              planAmount: (firstItem as any)?.plan?.amount
             } : null
           })
 
           if (sub.items?.data?.length > 0) {
-            const priceId = sub.items.data[0]?.price?.id
-            const productId = sub.items.data[0]?.price?.product
+            const priceId = firstItem?.price?.id
+            const productId = firstItem?.price?.product
             const productIdStr = typeof productId === 'string' ? productId : productId?.id
-            const priceLookupKey = sub.items.data[0]?.price?.lookup_key
-            const priceNickname = sub.items.data[0]?.price?.nickname
+            const priceLookupKey = firstItem?.price?.lookup_key
+            const priceNickname = firstItem?.price?.nickname
 
             // price_id または product metadata からプランを判定
             // Stripe Dashboard で設定した metadata.plan_id を優先
-            const priceMetadata = sub.items.data[0]?.price?.metadata
+            const priceMetadata = firstItem?.price?.metadata
             if (priceMetadata?.plan_id) {
               planId = priceMetadata.plan_id
               console.log('planId from price metadata:', planId)
@@ -197,6 +202,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               } catch (err) {
                 console.error('Failed to retrieve product', err)
               }
+            }
+
+            // 金額からプランを判定（最終手段）
+            if (!planId && priceAmount) {
+              // 月額料金でプラン判定: 14800=standard, 29800=pro, 49800+=business
+              // 年額の場合も月額換算で判定
+              const monthlyAmount = priceAmount
+              if (monthlyAmount <= 15000) {
+                planId = 'standard'
+              } else if (monthlyAmount <= 30000) {
+                planId = 'pro'
+              } else {
+                planId = 'business'
+              }
+              console.log('planId from price amount:', planId, { priceAmount, monthlyAmount })
             }
           }
 
