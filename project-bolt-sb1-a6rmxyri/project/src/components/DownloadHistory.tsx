@@ -84,7 +84,7 @@ const formatDateTime = (value: string) =>
   });
 
 const DownloadHistory: React.FC<DownloadHistoryProps> = ({ onPageChange = () => {} }) => {
-  const { user, hasActiveSubscription } = useUser();
+  const { user, hasActiveSubscription, loading: userLoading } = useUser();
   const [downloads, setDownloads] = useState<DownloadRecord[]>([]);
   const [stats, setStats] = useState<DownloadStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -274,7 +274,7 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = ({ onPageChange = () => 
     }
   };
 
-  if (loading) {
+  if (userLoading || loading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center space-y-4">
