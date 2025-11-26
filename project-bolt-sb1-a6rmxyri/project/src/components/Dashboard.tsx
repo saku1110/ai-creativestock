@@ -541,8 +541,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   );
   const limitDisplay = hasDownloadCap ? downloadLimit.toLocaleString() : '制限なし';
   const remainingDisplay = hasDownloadCap ? safeRemaining.toLocaleString() : '制限なし';
+  // subscription.user_id をフォールバックとして使用（auth state 遷移時の一時的な user undefined に対応）
+  const hasValidUserSession = Boolean(user?.id || (subscription as any)?.user_id);
   const canDownloadVideos = Boolean(
-    user &&
+    hasValidUserSession &&
     hasActiveSubscription &&
     (!hasDownloadCap || safeRemaining > 0)
   );

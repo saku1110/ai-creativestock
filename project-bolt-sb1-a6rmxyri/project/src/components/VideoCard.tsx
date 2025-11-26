@@ -52,8 +52,10 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
     attemptInlinePlay();
   }, [attemptInlinePlay, isPreviewReady]);
   
-  const { user } = useUser();
-  const { usage, executeDownload, checkDownload, warningMessage, isVideoDownloaded } = useDownloadLimits(user?.id || '');
+  const { user, subscription } = useUser();
+  // subscription.user_id をフォールバックとして使用（auth state 遷移時の一時的な user undefined に対応）
+  const effectiveUserId = user?.id || (subscription as any)?.user_id || '';
+  const { usage, executeDownload, checkDownload, warningMessage, isVideoDownloaded } = useDownloadLimits(effectiveUserId);
   const isAlreadyDownloaded = isVideoDownloaded(video.id);
 
   const showDownloadStatus = useCallback((message: string) => {
