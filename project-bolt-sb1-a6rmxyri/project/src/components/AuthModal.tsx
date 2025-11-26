@@ -227,7 +227,13 @@ const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleEmailPassword();
+                }}
+                className="grid grid-cols-1 gap-3"
+              >
                 <input
                   type="email"
                   value={email}
@@ -245,7 +251,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
                   disabled={isLoading}
                 />
                 <button
-                  onClick={handleEmailPassword}
+                  type="submit"
                   disabled={isLoading}
                   className={`w-full flex items-center justify-center space-x-3 glass-effect border border-white/20 text-white hover:text-cyan-400 px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:bg-white/5 ${
                     isLoading ? 'opacity-50 cursor-not-allowed' : ''
@@ -256,7 +262,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
                   ) : null}
                   <span>{buttonEmail}</span>
                 </button>
-              </div>
+              </form>
             </div>
 
             <div className="glass-effect rounded-2xl p-4 border border-cyan-400/30">
