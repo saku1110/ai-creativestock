@@ -474,7 +474,10 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
   const hasActiveSubscription = Boolean(
     subscription &&
     (subscription.status === 'active' || subscription.status === 'trial') &&
-    new Date(subscription.current_period_end) > new Date()
+    (
+      !subscription.current_period_end ||  // nullの場合はstatusのみで判定
+      new Date(subscription.current_period_end) > new Date()
+    )
   );
 
   // デバッグログ: hasActiveSubscription の計算値

@@ -74,8 +74,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             plan: planId && ['standard', 'pro', 'business'].includes(planId) ? planId : 'standard',
             status,
             monthly_download_limit: planId === 'business' ? 50 : planId === 'pro' ? 30 : 15,
-            current_period_start: periodStart,
-            current_period_end: periodEnd,
+            current_period_start: periodStart.toISOString(),
+            current_period_end: periodEnd.toISOString(),
             cancel_at_period_end: cancelAtPeriodEnd
           }, { onConflict: 'user_id' })
           if (upsertError) {
@@ -113,8 +113,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .update({
               stripe_subscription_id: sub.id,
               status: statusMap[sub.status] || 'active',
-              current_period_start: new Date(sub.current_period_start * 1000),
-              current_period_end: new Date(sub.current_period_end * 1000),
+              current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
+              current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
               cancel_at_period_end: sub.cancel_at_period_end ?? false
             })
             .eq('stripe_customer_id', customerId)

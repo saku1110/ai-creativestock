@@ -64,7 +64,7 @@ function App() {
   const LOADER_FAILSAFE_MS = 12000;
 
   // Public pages that don't require authentication
-  const PUBLIC_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
+  const PUBLIC_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing', 'payment-success', 'payment-cancel'];
   const isPublicPage = (page?: string | null) => {
     if (!page) {
       return true;
