@@ -847,24 +847,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
         await downloadFileFromUrl(result.downloadUrl, getNextDownloadFilename(result.downloadUrl));
       }
 
-      // 成功時のUI更新（初回ダウンロードの場合のみカウントを増やす）
+      // 成功時のUI更新（APIから返されたdownloadCountを使用、またはローカルでインクリメント）
       if (!result.alreadyDownloaded) {
+        const newDownloadCount = result.downloadCount;
         setVideos((prev) =>
           prev.map((entry) =>
             entry.id === video.id
-              ? { ...entry, download_count: entry.download_count + 1 }
+              ? { ...entry, download_count: newDownloadCount ?? entry.download_count + 1 }
               : entry
           )
         );
         setSelectedVideoForModal((prev) =>
           prev && prev.id === video.id
-            ? { ...prev, download_count: prev.download_count + 1 }
+            ? { ...prev, download_count: newDownloadCount ?? prev.download_count + 1 }
             : prev
         );
+        console.log('[Dashboard] ダウンロードカウント更新:', newDownloadCount);
+        recordDownload();  // 初回ダウンロード時のみ月間カウントを増やす
       } else {
         console.log('[Dashboard] 既にダウンロード済みのため、カウントを更新しない');
       }
-      recordDownload();
       await refreshUserData();
     } catch (error) {
       console.error('ダウンロードエラー:', error);
@@ -1347,6 +1349,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
           onNavigateToPricing={handleUpgradeClick}
           isFavorited={userFavorites.has(selectedVideoForModal.id)}
           onToggleFavorite={toggleFavorite}
+          isDownloading={downloadingVideos.has(selectedVideoForModal.id)}
         />
       )}
     </div>

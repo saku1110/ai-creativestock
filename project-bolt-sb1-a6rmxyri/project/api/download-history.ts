@@ -87,7 +87,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.warn('increment_download_count RPC error (non-fatal):', rpcError);
       }
 
-      return res.status(200).json({ success: true, alreadyDownloaded: false });
+      // 更新後のdownload_countを取得
+      const { data: videoData } = await supabaseAdmin
+        .from('video_assets')
+        .select('download_count')
+        .eq('id', videoId)
+        .single();
+
+      return res.status(200).json({
+        success: true,
+        alreadyDownloaded: false,
+        downloadCount: videoData?.download_count ?? null
+      });
     }
 
     return res.status(400).json({ error: 'Invalid action. Use: list, usage, or record' });

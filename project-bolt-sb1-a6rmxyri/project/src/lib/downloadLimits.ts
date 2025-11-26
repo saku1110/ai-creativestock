@@ -297,6 +297,7 @@ export class DownloadLimitManager {
     downloadUrl?: string;
     usage?: DownloadUsage;
     alreadyDownloaded?: boolean;
+    downloadCount?: number;
   }> {
     try {
       // ダウンロード権限をチェック
@@ -324,6 +325,7 @@ export class DownloadLimitManager {
 
       // サーバーAPI経由でダウンロード履歴を記録（RLSをバイパス）
       let alreadyDownloaded = false;
+      let downloadCount: number | undefined;
       try {
         const recordResp = await fetch(`/api/download-history?userId=${userId}&videoId=${videoId}&action=record`, {
           method: 'POST'
@@ -340,6 +342,7 @@ export class DownloadLimitManager {
         }
 
         alreadyDownloaded = recordResult.alreadyDownloaded || false;
+        downloadCount = recordResult.downloadCount;
 
         if (alreadyDownloaded) {
           console.log('[downloadLimits] 既にダウンロード済みの動画のため、カウントをスキップ');
@@ -362,7 +365,8 @@ export class DownloadLimitManager {
         success: true,
         downloadUrl: originalUrl,
         usage: updatedUsage || undefined,
-        alreadyDownloaded
+        alreadyDownloaded,
+        downloadCount
       };
     } catch (error) {
       console.error('ダウンロード実行エラー:', error);

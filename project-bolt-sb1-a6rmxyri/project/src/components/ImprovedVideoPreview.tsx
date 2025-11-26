@@ -26,6 +26,7 @@ interface ImprovedVideoPreviewProps {
   onNavigateToPricing?: () => void;
   isFavorited?: boolean;
   onToggleFavorite?: (videoId: string) => Promise<void> | void;
+  isDownloading?: boolean;
 }
 
 const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
@@ -35,7 +36,8 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
   onDownload,
   onNavigateToPricing,
   isFavorited: externalFavorited,
-  onToggleFavorite
+  onToggleFavorite,
+  isDownloading = false
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -361,13 +363,18 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
               <div className="flex gap-3 max-w-md mx-auto">
                 <button
                   onClick={() => onDownload && onDownload(video)}
-                  disabled={!canDownload || remainingDownloads <= 0}
+                  disabled={!canDownload || remainingDownloads <= 0 || isDownloading}
                   className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-xl font-bold transition-all ${
+                    isDownloading ? 'bg-cyan-300 text-black cursor-wait' :
                     remainingDownloads > 0 ? 'bg-cyan-400 hover:bg-cyan-500 text-black' : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                   }`}
                 >
-                  <Download className="w-5 h-5" />
-                  <span>ダウンロード</span>
+                  {isDownloading ? (
+                    <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Download className="w-5 h-5" />
+                  )}
+                  <span>{isDownloading ? '取得中...' : 'ダウンロード'}</span>
                 </button>
 
                 <button
