@@ -55,11 +55,46 @@ interface UserProviderProps {
   initialUser?: User | null;
 }
 
+// キャッシュキー
+const SUBSCRIPTION_CACHE_KEY = 'ai-creative-stock-subscription-cache';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5分間有効
+
+// キャッシュからsubscriptionを取得
+const getCachedSubscription = (): UserSubscription | null => {
+  try {
+    const cached = localStorage.getItem(SUBSCRIPTION_CACHE_KEY);
+    if (!cached) return null;
+    const { data, timestamp } = JSON.parse(cached);
+    // キャッシュが有効期限内かチェック
+    if (Date.now() - timestamp < CACHE_TTL_MS) {
+      console.log(`${LOG_TAG} loaded subscription from cache`);
+      return data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+// subscriptionをキャッシュに保存
+const setCachedSubscription = (data: UserSubscription | null) => {
+  try {
+    if (data) {
+      localStorage.setItem(SUBSCRIPTION_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+    } else {
+      localStorage.removeItem(SUBSCRIPTION_CACHE_KEY);
+    }
+  } catch {
+    // localStorage unavailable
+  }
+};
+
 export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
   console.log(`${LOG_TAG} provider render`, { hasInitialUser: !!initialUser });
   const [user, setUser] = useState<User | null>(initialUser ?? null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [subscription, setSubscription] = useState<UserSubscription | null>(null);
+  // 初期値としてキャッシュから読み込み（即座に表示）
+  const [subscription, setSubscription] = useState<UserSubscription | null>(() => getCachedSubscription());
   const [monthlyDownloads, setMonthlyDownloads] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
@@ -191,6 +226,8 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
           setSubscription(null);
           setMonthlyDownloads(0);
           setLoading(false);
+          // ユーザーがいない場合はキャッシュもクリア
+          setCachedSubscription(null);
           return;
         }
 
@@ -323,7 +360,10 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
 
         if (isMounted) {
           if (profileData) setProfile(profileData);
-          setSubscription(resolveTestSubscription(subscriptionData));
+          const resolvedSub = resolveTestSubscription(subscriptionData);
+          setSubscription(resolvedSub);
+          // キャッシュに保存（次回ロード時に即座に表示）
+          setCachedSubscription(resolvedSub);
           if (typeof downloadCount === 'number') {
             setMonthlyDownloads((prev) => Math.max(prev, downloadCount));
           }
@@ -353,6 +393,8 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
         setSubscription(null);
         setMonthlyDownloads(0);
         setLoading(false);
+        // ログアウト時にキャッシュもクリア
+        setCachedSubscription(null);
       }
     });
     authSubscription = authSub;
@@ -390,14 +432,18 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
           const json = await resp.json();
           console.log('[useUser] syncSubscription via server API', json.subscription);
           if (isActive) {
-            setSubscription(resolveTestSubscription(json.subscription ?? null));
+            const resolvedSub = resolveTestSubscription(json.subscription ?? null);
+            setSubscription(resolvedSub);
+            setCachedSubscription(resolvedSub);
           }
         } else {
           // フォールバック: Supabaseクライアントを使用
           console.warn('[useUser] syncSubscription server API failed, using fallback');
           const { data } = await database.getUserSubscription(user.id);
           if (isActive) {
-            setSubscription(resolveTestSubscription(data));
+            const resolvedSub = resolveTestSubscription(data);
+            setSubscription(resolvedSub);
+            setCachedSubscription(resolvedSub);
           }
         }
       } catch (error) {
