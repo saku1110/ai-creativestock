@@ -211,10 +211,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               const interval = firstItem?.price?.recurring?.interval
               const monthlyAmount = interval === 'year' ? Math.round(priceAmount / 12) : priceAmount
 
-              // 月額料金でプラン判定: 14800=standard, 29800=pro, 49800+=business
+              // 月額料金でプラン判定（年額換算後）
+              // standard: 14800/月 or 9800/月(年額) → <= 15000
+              // pro: 29800/月 or 19800/月(年額) → <= 25000
+              // business: 49800/月 or 29800/月(年額) → > 25000
               if (monthlyAmount <= 15000) {
                 planId = 'standard'
-              } else if (monthlyAmount <= 30000) {
+              } else if (monthlyAmount <= 25000) {
                 planId = 'pro'
               } else {
                 planId = 'business'
