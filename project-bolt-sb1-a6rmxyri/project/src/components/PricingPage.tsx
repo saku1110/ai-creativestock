@@ -169,15 +169,10 @@ const PricingPage: React.FC<PricingPageProps> = ({ onPageChange, isNewUser = fal
       return;
     }
 
-    if (!user) {
-      alert('ログインが必要です');
-      return;
-    }
-
     setLoading(planId);
 
     try {
-      // 既存会員の場合はCustomer Portalにリダイレクト
+      // 既存会員の場合はCustomer Portalにリダイレクト（userがnullでもsubscriptionがあればOK）
       if (hasActiveSubscription && subscription?.stripe_customer_id) {
         const { url, error } = await stripeService.createCustomerPortalSession(
           subscription.stripe_customer_id,
@@ -195,7 +190,12 @@ const PricingPage: React.FC<PricingPageProps> = ({ onPageChange, isNewUser = fal
         }
       }
 
-      // 新規会員は通常のチェックアウト
+      // 新規会員は通常のチェックアウト（ここでuserが必要）
+      if (!user) {
+        alert('ログインが必要です');
+        return;
+      }
+
       const result = await stripeService.subscribeToPlan(
         planId,
         billingPeriod === 'yearly' ? 'yearly' : 'monthly',
