@@ -1053,6 +1053,28 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       return getCreatedAtTime(b.created_at) - getCreatedAtTime(a.created_at);
     });
 
+    // 「すべて」カテゴリ選択時または絞り込み条件設定時はカテゴリを交互に配置
+    if (selectedCategories.has('all') || selectedCategories.size === 0) {
+      // カテゴリごとにグループ化
+      const buckets: Record<string, VideoAsset[]> = {};
+      for (const video of sorted) {
+        const cat = video.category || 'uncategorized';
+        if (!buckets[cat]) buckets[cat] = [];
+        buckets[cat].push(video);
+      }
+
+      // インターリーブ（交互配置）
+      const categoryArrays = Object.values(buckets);
+      const interleaved: VideoAsset[] = [];
+      const maxLen = Math.max(...categoryArrays.map(arr => arr.length), 0);
+      for (let i = 0; i < maxLen; i++) {
+        for (const arr of categoryArrays) {
+          if (arr[i]) interleaved.push(arr[i]);
+        }
+      }
+      return interleaved;
+    }
+
     return sorted;
   }, [videos, selectedCategories, selectedAges, selectedGenders, showOnlyFavorites, userFavorites, sortBy, debouncedSearchQuery]);
   const spotlightVideos = useMemo(() => filteredVideos.slice(0, 12), [filteredVideos]);
@@ -1072,10 +1094,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       }
     }
 
-    const mixed = Object.values(buckets).flat();
-    mixed.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    // カテゴリごとの配列をインターリーブ（交互配置）して混ぜる
+    const categoryArrays = Object.values(buckets);
+    const interleaved: VideoAsset[] = [];
+    const maxLen = Math.max(...categoryArrays.map(arr => arr.length), 0);
+    for (let i = 0; i < maxLen; i++) {
+      for (const arr of categoryArrays) {
+        if (arr[i]) interleaved.push(arr[i]);
+      }
+    }
 
-    return mixed.slice(0, 12);
+    return interleaved.slice(0, 12);
   }, [videos]);
 
   return (
