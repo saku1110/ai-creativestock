@@ -11,10 +11,18 @@ export async function fetchSupabaseVideos(params: {
   if (params.prefix) q.set('prefix', params.prefix);
   if (params.limit) q.set('limit', String(params.limit));
   if (params.expires) q.set('expires', String(params.expires));
-  try { const res = await fetch(`/api/list-videos?${q.toString()}`, { cache: 'no-store' });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return (data.items || []) as SignedVideoItem[]; } catch { return []; }
+  try {
+    const res = await fetch(`/api/list-videos?${q.toString()}`, { cache: 'no-store' });
+    if (!res.ok) {
+      console.error('fetchSupabaseVideos failed:', res.status, res.statusText);
+      return [];
+    }
+    const data = await res.json();
+    return (data.items || []) as SignedVideoItem[];
+  } catch (e) {
+    console.error('fetchSupabaseVideos error:', e);
+    return [];
+  }
 }
 
 export type SignedImageItem = { path: string; url: string };

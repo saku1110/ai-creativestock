@@ -17,6 +17,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   const [isLiked, setIsLiked] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [videoError, setVideoError] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -46,6 +47,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
     setIsInlinePlaying(false);
     setShouldInlinePlay(false);
     setHasFirstFrame(false);
+    setVideoError(false);
   }, [video.videoUrl]);
  
   useEffect(() => {
@@ -225,7 +227,7 @@ const downloadButtonState = getDownloadButtonState();
             }}
           />
 
-          {video.videoUrl && (
+          {video.videoUrl && !videoError && (
             <video
               ref={videoRef}
               muted
@@ -247,6 +249,10 @@ const downloadButtonState = getDownloadButtonState();
               onPause={() => {
                 setIsInlinePlaying(false);
                 setHasFirstFrame(false);
+              }}
+              onError={() => {
+                console.warn('Video load error:', video.videoUrl);
+                setVideoError(true);
               }}
               onContextMenu={(e) => { e.preventDefault(); return false; }}
             />

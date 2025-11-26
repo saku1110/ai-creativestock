@@ -35,24 +35,6 @@ const buildUniqueGalleryList = (...sources: GalleryVideo[][]): GalleryVideo[] =>
   return result;
 };
 
-const FALLBACK_GALLERY_VIDEOS: GalleryVideo[] = [
-  { id: 'sample-1', title: 'Sample 1', src: '/videos/sample1.mp4' },
-  { id: 'sample-2', title: 'Sample 2', src: '/videos/sample2.mp4' },
-  { id: 'sample-3', title: 'Sample 3', src: '/videos/sample3.mp4' },
-  { id: 'sample-4', title: 'Sample 4', src: '/videos/sample4.mp4' },
-  { id: 'sample-5', title: 'Sample 5', src: '/videos/sample5.mp4' },
-  { id: 'sample-6', title: 'Sample 6', src: '/videos/sample1.mp4' },
-  { id: 'sample-7', title: 'Sample 7', src: '/videos/sample2.mp4' },
-  { id: 'sample-8', title: 'Sample 8', src: '/videos/sample3.mp4' },
-  { id: 'sample-9', title: 'Sample 9', src: '/videos/sample4.mp4' },
-  { id: 'sample-10', title: 'Sample 10', src: '/videos/sample5.mp4' },
-  { id: 'sample-11', title: 'Sample 11', src: '/videos/sample1.mp4' },
-  { id: 'sample-12', title: 'Sample 12', src: '/videos/sample2.mp4' },
-  { id: 'sample-13', title: 'Sample 13', src: '/videos/sample3.mp4' },
-  { id: 'sample-14', title: 'Sample 14', src: '/videos/sample4.mp4' },
-  { id: 'sample-15', title: 'Sample 15', src: '/videos/sample5.mp4' },
-  { id: 'sample-16', title: 'Sample 16', src: '/videos/sample1.mp4' }
-];
 
 const LOCAL_GALLERY_VIDEOS: GalleryVideo[] = localLpGridVideos.map(video => ({
   id: video.id,
@@ -92,13 +74,22 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
   const GALLERY_VIDEOS: GalleryVideo[] = useMemo(() => {
     return buildUniqueGalleryList(
       remoteVideos || [],
-      LOCAL_GALLERY_VIDEOS,
-      FALLBACK_GALLERY_VIDEOS
+      LOCAL_GALLERY_VIDEOS
     );
   }, [remoteVideos]);
 
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
+  const [errorVideos, setErrorVideos] = useState<Set<string>>(new Set());
   const refs = useRef<Record<string, HTMLVideoElement | null>>({});
+
+  const handleVideoError = (videoId: string) => {
+    setErrorVideos(prev => new Set(prev).add(videoId));
+  };
+
+  const validVideos = useMemo(() =>
+    GALLERY_VIDEOS.filter(v => !errorVideos.has(v.id)),
+    [GALLERY_VIDEOS, errorVideos]
+  );
 
   const play = async (id: string) => {
     const el = refs.current[id];
@@ -120,7 +111,7 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
     <section className="py-20 bg-gradient-to-b from-black to-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 mb-12">
-          {GALLERY_VIDEOS.map((video) => (
+          {validVideos.map((video) => (
             <div
               key={video.id}
               className="cursor-pointer"
@@ -129,7 +120,6 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
               onTouchStart={() => { if (hoveredVideo === video.id) { stop(video.id); setHoveredVideo(null); } else { setHoveredVideo(video.id); play(video.id); } }}
             >
               <div className="relative aspect-[9/16] bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden border border-gray-700 transition-all duration-300 shadow-2xl">
-                {/* 動画（最初のフレームがサムネイルとして表示） */}
                 <video
                   ref={(el) => { refs.current[video.id] = el; }}
                   src={video.src}
@@ -137,6 +127,7 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
                   muted
                   playsInline
                   preload="metadata"
+                  onError={() => handleVideoError(video.id)}
                 />
               </div>
             </div>

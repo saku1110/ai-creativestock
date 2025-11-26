@@ -10,32 +10,7 @@ const VideoSamplesSection: React.FC<VideoSamplesProps> = ({ onAuthRequest, onCon
   const [hoveredVideo, setHoveredVideo] = useState<number | null>(null);
   const [playingVideo, setPlayingVideo] = useState<number | null>(null);
 
-  const sampleVideos = [
-    {
-      video: '/videos/sample1.mp4'
-    },
-    {
-      video: '/videos/sample2.mp4'
-    },
-    {
-      video: '/videos/sample3.mp4'
-    },
-    {
-      video: '/videos/sample4.mp4'
-    },
-    {
-      video: '/videos/sample5.mp4'
-    },
-    {
-      video: '/videos/sample6.mp4'
-    },
-    {
-      video: '/videos/sample7.mp4'
-    },
-    {
-      video: '/videos/sample8.mp4'
-    }
-  ];
+  const sampleVideos: { video: string }[] = [];
 
   const qualityFeatures = [
     '4K対応の鮮明な映像',
@@ -68,6 +43,7 @@ const VideoSamplesSection: React.FC<VideoSamplesProps> = ({ onAuthRequest, onCon
 
 
         {/* 動画サンプルグリッド */}
+        {sampleVideos.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-16 sm:mb-20">
           {sampleVideos.map((videoData, index) => (
             <div key={index} className="group relative">
@@ -136,6 +112,7 @@ const VideoSamplesSection: React.FC<VideoSamplesProps> = ({ onAuthRequest, onCon
             </div>
           ))}
         </div>
+        )}
 
         {/* 品質保証 */}
         <div className="glass-effect rounded-3xl p-8 sm:p-12 border border-cyan-600/30 shadow-2xl bg-gray-800/50">

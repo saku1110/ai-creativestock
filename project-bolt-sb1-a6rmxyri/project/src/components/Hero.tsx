@@ -14,17 +14,7 @@ type HeroVideoItem = {
   src: string;
 };
 
-const FALLBACK_HERO_VIDEOS: HeroVideoItem[] = [
-  { id: 'sample-1', title: 'Sample 1', src: '/videos/sample1.mp4' },
-  { id: 'sample-2', title: 'Sample 2', src: '/videos/sample2.mp4' },
-  { id: 'sample-3', title: 'Sample 3', src: '/videos/sample3.mp4' },
-  { id: 'sample-4', title: 'Sample 4', src: '/videos/sample4.mp4' },
-  { id: 'sample-5', title: 'Sample 5', src: '/videos/sample5.mp4' }
-];
-
-const LOCAL_HERO_VIDEOS: HeroVideoItem[] = localHeroVideos.length > 0
-  ? localHeroVideos.map(video => ({ id: video.id, title: video.title, src: video.url }))
-  : FALLBACK_HERO_VIDEOS;
+const LOCAL_HERO_VIDEOS: HeroVideoItem[] = localHeroVideos.map(video => ({ id: video.id, title: video.title, src: video.url }));
 
 const playSilently = (videoEl: HTMLVideoElement | null) => {
   if (!videoEl) return;
