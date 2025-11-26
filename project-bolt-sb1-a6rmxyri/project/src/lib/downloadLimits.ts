@@ -74,7 +74,7 @@ export class DownloadLimitManager {
         params.set('_t', Date.now().toString()); // キャッシュバスター
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // モバイル回線対応で15秒に延長
 
         console.log('[downloadLimits] fetching subscription via API for userId:', userId);
         const resp = await fetch(`/api/subscription-info?${params.toString()}`, {
@@ -290,8 +290,11 @@ export class DownloadLimitManager {
 
   /**
    * ダウンロード実行とカウンターの更新
+   * @param userId ユーザーID
+   * @param videoId 動画ID
+   * @param fileUrl オプション: 動画URL（ローカル動画用フォールバック）
    */
-  static async executeDownload(userId: string, videoId: string): Promise<{
+  static async executeDownload(userId: string, videoId: string, fileUrl?: string): Promise<{
     success: boolean;
     error?: string;
     downloadUrl?: string;
@@ -309,14 +312,22 @@ export class DownloadLimitManager {
         };
       }
 
-      // 動画情報を取得
+      // 動画情報を取得（Supabaseから取得を試み、失敗した場合は渡されたfileUrlを使用）
+      let videoFileUrl: string | undefined = fileUrl;
+
       const { data: video, error: videoError } = await supabase
         .from('video_assets')
         .select('file_url, title')
         .eq('id', videoId)
         .single();
 
-      if (videoError || !video) {
+      if (video && video.file_url) {
+        videoFileUrl = video.file_url;
+      }
+
+      // URLが取得できない場合はエラー
+      if (!videoFileUrl) {
+        console.error('[downloadLimits] 動画URLが見つかりません: videoError=', videoError, 'fileUrl=', fileUrl);
         return {
           success: false,
           error: '動画が見つかりません'
@@ -359,7 +370,7 @@ export class DownloadLimitManager {
       const updatedUsage = await this.getUserDownloadUsage(userId);
 
       // ウォーターマーク付きURLをオリジナルURLに変換
-      const originalUrl = convertToOriginalUrl(video.file_url);
+      const originalUrl = convertToOriginalUrl(videoFileUrl);
 
       return {
         success: true,
@@ -634,7 +645,7 @@ export const useDownloadLimits = (userId: string) => {
     return await DownloadLimitManager.checkDownloadPermission(userId, videoId);
   }, [userId]);
 
-  const executeDownload = React.useCallback(async (videoId: string) => {
+  const executeDownload = React.useCallback(async (videoId: string, fileUrl?: string) => {
     console.log('[useDownloadLimits] executeDownload called, userId:', userId, 'videoId:', videoId);
     if (!userId) {
       console.log('[useDownloadLimits] userId is empty, returning early');
@@ -642,7 +653,7 @@ export const useDownloadLimits = (userId: string) => {
     }
 
     console.log('[useDownloadLimits] calling DownloadLimitManager.executeDownload');
-    const result = await DownloadLimitManager.executeDownload(userId, videoId);
+    const result = await DownloadLimitManager.executeDownload(userId, videoId, fileUrl);
 
     if (result.success) {
       // alreadyDownloadedがfalse（初回ダウンロード）の場合のみローカルSetに追加

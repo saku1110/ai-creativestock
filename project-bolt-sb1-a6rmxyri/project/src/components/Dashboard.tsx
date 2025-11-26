@@ -878,8 +878,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
 
     try {
       // DownloadLimitManager経由でダウンロード（サブスクリプション・履歴・制限を一括管理）
+      // ローカル動画用にfile_urlをフォールバックとして渡す
       console.log('[Dashboard] calling DownloadLimitManager.executeDownload');
-      const result = await DownloadLimitManager.executeDownload(effectiveUserId, video.id);
+      const result = await DownloadLimitManager.executeDownload(effectiveUserId, video.id, video.file_url);
       console.log('[Dashboard] executeDownload result:', result);
 
       if (!result.success) {
