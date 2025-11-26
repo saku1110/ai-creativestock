@@ -1376,6 +1376,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                         onToggleFavorite={toggleFavorite}
                         onBack={() => setCurrentPage('dashboard')}
                         downloadedVideoIds={downloadedVideoIds}
+                        canDownload={canDownloadVideos}
+                        limitReached={limitReached}
                       />
                     )}
 
@@ -1419,6 +1421,8 @@ const CategoryDetailPage: React.FC<{
   onToggleFavorite: (videoId: string) => void;
   onBack: () => void;
   downloadedVideoIds: Set<string>;
+  canDownload: boolean;
+  limitReached?: boolean;
 }> = ({
   selectedCategories,
   videos,
@@ -1430,7 +1434,9 @@ const CategoryDetailPage: React.FC<{
   onDownload,
   onToggleFavorite,
   onBack,
-  downloadedVideoIds
+  downloadedVideoIds,
+  canDownload,
+  limitReached
 }) => {
   const [currentPageNum, setCurrentPageNum] = useState(1);
   const videosPerPage = 20; // 5×4 = 20枚
@@ -1532,6 +1538,8 @@ const CategoryDetailPage: React.FC<{
               onDownload={() => onDownload(video)}
               onToggleFavorite={() => onToggleFavorite(video.id)}
               isAlreadyDownloaded={downloadedVideoIds.has(video.id)}
+              canDownload={canDownload}
+              limitReached={limitReached}
             />
           </div>
         ))}
