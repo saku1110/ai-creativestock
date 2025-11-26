@@ -271,9 +271,11 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
             };
 
             let subscriptionData = await tryServerApi();
+            console.log('[useUser] tryServerApi result:', subscriptionData);
 
             // Fallback to Supabase client if API not available or no token
             if (!subscriptionData) {
+              console.log('[useUser] API returned null, trying Supabase client fallback');
               const subscriptionResult = await database.getUserSubscription(effectiveUser!.id);
               subscriptionData = subscriptionResult?.data ?? null;
               console.log('[useUser] subscriptionResult via supabase', {
@@ -282,6 +284,7 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
               });
             }
 
+            console.log('[useUser] final subscriptionData:', subscriptionData);
             return subscriptionData;
           } catch (subErr) {
             console.error(`${LOG_TAG} getUserSubscription exception`, subErr);

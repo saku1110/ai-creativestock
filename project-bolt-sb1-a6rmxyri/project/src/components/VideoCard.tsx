@@ -143,7 +143,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
     if (!isSubscribed) return { disabled: true, text: '要サブスクリプション', color: 'bg-gray-600' };
     if (isDownloading) return { disabled: true, text: 'ダウンロード中...', color: 'bg-blue-600' };
     if (usage?.isLimitExceeded) return { disabled: true, text: '制限到達', color: 'bg-red-600' };
-    if (isAlreadyDownloaded) return { disabled: false, text: 'ダウンロード済み', color: 'bg-gray-500 hover:bg-gray-600' };
+    if (isAlreadyDownloaded) return { disabled: false, text: '再度ダウンロード', color: 'bg-gray-500 hover:bg-gray-600' };
     return { disabled: false, text: 'ダウンロード', color: 'bg-green-600 hover:bg-green-700' };
   };
 const downloadButtonState = getDownloadButtonState();
