@@ -911,6 +911,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       } else {
         console.log('[Dashboard] 既にダウンロード済みのため、カウントを更新しない');
       }
+      // ダウンロード済みリストを更新（「再度ダウンロード」ボタン表示用）
+      setDownloadedVideoIds(prev => new Set(prev).add(video.id));
       await refreshUserData();
     } catch (error) {
       console.error('ダウンロードエラー:', error);
