@@ -185,7 +185,7 @@ const MyPage: React.FC<MyPageProps> = ({ onPageChange }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <button
-              onClick={() => onPageChange('pricing')}
+              onClick={handleManageSubscription}
               className="cyber-button text-white py-3 px-4 rounded-lg font-bold transition-all flex items-center justify-center space-x-2"
             >
               <Settings className="w-4 h-4" />
