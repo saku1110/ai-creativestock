@@ -263,29 +263,6 @@ function App() {
       console.error('Profile creation error:', error);
     }
 
-    try {
-      await supabase?.functions?.invoke?.('post-registration-setup', {
-        body: { userId: user.id, email: user.email }
-      });
-    } catch (error) {
-      console.warn('post-registration-setup skipped', error);
-    }
-
-    try {
-      await supabase?.functions?.invoke?.('send-welcome-email', {
-        body: { userId: user.id, email: user.email }
-      });
-    } catch (error) {
-      console.warn('send-welcome-email skipped', error);
-    }
-
-    try {
-      await supabase?.functions?.invoke?.('grant-trial-plan', {
-        body: { userId: user.id }
-      });
-    } catch (error) {
-      console.warn('grant-trial-plan skipped', error);
-    }
   };
 
   const handleAuthenticatedSession = async (user: User | null, options: { modeHint?: string | null } = {}) => {
@@ -522,26 +499,46 @@ function App() {
     };
   }, []);
 
-  // フォールバック処琁E 認証完亁E��にフラグを�E確誁E
+  // フォールバック処理: 認証完了後にフラグを確認
   // ※ 'browse'意図の場合はダッシュボードへの遷移は正常なので、このフォールバックは発動しない
+  // ※ サブスクリプションがある場合もリダイレクトしない
   useEffect(() => {
-    // registrationIntentRef.currentがnullでない場合は意図的な遷移なのでスキップ
-    const intentIsSet = registrationIntentRef.current !== null;
-    if (isLoggedIn && currentPage === 'dashboard' && (isNewUserRegistration || isNewUserRegistrationRef.current) && !intentIsSet) {
-      console.log('=== フォールバック処琁E��衁E===');
-      console.log('新規ユーザーがダチE��ュボ�EドにぁE��ため料��プランペ�Eジに修正');
-      console.log('フラグ状慁E', {
-        isNewUserRegistration,
-        isNewUserRef: isNewUserRegistrationRef.current,
-        currentPage,
-        registrationIntent: registrationIntentRef.current
-      });
-      setCurrentPage('pricing');
-      // フラグをリセチE��
-      isNewUserRegistrationRef.current = false;
-      setIsNewUserRegistration(false);
-    }
-  }, [isLoggedIn, currentPage, isNewUserRegistration]);
+    const checkAndRedirect = async () => {
+      // registrationIntentRef.currentがnullでない場合は意図的な遷移なのでスキップ
+      const intentIsSet = registrationIntentRef.current !== null;
+      if (isLoggedIn && currentPage === 'dashboard' && (isNewUserRegistration || isNewUserRegistrationRef.current) && !intentIsSet) {
+        // サブスクリプション状態を確認
+        if (userData?.id) {
+          try {
+            const subscription = await database.getUserSubscription(userData.id);
+            if (subscription?.status === 'active' || subscription?.status === 'trialing') {
+              // 有効なサブスクリプションがある場合はリダイレクトしない
+              console.log('サブスクリプションが有効なためダッシュボードに留まります', { status: subscription.status });
+              isNewUserRegistrationRef.current = false;
+              setIsNewUserRegistration(false);
+              return;
+            }
+          } catch (error) {
+            console.warn('サブスクリプション確認エラー:', error);
+          }
+        }
+
+        console.log('=== フォールバック処理発動 ===');
+        console.log('新規ユーザーがダッシュボードにいるため料金プランページに修正');
+        console.log('フラグ状態:', {
+          isNewUserRegistration,
+          isNewUserRef: isNewUserRegistrationRef.current,
+          currentPage,
+          registrationIntent: registrationIntentRef.current
+        });
+        setCurrentPage('pricing');
+        // フラグをリセット
+        isNewUserRegistrationRef.current = false;
+        setIsNewUserRegistration(false);
+      }
+    };
+    checkAndRedirect();
+  }, [isLoggedIn, currentPage, isNewUserRegistration, userData]);
 
 
   const handlePageChange = async (page: string) => {
