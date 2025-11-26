@@ -941,6 +941,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       const next = new Set<string>();
       if (categoryId === 'all') {
         next.add('all');
+        setCurrentPage('dashboard'); // ダッシュボードトップに戻る
       } else {
         next.add(categoryId);
       }
