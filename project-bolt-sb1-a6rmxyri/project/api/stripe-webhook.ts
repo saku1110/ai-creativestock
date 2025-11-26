@@ -109,19 +109,81 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             incomplete_expired: 'canceled'
           }
 
+          // プラン情報をSubscriptionのitemsから取得
+          let planId: string | null = null
+          if (sub.items?.data?.length > 0) {
+            const priceId = sub.items.data[0]?.price?.id
+            const productId = sub.items.data[0]?.price?.product
+            const productIdStr = typeof productId === 'string' ? productId : productId?.id
+
+            // price_id または product metadata からプランを判定
+            // Stripe Dashboard で設定した metadata.plan_id を優先
+            const priceMetadata = sub.items.data[0]?.price?.metadata
+            if (priceMetadata?.plan_id) {
+              planId = priceMetadata.plan_id
+            } else if (priceId) {
+              // 環境変数のprice_idから逆引き
+              const priceStandard = process.env.VITE_PRICE_STANDARD_MONTHLY || process.env.VITE_PRICE_STANDARD_YEARLY
+              const pricePro = process.env.VITE_PRICE_PRO_MONTHLY || process.env.VITE_PRICE_PRO_YEARLY
+              const priceBusiness = process.env.VITE_PRICE_BUSINESS_MONTHLY || process.env.VITE_PRICE_BUSINESS_YEARLY || process.env.VITE_PRICE_ENTERPRISE_MONTHLY || process.env.VITE_PRICE_ENTERPRISE_YEARLY
+
+              if (priceId.includes('Standard') || priceId === priceStandard) {
+                planId = 'standard'
+              } else if (priceId.includes('Pro') || priceId === pricePro) {
+                planId = 'pro'
+              } else if (priceId.includes('Business') || priceId.includes('Enterprise') || priceId === priceBusiness) {
+                planId = 'business'
+              }
+            }
+
+            // product を取得してmetadataを確認
+            if (!planId && productIdStr) {
+              try {
+                const product = await stripe.products.retrieve(productIdStr)
+                if (product.metadata?.plan_id) {
+                  planId = product.metadata.plan_id
+                } else if (product.name) {
+                  const nameLower = product.name.toLowerCase()
+                  if (nameLower.includes('standard') || nameLower.includes('スタンダード')) {
+                    planId = 'standard'
+                  } else if (nameLower.includes('pro') || nameLower.includes('プロ')) {
+                    planId = 'pro'
+                  } else if (nameLower.includes('business') || nameLower.includes('ビジネス') || nameLower.includes('enterprise') || nameLower.includes('エンタープライズ')) {
+                    planId = 'business'
+                  }
+                }
+              } catch (err) {
+                console.error('Failed to retrieve product', err)
+              }
+            }
+          }
+
+          console.log('subscription update detected', { customerId, planId, status: sub.status, items: sub.items?.data?.length })
+
+          // 更新データを構築
+          const updateData: Record<string, any> = {
+            stripe_subscription_id: sub.id,
+            status: statusMap[sub.status] || 'active',
+            current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
+            current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+            cancel_at_period_end: sub.cancel_at_period_end ?? false
+          }
+
+          // プランが判明した場合はプラン情報も更新
+          if (planId && ['standard', 'pro', 'business'].includes(planId)) {
+            updateData.plan = planId
+            updateData.monthly_download_limit = planId === 'business' ? 50 : planId === 'pro' ? 30 : 15
+          }
+
           const { error: updateError } = await supabaseAdmin.from('subscriptions')
-            .update({
-              stripe_subscription_id: sub.id,
-              status: statusMap[sub.status] || 'active',
-              current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
-              current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-              cancel_at_period_end: sub.cancel_at_period_end ?? false
-            })
+            .update(updateData)
             .eq('stripe_customer_id', customerId)
           if (updateError) {
             console.error('supabase subscriptions update error', updateError)
             throw updateError
           }
+
+          console.log('subscription update success', { customerId, planId, updateData })
 
           // checkout_sessions の状態更新
           if (data?.user_id) {
