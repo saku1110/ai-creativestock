@@ -205,14 +205,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.warn('WARNING: Could not determine planId from subscription items')
           }
 
-          console.log('subscription update detected', { customerId, planId, status: sub.status, items: sub.items?.data?.length })
+          console.log('subscription update detected', {
+            customerId,
+            planId,
+            status: sub.status,
+            items: sub.items?.data?.length,
+            current_period_start: sub.current_period_start,
+            current_period_end: sub.current_period_end
+          })
 
-          // 更新データを構築
+          // 更新データを構築（undefined対策: fallback値を使用）
+          const now = Math.floor(Date.now() / 1000)
+          const periodStart = sub.current_period_start || now
+          const periodEnd = sub.current_period_end || (now + 30 * 24 * 60 * 60)
+
           const updateData: Record<string, any> = {
             stripe_subscription_id: sub.id,
             status: statusMap[sub.status] || 'active',
-            current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
-            current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+            current_period_start: new Date(periodStart * 1000).toISOString(),
+            current_period_end: new Date(periodEnd * 1000).toISOString(),
             cancel_at_period_end: sub.cancel_at_period_end ?? false
           }
 
