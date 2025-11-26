@@ -94,9 +94,11 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
   const [user, setUser] = useState<User | null>(initialUser ?? null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   // 初期値としてキャッシュから読み込み（即座に表示）
-  const [subscription, setSubscription] = useState<UserSubscription | null>(() => getCachedSubscription());
+  const cachedSubscription = getCachedSubscription();
+  const [subscription, setSubscription] = useState<UserSubscription | null>(cachedSubscription);
   const [monthlyDownloads, setMonthlyDownloads] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
+  // キャッシュがあれば即座にloading=falseでUI表示
+  const [loading, setLoading] = useState(!cachedSubscription);
 
   const isTestEnv =
     import.meta.env.DEV ||
@@ -142,9 +144,12 @@ export const UserProvider = ({ children, initialUser }: UserProviderProps) => {
 
   useEffect(() => {
     let isMounted = true;
+    // キャッシュがある場合は短いタイムアウト（バックグラウンド更新用）
+    // キャッシュがない場合（初回ユーザー）は長いタイムアウト（API完了を待つ）
+    const timeoutMs = cachedSubscription ? 3000 : 10000;
     const loadingTimeout = setTimeout(() => {
       if (isMounted) setLoading(false);
-    }, 12000);
+    }, timeoutMs);
 
     const fetchUserData = async (providedUser?: User | null) => {
       console.log(`${LOG_TAG} fetchUserData start`, { providedUser: providedUser?.id });
