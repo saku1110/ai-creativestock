@@ -293,6 +293,9 @@ const ImprovedVideoPreview: React.FC<ImprovedVideoPreviewProps> = ({
                   muted={isMuted}
                   playsInline
                   loop
+                  onContextMenu={(e) => { e.preventDefault(); return false; }}
+                  controlsList="nodownload nofullscreen noremoteplayback"
+                  disablePictureInPicture
                 />
 
                 {showPlayButton && (

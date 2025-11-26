@@ -117,6 +117,9 @@ const HeroVideoCard: React.FC<HeroVideoCardProps> = ({ video, register, onReady 
           onCanPlay={() => onReady(video.src)}
           preload="metadata"
           loop
+          onContextMenu={(e) => { e.preventDefault(); return false; }}
+          controlsList="nodownload nofullscreen noremoteplayback"
+          disablePictureInPicture
         />
 
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />

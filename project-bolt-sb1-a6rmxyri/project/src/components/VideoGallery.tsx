@@ -128,6 +128,9 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
                   playsInline
                   preload="metadata"
                   onError={() => handleVideoError(video.id)}
+                  onContextMenu={(e) => { e.preventDefault(); return false; }}
+                  controlsList="nodownload nofullscreen noremoteplayback"
+                  disablePictureInPicture
                 />
               </div>
             </div>

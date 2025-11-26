@@ -117,7 +117,16 @@ const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
         <div className="flex-1 px-4 sm:px-6 py-4 flex flex-col gap-4 md:flex-row">
           <div className="flex-1 md:w-1/2 flex flex-col min-h-[0]">
             <div className="relative aspect-[9/16] bg-black rounded-2xl overflow-hidden flex-1 min-h-[220px]">
-              <video ref={videoRef} src={videoSource} className="w-full h-full object-contain" muted={isMuted} playsInline />
+              <video
+                ref={videoRef}
+                src={videoSource}
+                className="w-full h-full object-contain"
+                muted={isMuted}
+                playsInline
+                onContextMenu={(e) => { e.preventDefault(); return false; }}
+                controlsList="nodownload nofullscreen noremoteplayback"
+                disablePictureInPicture
+              />
 
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent px-3 py-2">
                 <input

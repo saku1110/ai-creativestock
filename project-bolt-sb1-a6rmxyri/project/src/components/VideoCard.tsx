@@ -5,6 +5,7 @@ import VideoPreviewModal from './VideoPreviewModal';
 import { useDownloadLimits } from '../lib/downloadLimits';
 import { useUser } from '../hooks/useUser';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
+import { useBlobUrl } from '../hooks/useBlobUrl';
 
 interface VideoCardProps {  minimal?: boolean; // LP�E�O�E��E��E�b�E�h�E�p�E�̊ȈՕ\�E��E�\n}
 
@@ -59,6 +60,9 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   const effectiveUserId = user?.id || (subscription as any)?.user_id || '';
   const { usage, executeDownload, checkDownload, warningMessage, isVideoDownloaded } = useDownloadLimits(effectiveUserId);
   const isAlreadyDownloaded = isVideoDownloaded(video.id);
+
+  // コンテンツ保護: Blob URLに変換して要素検査でファイル名を隠す
+  const protectedVideoUrl = useBlobUrl(video.videoUrl);
 
   const showDownloadStatus = useCallback((message: string) => {
     setDownloadStatus(message);
@@ -157,10 +161,10 @@ const downloadButtonState = getDownloadButtonState();
   const startInline = () => {
     if (!video.videoUrl) return;
 
-    // srcが未設定の場合は設定
+    // srcが未設定の場合は設定（Blob URLを優先使用してファイル名を隠す）
     const el = videoRef.current;
     if (el && !el.src) {
-      el.src = video.videoUrl;
+      el.src = protectedVideoUrl || video.videoUrl;
     }
 
     setShouldInlinePlay(true);
@@ -255,6 +259,8 @@ const downloadButtonState = getDownloadButtonState();
                 setVideoError(true);
               }}
               onContextMenu={(e) => { e.preventDefault(); return false; }}
+              controlsList="nodownload nofullscreen noremoteplayback"
+              disablePictureInPicture
             />
           )}
 
