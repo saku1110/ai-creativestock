@@ -111,28 +111,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           // プラン情報をSubscriptionのitemsから取得
           let planId: string | null = null
+
+          // デバッグ: subscription items の詳細をログ
+          console.log('subscription items debug', {
+            hasItems: !!sub.items?.data?.length,
+            itemsCount: sub.items?.data?.length || 0,
+            firstItem: sub.items?.data?.[0] ? {
+              priceId: sub.items.data[0]?.price?.id,
+              productId: sub.items.data[0]?.price?.product,
+              priceMetadata: sub.items.data[0]?.price?.metadata,
+              priceLookupKey: sub.items.data[0]?.price?.lookup_key,
+              priceNickname: sub.items.data[0]?.price?.nickname
+            } : null
+          })
+
           if (sub.items?.data?.length > 0) {
             const priceId = sub.items.data[0]?.price?.id
             const productId = sub.items.data[0]?.price?.product
             const productIdStr = typeof productId === 'string' ? productId : productId?.id
+            const priceLookupKey = sub.items.data[0]?.price?.lookup_key
+            const priceNickname = sub.items.data[0]?.price?.nickname
 
             // price_id または product metadata からプランを判定
             // Stripe Dashboard で設定した metadata.plan_id を優先
             const priceMetadata = sub.items.data[0]?.price?.metadata
             if (priceMetadata?.plan_id) {
               planId = priceMetadata.plan_id
+              console.log('planId from price metadata:', planId)
             } else if (priceId) {
               // 環境変数のprice_idから逆引き
               const priceStandard = process.env.VITE_PRICE_STANDARD_MONTHLY || process.env.VITE_PRICE_STANDARD_YEARLY
               const pricePro = process.env.VITE_PRICE_PRO_MONTHLY || process.env.VITE_PRICE_PRO_YEARLY
               const priceBusiness = process.env.VITE_PRICE_BUSINESS_MONTHLY || process.env.VITE_PRICE_BUSINESS_YEARLY || process.env.VITE_PRICE_ENTERPRISE_MONTHLY || process.env.VITE_PRICE_ENTERPRISE_YEARLY
 
-              if (priceId.includes('Standard') || priceId === priceStandard) {
+              console.log('price id matching debug', {
+                priceId,
+                priceStandard,
+                pricePro,
+                priceBusiness,
+                priceLookupKey,
+                priceNickname
+              })
+
+              // lookup_key や nickname からも判定を試みる
+              const lookupOrNickname = (priceLookupKey || priceNickname || '').toLowerCase()
+
+              if (priceId.includes('Standard') || priceId === priceStandard || lookupOrNickname.includes('standard')) {
                 planId = 'standard'
-              } else if (priceId.includes('Pro') || priceId === pricePro) {
+              } else if (priceId.includes('Pro') || priceId === pricePro || lookupOrNickname.includes('pro')) {
                 planId = 'pro'
-              } else if (priceId.includes('Business') || priceId.includes('Enterprise') || priceId === priceBusiness) {
+              } else if (priceId.includes('Business') || priceId.includes('Enterprise') || priceId === priceBusiness || lookupOrNickname.includes('business') || lookupOrNickname.includes('enterprise')) {
                 planId = 'business'
+              }
+
+              if (planId) {
+                console.log('planId from priceId/lookupKey matching:', planId)
               }
             }
 
@@ -140,8 +173,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!planId && productIdStr) {
               try {
                 const product = await stripe.products.retrieve(productIdStr)
+                console.log('product retrieved', {
+                  productId: productIdStr,
+                  productName: product.name,
+                  productMetadata: product.metadata
+                })
                 if (product.metadata?.plan_id) {
                   planId = product.metadata.plan_id
+                  console.log('planId from product metadata:', planId)
                 } else if (product.name) {
                   const nameLower = product.name.toLowerCase()
                   if (nameLower.includes('standard') || nameLower.includes('スタンダード')) {
@@ -151,11 +190,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   } else if (nameLower.includes('business') || nameLower.includes('ビジネス') || nameLower.includes('enterprise') || nameLower.includes('エンタープライズ')) {
                     planId = 'business'
                   }
+                  if (planId) {
+                    console.log('planId from product name:', planId)
+                  }
                 }
               } catch (err) {
                 console.error('Failed to retrieve product', err)
               }
             }
+          }
+
+          // planId が取得できなかった場合の警告
+          if (!planId) {
+            console.warn('WARNING: Could not determine planId from subscription items')
           }
 
           console.log('subscription update detected', { customerId, planId, status: sub.status, items: sub.items?.data?.length })
