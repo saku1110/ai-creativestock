@@ -141,7 +141,9 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, isSubscribed = false, onAu
   };
 
   const getDownloadButtonState = () => {
-    if (!user) return { disabled: true, text: 'ログインが必要です', color: 'bg-gray-600' };
+    // subscription.user_id をフォールバックとして使用
+    const hasValidUser = Boolean(user?.id || (subscription as any)?.user_id);
+    if (!hasValidUser) return { disabled: true, text: 'ログインが必要です', color: 'bg-gray-600' };
     if (!isSubscribed) return { disabled: true, text: '要サブスクリプション', color: 'bg-gray-600' };
     if (isDownloading) return { disabled: true, text: 'ダウンロード中...', color: 'bg-blue-600' };
     if (usage?.isLimitExceeded) return { disabled: true, text: '制限到達', color: 'bg-red-600' };

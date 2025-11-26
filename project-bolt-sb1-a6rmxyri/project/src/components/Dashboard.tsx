@@ -844,9 +844,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   }, [user, userFavorites]);
 
   const handleDownload = useCallback(async (video: VideoAsset) => {
-    console.log('[Dashboard] handleDownload called, user:', user?.id, 'video.id:', video.id);
+    // subscription.user_id をフォールバックとして使用
+    const effectiveUserId = user?.id || (subscription as any)?.user_id;
+    console.log('[Dashboard] handleDownload called, user:', user?.id, 'effectiveUserId:', effectiveUserId, 'video.id:', video.id);
 
-    if (!user) {
+    if (!hasValidUserSession || !effectiveUserId) {
       alert('ダウンロード機能を利用するにはログインが必要です');
       return;
     }
@@ -856,7 +858,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
     try {
       // DownloadLimitManager経由でダウンロード（サブスクリプション・履歴・制限を一括管理）
       console.log('[Dashboard] calling DownloadLimitManager.executeDownload');
-      const result = await DownloadLimitManager.executeDownload(user.id, video.id);
+      const result = await DownloadLimitManager.executeDownload(effectiveUserId, video.id);
       console.log('[Dashboard] executeDownload result:', result);
 
       if (!result.success) {
