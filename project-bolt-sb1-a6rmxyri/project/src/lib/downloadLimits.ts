@@ -585,11 +585,16 @@ export const useDownloadLimits = (userId: string) => {
     try {
       // サーバーAPI経由でダウンロード済み動画IDリストを取得（RLSをバイパス）
       try {
+        console.log('[useDownloadLimits] fetching list for userId:', userId);
         const listResp = await fetch(`/api/download-history?userId=${userId}&action=list`);
         const listResult = await listResp.json();
         console.log('[useDownloadLimits] list API result:', listResult);
-        if (listResult.videoIds) {
+        console.log('[useDownloadLimits] videoIds array:', listResult.videoIds);
+        if (listResult.videoIds && Array.isArray(listResult.videoIds)) {
+          console.log('[useDownloadLimits] setting downloadedVideoIds, count:', listResult.videoIds.length);
           setDownloadedVideoIds(new Set(listResult.videoIds));
+        } else {
+          console.warn('[useDownloadLimits] videoIds is empty or not an array');
         }
       } catch (apiError) {
         console.warn('[useDownloadLimits] list API error, falling back to direct query:', apiError);
@@ -618,7 +623,9 @@ export const useDownloadLimits = (userId: string) => {
   }, [refreshUsage]);
 
   const isVideoDownloaded = React.useCallback((videoId: string) => {
-    return downloadedVideoIds.has(videoId);
+    const result = downloadedVideoIds.has(videoId);
+    console.log('[useDownloadLimits] isVideoDownloaded:', { videoId, result, setSize: downloadedVideoIds.size });
+    return result;
   }, [downloadedVideoIds]);
 
   const checkDownload = React.useCallback(async (videoId: string) => {
