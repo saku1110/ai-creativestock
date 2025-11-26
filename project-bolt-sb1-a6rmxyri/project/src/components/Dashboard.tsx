@@ -481,6 +481,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [userFavorites, setUserFavorites] = useState<Set<string>>(new Set());
   const [downloadingVideos, setDownloadingVideos] = useState<Set<string>>(new Set());
+  const [downloadedVideoIds, setDownloadedVideoIds] = useState<Set<string>>(new Set());
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'category' | 'videoRequest'>('dashboard');
@@ -566,6 +567,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
       canDownloadVideos
     });
   }, [user, hasActiveSubscription, hasDownloadCap, safeRemaining, remainingDownloads, monthlyDownloadLimit, downloadLimit, isTrialUser, trialDownloadsRemaining, subscription, canDownloadVideos]);
+
+  // ダウンロード済み動画IDリストを取得
+  useEffect(() => {
+    const fetchDownloadedVideos = async () => {
+      const effectiveUserId = user?.id || (subscription as any)?.user_id;
+      if (!effectiveUserId) return;
+
+      try {
+        const resp = await fetch(`/api/download-history?userId=${effectiveUserId}&action=list`);
+        const result = await resp.json();
+        if (result.videoIds && Array.isArray(result.videoIds)) {
+          setDownloadedVideoIds(new Set(result.videoIds));
+        }
+      } catch (error) {
+        console.error('Failed to fetch downloaded videos:', error);
+      }
+    };
+
+    fetchDownloadedVideos();
+  }, [user?.id, subscription]);
 
   // サブスク加入済みだが制限到達の場合
   const limitReached = Boolean(
@@ -1287,6 +1308,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                         onCategoryClick={handleCategoryClick}
                                         canDownload={canDownloadVideos}
                                         limitReached={limitReached}
+                                        isAlreadyDownloaded={downloadedVideoIds.has(video.id)}
                                       />
                                     ))}
                                   </div>
@@ -1304,6 +1326,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                       onCategoryClick={handleCategoryClick}
                                       canDownload={canDownloadVideos}
                                       limitReached={limitReached}
+                                      downloadedVideoIds={downloadedVideoIds}
                                     />
                                     {categories
                                       .filter(cat => cat.id !== 'all')
@@ -1324,6 +1347,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                                             onCategoryClick={handleCategoryClick}
                                             canDownload={canDownloadVideos}
                                             limitReached={limitReached}
+                                            downloadedVideoIds={downloadedVideoIds}
                                             onShowAll={() => {
                                               handleCategoryClick(category.id);
                                             }}
@@ -1351,6 +1375,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
                         onDownload={handleDownload}
                         onToggleFavorite={toggleFavorite}
                         onBack={() => setCurrentPage('dashboard')}
+                        downloadedVideoIds={downloadedVideoIds}
                       />
                     )}
 
@@ -1393,6 +1418,7 @@ const CategoryDetailPage: React.FC<{
   onDownload: (video: VideoAsset) => void;
   onToggleFavorite: (videoId: string) => void;
   onBack: () => void;
+  downloadedVideoIds: Set<string>;
 }> = ({
   selectedCategories,
   videos,
@@ -1403,7 +1429,8 @@ const CategoryDetailPage: React.FC<{
   downloadingVideos,
   onDownload,
   onToggleFavorite,
-  onBack
+  onBack,
+  downloadedVideoIds
 }) => {
   const [currentPageNum, setCurrentPageNum] = useState(1);
   const videosPerPage = 20; // 5×4 = 20枚
@@ -1504,6 +1531,7 @@ const CategoryDetailPage: React.FC<{
               isDownloading={downloadingVideos.has(video.id)}
               onDownload={() => onDownload(video)}
               onToggleFavorite={() => onToggleFavorite(video.id)}
+              isAlreadyDownloaded={downloadedVideoIds.has(video.id)}
             />
           </div>
         ))}
@@ -1579,6 +1607,7 @@ const VideoSection: React.FC<{
   onCategoryClick?: (categoryId: string) => void;
   canDownload: boolean;
   limitReached?: boolean;
+  downloadedVideoIds: Set<string>;
   onShowAll?: () => void;
 }> = ({
   title,
@@ -1592,6 +1621,7 @@ const VideoSection: React.FC<{
   onCategoryClick,
   canDownload,
   limitReached,
+  downloadedVideoIds,
   onShowAll,
 }) => {
   if (videos.length === 0) return null;
@@ -1616,6 +1646,7 @@ const VideoSection: React.FC<{
             onCategoryClick={onCategoryClick}
             canDownload={canDownload}
             limitReached={limitReached}
+            isAlreadyDownloaded={downloadedVideoIds.has(video.id)}
           />
         ))}
       </div>
@@ -1894,7 +1925,8 @@ const VideoCard: React.FC<{
   onCategoryClick?: (categoryId: string) => void;
   canDownload?: boolean;
   limitReached?: boolean;
-}> = ({ video, onClick, isFavorited, isDownloading, onDownload, onToggleFavorite, onTagClick, onCategoryClick, canDownload, limitReached }) => {
+  isAlreadyDownloaded?: boolean;
+}> = ({ video, onClick, isFavorited, isDownloading, onDownload, onToggleFavorite, onTagClick, onCategoryClick, canDownload, limitReached, isAlreadyDownloaded }) => {
   const [isHovered, setIsHovered] = useState(false);
   const hoverVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -2122,7 +2154,7 @@ const VideoCard: React.FC<{
               ) : (
                 <>
                   <Download className="h-3.5 w-3.5" />
-                  {'\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9'}
+                  {isAlreadyDownloaded ? '再度ダウンロード' : 'ダウンロード'}
                 </>
               )}
             </button>
