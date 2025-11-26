@@ -192,7 +192,7 @@ const MyPage: React.FC<MyPageProps> = ({ onPageChange }) => {
               <span>プラン変更</span>
             </button>
             <button
-              onClick={() => onPageChange('payment-history')}
+              onClick={handleManageSubscription}
               className="glass-effect border border-white/20 text-gray-300 hover:text-white py-3 px-4 rounded-lg transition-all font-bold flex items-center justify-center space-x-2"
             >
               <Receipt className="w-4 h-4" />
