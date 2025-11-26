@@ -84,6 +84,7 @@ function App() {
   const [isNewUserRegistration, setIsNewUserRegistration] = useState(false);
   const isNewUserRegistrationRef = useRef(false); // 同期フラグ管琁E��
   const initialAuthModeRef = useRef<string | null>(null);
+  const registrationIntentRef = useRef<'browse' | 'purchase' | null>(null); // 登録意図を追跡
   const postRegistrationHandledRef = useRef(false);
   const stripeCancelReturnRef = useRef(isStripeCancelReturn);
   const { errors, removeError, clearErrors, handleApiError } = useErrorHandler();
@@ -331,8 +332,22 @@ function App() {
     const activePage = currentPageRef.current;
     const initialFirstLogin = isNewUserRegistrationRef.current;
     const returningFromStripeCancel = stripeCancelReturnRef.current || isStripeCancelReturn;
-    const shouldStayOnPricing = initialFirstLogin || returningFromStripeCancel;
-    if (shouldStayOnPricing) {
+    const registrationIntent = registrationIntentRef.current;
+
+    // 新規登録の場合、登録意図に基づいてリダイレクト先を決定
+    if (initialFirstLogin) {
+      if (registrationIntent === 'browse') {
+        // 「AI動画素材一覧を見る」からの登録 → ダッシュボードへ
+        setCurrentPage('dashboard');
+        console.log('新規登録: browse意図のためダッシュボードへリダイレクト');
+      } else {
+        // 「今すぐ利用する」からの登録、またはデフォルト → 料金プランへ
+        setCurrentPage('pricing');
+        console.log('新規登録: purchase意図のため料金プランへリダイレクト');
+      }
+      registrationIntentRef.current = null; // 使用後にリセット
+      stripeCancelReturnRef.current = false;
+    } else if (returningFromStripeCancel) {
       setCurrentPage('pricing');
       stripeCancelReturnRef.current = false;
     } else {
@@ -362,7 +377,16 @@ function App() {
       setIsNewUserRegistration(isFirstLogin);
 
       if (isFirstLogin && !initialFirstLogin) {
-        setCurrentPage('pricing');
+        // 登録意図がある場合はそれに従う、ない場合はデフォルトで料金プランへ
+        const intent = registrationIntentRef.current;
+        if (intent === 'browse') {
+          setCurrentPage('dashboard');
+          console.log('バックグラウンドチェック: browse意図のためダッシュボードへリダイレクト');
+        } else {
+          setCurrentPage('pricing');
+          console.log('バックグラウンドチェック: デフォルトで料金プランへリダイレクト');
+        }
+        registrationIntentRef.current = null;
         // Run post-registration tasks without blocking the UI
         void (async () => {
           try {
@@ -499,14 +523,18 @@ function App() {
   }, []);
 
   // フォールバック処琁E 認証完亁E��にフラグを�E確誁E
+  // ※ 'browse'意図の場合はダッシュボードへの遷移は正常なので、このフォールバックは発動しない
   useEffect(() => {
-    if (isLoggedIn && currentPage === 'dashboard' && (isNewUserRegistration || isNewUserRegistrationRef.current)) {
+    // registrationIntentRef.currentがnullでない場合は意図的な遷移なのでスキップ
+    const intentIsSet = registrationIntentRef.current !== null;
+    if (isLoggedIn && currentPage === 'dashboard' && (isNewUserRegistration || isNewUserRegistrationRef.current) && !intentIsSet) {
       console.log('=== フォールバック処琁E��衁E===');
       console.log('新規ユーザーがダチE��ュボ�EドにぁE��ため料��プランペ�Eジに修正');
-      console.log('フラグ状慁E', { 
-        isNewUserRegistration, 
+      console.log('フラグ状慁E', {
+        isNewUserRegistration,
         isNewUserRef: isNewUserRegistrationRef.current,
-        currentPage 
+        currentPage,
+        registrationIntent: registrationIntentRef.current
       });
       setCurrentPage('pricing');
       // フラグをリセチE��
@@ -569,6 +597,36 @@ function App() {
     }
     // ログイン済みの場合�E料��ペ�Eジへ
     setCurrentPage('pricing');
+  };
+
+  // 「AI動画素材一覧を見る」ボタン用のハンドラー（登録後はダッシュボードへ）
+  const handleBrowseRegistrationRequest = () => {
+    if (!isLoggedIn) {
+      registrationIntentRef.current = 'browse';
+      isNewUserRegistrationRef.current = true;
+      setIsNewUserRegistration(true);
+      console.log('handleBrowseRegistrationRequest: browse意図で新規登録フラグを設定');
+      setShowAuthModal(true);
+      setAuthMode('register');
+    } else {
+      // ログイン済みの場合は直接ダッシュボードへ
+      setCurrentPage('dashboard');
+    }
+  };
+
+  // 「今すぐ利用する」ボタン用のハンドラー（登録後は料金プラン選択へ）
+  const handlePurchaseRegistrationRequest = () => {
+    if (!isLoggedIn) {
+      registrationIntentRef.current = 'purchase';
+      isNewUserRegistrationRef.current = true;
+      setIsNewUserRegistration(true);
+      console.log('handlePurchaseRegistrationRequest: purchase意図で新規登録フラグを設定');
+      setShowAuthModal(true);
+      setAuthMode('register');
+    } else {
+      // ログイン済みの場合は料金ページへ
+      setCurrentPage('pricing');
+    }
   };
 
   const handleContactRequest = () => {
@@ -689,7 +747,7 @@ const renderContent = () => {
         // 従来のLPを表示�E�黒背景�E�E
         return (
           <>
-            <Hero onAuthRequest={handleRegistrationRequest} onPurchaseRequest={handlePurchaseRequest} onLoginRequest={handleLoginRequest} />
+            <Hero onAuthRequest={handleBrowseRegistrationRequest} onPurchaseRequest={handlePurchaseRegistrationRequest} onLoginRequest={handleLoginRequest} />
             <ProblemMetrics />
             <SolutionFeatures />
             <ComparisonTable />

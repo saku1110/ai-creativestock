@@ -301,7 +301,11 @@ const Header: React.FC<HeaderProps> = ({
         downloadsRemaining={trialDownloadsRemaining}
         reason="limit_reached"
       />
-      <VideoRequestModal open={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} />
+      <VideoRequestModal
+        open={isRequestModalOpen}
+        onClose={() => setIsRequestModalOpen(false)}
+        onNavigateToPricing={() => onPageChange('pricing')}
+      />
     </header>
   );
 };

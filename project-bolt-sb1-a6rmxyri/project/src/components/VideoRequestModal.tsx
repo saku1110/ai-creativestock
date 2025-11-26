@@ -5,6 +5,7 @@ import { useUser } from '../hooks/useUser';
 interface VideoRequestModalProps {
   open: boolean;
   onClose: () => void;
+  onNavigateToPricing?: () => void;
 }
 
 type Feedback =
@@ -22,8 +23,8 @@ const defaultForm = {
   notes: ''
 };
 
-const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose }) => {
-  const { user } = useUser();
+const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose, onNavigateToPricing }) => {
+  const { user, hasActiveSubscription } = useUser();
   const [formData, setFormData] = useState(defaultForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -95,6 +96,60 @@ const VideoRequestModal: React.FC<VideoRequestModalProps> = ({ open, onClose }) 
   };
 
   if (!open) return null;
+
+  // プラン未加入の場合はプラン加入を促すUIを表示
+  if (!hasActiveSubscription) {
+    return (
+      <div className="fixed inset-0 z-[999] flex items-center justify-center">
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          onClick={onClose}
+        />
+        <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden text-black force-black">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+            <h2 className="text-lg font-bold force-black text-left">動画リクエスト</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-full text-black hover:bg-slate-200 transition"
+              aria-label="閉じる"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="px-6 py-8 text-center">
+            <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">プラン加入が必要です</h3>
+            <p className="text-gray-600 mb-6 text-sm leading-relaxed">
+              動画リクエスト機能をご利用いただくには、<br />
+              有料プランへの加入が必要です。
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  onClose();
+                  onNavigateToPricing?.();
+                }}
+                className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl font-bold hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl"
+              >
+                プランを選択する
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center">
