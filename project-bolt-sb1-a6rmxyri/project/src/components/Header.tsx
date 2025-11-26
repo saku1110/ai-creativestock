@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Zap, LayoutDashboard, UserCircle, Heart, Download, LogOut, ShieldCheck, FileText } from 'lucide-react';
+import { User, Zap, LayoutDashboard, UserCircle, Download, LogOut, ShieldCheck, FileText } from 'lucide-react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { useUser } from '../hooks/useUser';
 import { useAdmin } from '../hooks/useAdmin';
@@ -197,17 +197,7 @@ const Header: React.FC<HeaderProps> = ({
                           <span className="text-sm font-medium">ダウンロード履歴</span>
                         </button>
 
-                        <button 
-                          onClick={() => handlePageChange('favorites')}
-                          className={`flex items-center space-x-3 w-full text-left p-3 rounded-lg transition-all duration-200 ${
-                            currentPage === 'favorites' ? 'bg-pink-400/10 text-pink-400' : 'text-gray-300 hover:text-white hover:bg-white/10'
-                          }`}
-                        >
-                          <Heart className="w-4 h-4" />
-                          <span className="text-sm font-medium">お気に入り</span>
-                        </button>
-
-                        <button 
+                        <button
                           onClick={() => handlePageChange('pricing')}
                           className={`flex items-center space-x-3 w-full text-left p-3 rounded-lg transition-all duration-200 ${
                             currentPage === 'pricing' ? 'bg-purple-400/10 text-purple-400' : 'text-purple-400 hover:text-purple-300 hover:bg-purple-400/10'

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
-import Sidebar from './Sidebar';
 import { useUser } from '../hooks/useUser';
 import { supabase } from '../lib/supabase';
 import { getNextDownloadFilename } from '../utils/downloadFilename';
@@ -129,8 +128,7 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = ({ onPageChange = () => 
 
   return (
     <div className="min-h-screen bg-[#050505] text-white">
-      <Sidebar currentPage="downloads" onPageChange={onPageChange} />
-      <div className="ml-0 lg:ml-[260px] px-4 py-8 lg:px-10">
+      <div className="px-4 py-8 lg:px-10">
         <div className="max-w-7xl mx-auto space-y-8">
           <header>
             <p className="text-sm text-gray-400 mb-1 flex items-center gap-2">

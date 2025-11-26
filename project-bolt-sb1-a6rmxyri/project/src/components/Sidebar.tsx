@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { Film, User, History, Heart, Crown, Zap, Star } from 'lucide-react';
+import { Film, User, History, Crown, Zap, Star } from 'lucide-react';
 import { useUser } from '../hooks/useUser';
 import { useAdmin } from '../hooks/useAdmin';
 import { subscriptionPlans } from '../lib/stripe';
@@ -179,35 +179,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
         <History className="w-4 h-4 mr-3" />
         ダウンロード履歴
       </button>
-      
-      <button 
-        onClick={() => onPageChange('favorites')}
-        className="w-full flex items-center justify-start transition-all duration-300 cursor-pointer border-none outline-none"
-        style={{
-          padding: '12px 15px',
-          background: currentPage === 'favorites' ? '#6b46c1' : 'transparent',
-          borderRadius: '8px',
-          color: currentPage === 'favorites' ? '#fff' : '#999',
-          fontSize: '14px',
-          whiteSpace: 'nowrap'
-        }}
-        onMouseEnter={(e) => {
-          if (currentPage !== 'favorites') {
-            e.currentTarget.style.background = '#333';
-            e.currentTarget.style.color = '#fff';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (currentPage !== 'favorites') {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#999';
-          }
-        }}>
-        <Heart className="w-4 h-4 mr-3" />
-        お気に入り
-      </button>
-      
-      
+
       {isAdmin && (
         <button
           onClick={() => onPageChange('staging-review')}
