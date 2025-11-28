@@ -29,7 +29,25 @@ const PaymentSuccess: React.FC = () => {
         // サブスクリプション情報を取得
         const { data: subscription } = await database.getUserSubscription(user.id);
         setSubscriptionData(subscription);
-        
+
+        // Meta Pixel 購入コンバージョンイベント送信
+        if (typeof window !== 'undefined' && (window as any).fbq && subscription) {
+          const planPrices: Record<string, number> = {
+            standard: 1980,
+            pro: 3980,
+            business: 9800
+          };
+
+          (window as any).fbq('track', 'Purchase', {
+            value: planPrices[subscription.plan] || 0,
+            currency: 'JPY',
+            content_name: subscription.plan || 'subscription',
+            content_type: 'product',
+            content_ids: [subscription.plan],
+          });
+          console.log('[Meta Pixel] Purchase event sent:', subscription.plan);
+        }
+
       } catch (error) {
         console.error('Payment success handling error:', error);
       } finally {

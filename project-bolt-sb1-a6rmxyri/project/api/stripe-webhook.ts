@@ -1,6 +1,68 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import Stripe from 'stripe'
+import { createHash } from 'crypto'
 import { supabaseAdmin } from './_supabaseAdmin.js'
+
+// SHA256ハッシュ関数（Meta Conversions API用）
+function hashSHA256(value: string): string {
+  return createHash('sha256').update(value.toLowerCase().trim()).digest('hex')
+}
+
+// Meta Conversions API へ購入イベントを送信
+async function sendMetaConversion(eventData: {
+  userId: string
+  planId: string
+  amount: number
+  email?: string | null
+  eventId?: string
+}): Promise<void> {
+  const pixelId = process.env.META_PIXEL_ID
+  const accessToken = process.env.META_ACCESS_TOKEN
+
+  if (!pixelId || !accessToken) {
+    console.log('[Meta Conversions API] Skipped: Missing META_PIXEL_ID or META_ACCESS_TOKEN')
+    return
+  }
+
+  const eventTime = Math.floor(Date.now() / 1000)
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v18.0/${pixelId}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: [{
+          event_name: 'Purchase',
+          event_time: eventTime,
+          event_id: eventData.eventId, // クライアント側と同じevent_idで重複排除
+          action_source: 'website',
+          user_data: {
+            em: eventData.email ? hashSHA256(eventData.email) : undefined,
+            external_id: hashSHA256(eventData.userId),
+          },
+          custom_data: {
+            currency: 'JPY',
+            value: eventData.amount,
+            content_name: eventData.planId,
+            content_type: 'product',
+            content_ids: [eventData.planId],
+          }
+        }],
+        access_token: accessToken
+      })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[Meta Conversions API] Error:', response.status, errorText)
+    } else {
+      const result = await response.json()
+      console.log('[Meta Conversions API] Success:', result)
+    }
+  } catch (error) {
+    console.error('[Meta Conversions API] Failed to send:', error)
+  }
+}
 
 export const config = {
   api: {
@@ -83,6 +145,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             throw upsertError
           }
           console.log('subscriptions upsert success', { userId, customerId, subscriptionId })
+
+          // Meta Conversions API へ購入イベント送信（サーバーサイド）
+          const planPrices: Record<string, number> = {
+            standard: 1980,
+            pro: 3980,
+            business: 9800
+          }
+          await sendMetaConversion({
+            userId,
+            planId: planId || 'standard',
+            amount: session.amount_total || planPrices[planId || 'standard'] || 0,
+            email: session.customer_details?.email,
+            eventId: session.id // checkout.session IDを使用して重複排除
+          })
         }
         break
       }
