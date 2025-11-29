@@ -40,6 +40,17 @@ const PaymentSuccess: React.FC = () => {
           console.log('[Meta Pixel] Purchase event sent:', planId);
         }
 
+        // Google広告 購入コンバージョン送信
+        if (typeof window !== 'undefined' && (window as any).gtag) {
+          (window as any).gtag('event', 'conversion', {
+            'send_to': 'AW-17768099802/-4mHCIfF_sgbENrfvphC',
+            'value': planPrices[planId] || 0,
+            'currency': 'JPY',
+            'transaction_id': sessionId
+          });
+          console.log('[Google Ads] Conversion event sent:', planId);
+        }
+
         // 決済情報の確認とサブスクリプション情報の更新
         await new Promise(resolve => setTimeout(resolve, 2000)); // Webhookの処理完了を待機
 
