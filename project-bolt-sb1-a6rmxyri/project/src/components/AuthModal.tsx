@@ -132,10 +132,19 @@ const AuthModal: React.FC<AuthModalProps> = ({
     try {
       if (mode === 'register') {
         // 新規登録の場合
-        const { error } = await auth.signUpWithEmail(email, password);
+        const { data, error } = await auth.signUpWithEmail(email, password);
         if (error) throw error;
-        // メール確認が必要な場合、確認メール送信完了画面を表示
-        setAuthStep('email_sent');
+        // メール認証をスキップして即座にログイン状態にする
+        if (data?.user) {
+          handleAuthSuccess(data.user);
+        } else {
+          const { user } = await auth.getCurrentUser();
+          if (user) {
+            handleAuthSuccess(user);
+          } else {
+            handleAuthError('登録に失敗しました。');
+          }
+        }
       } else {
         // ログインの場合
         const { error } = await auth.signInWithEmail(email, password);
@@ -324,22 +333,17 @@ const AuthModal: React.FC<AuthModalProps> = ({
 
         {authStep === 'email_sent' && (
           <div className="text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <Mail className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-pulse">
+              <CheckCircle className="w-8 h-8 text-white" />
             </div>
             <h3 className="text-2xl font-bold text-white mb-4">
-              確認メールを送信しました
+              登録完了
             </h3>
             <p className="text-gray-400 mb-6">
-              <span className="text-cyan-400 font-medium">{email}</span> に確認メールを送信しました。
+              <span className="text-cyan-400 font-medium">{email}</span> でアカウントを作成しました。
               <br />
-              メール内のリンクをクリックして登録を完了してください。
+              AI Creative Stockへようこそ！
             </p>
-            <div className="glass-effect rounded-2xl p-4 border border-cyan-400/30 mb-6">
-              <p className="text-xs text-gray-400">
-                メールが届かない場合は、迷惑メールフォルダをご確認ください。
-              </p>
-            </div>
             <button
               onClick={onClose}
               className="w-full glass-effect border border-white/20 text-white hover:text-cyan-400 px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:bg-white/5"

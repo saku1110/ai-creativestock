@@ -8,47 +8,56 @@ const PaymentSuccess: React.FC = () => {
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   const { user, refreshUserData } = useUser();
 
+  // コンバージョンイベント送信（ページ読み込み時に即座に実行、userに依存しない）
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    const planIdFromUrl = urlParams.get('plan_id');
+
+    // session_idがあれば決済完了なのでコンバージョンイベントを送信
+    if (sessionId) {
+      const planPrices: Record<string, number> = {
+        standard: 1980,
+        pro: 3980,
+        business: 9800
+      };
+      const planId = planIdFromUrl || 'standard';
+
+      // Meta Pixel 購入コンバージョンイベント送信
+      if (typeof window !== 'undefined' && (window as any).fbq) {
+        (window as any).fbq('track', 'Purchase', {
+          value: planPrices[planId] || 0,
+          currency: 'JPY',
+          content_name: planId,
+          content_type: 'product',
+          content_ids: [planId],
+        });
+        console.log('[Meta Pixel] Purchase event sent:', planId, sessionId);
+      }
+
+      // Google広告 購入コンバージョン送信
+      if (typeof window !== 'undefined' && (window as any).gtag) {
+        (window as any).gtag('event', 'conversion', {
+          'send_to': 'AW-17768099802/-4mHCIfF_sgbENrfvphC',
+          'value': planPrices[planId] || 0,
+          'currency': 'JPY',
+          'transaction_id': sessionId
+        });
+        console.log('[Google Ads] Conversion event sent:', planId, sessionId);
+      }
+    }
+  }, []); // 空の依存配列で初回マウント時のみ実行
+
+  // ユーザーデータの取得と更新（user依存）
   useEffect(() => {
     const handlePaymentSuccess = async () => {
       try {
-        // URLからセッションIDとプランIDを取得
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session_id');
-        const planIdFromUrl = urlParams.get('plan_id');
 
         if (!sessionId || !user) {
           setLoading(false);
           return;
-        }
-
-        // Meta Pixel 購入コンバージョンイベント送信（URLパラメータから即座に送信）
-        const planPrices: Record<string, number> = {
-          standard: 1980,
-          pro: 3980,
-          business: 9800
-        };
-        const planId = planIdFromUrl || 'standard';
-
-        if (typeof window !== 'undefined' && (window as any).fbq) {
-          (window as any).fbq('track', 'Purchase', {
-            value: planPrices[planId] || 0,
-            currency: 'JPY',
-            content_name: planId,
-            content_type: 'product',
-            content_ids: [planId],
-          });
-          console.log('[Meta Pixel] Purchase event sent:', planId);
-        }
-
-        // Google広告 購入コンバージョン送信
-        if (typeof window !== 'undefined' && (window as any).gtag) {
-          (window as any).gtag('event', 'conversion', {
-            'send_to': 'AW-17768099802/-4mHCIfF_sgbENrfvphC',
-            'value': planPrices[planId] || 0,
-            'currency': 'JPY',
-            'transaction_id': sessionId
-          });
-          console.log('[Google Ads] Conversion event sent:', planId);
         }
 
         // 決済情報の確認とサブスクリプション情報の更新
