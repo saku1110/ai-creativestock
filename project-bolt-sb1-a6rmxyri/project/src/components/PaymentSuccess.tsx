@@ -15,18 +15,20 @@ const PaymentSuccess: React.FC = () => {
     const planIdFromUrl = urlParams.get('plan_id');
 
     // session_idがあれば決済完了なのでコンバージョンイベントを送信
-    if (sessionId) {
+    if (sessionId && typeof window !== 'undefined') {
       const planPrices: Record<string, number> = {
         standard: 1980,
         pro: 3980,
         business: 9800
       };
       const planId = planIdFromUrl || 'standard';
+      const value = planPrices[planId] || 0;
 
       // Meta Pixel 購入コンバージョンイベント送信
-      if (typeof window !== 'undefined' && (window as any).fbq) {
+      // fbqはqueue機能を持っているのでロード前でも動作する
+      if ((window as any).fbq) {
         (window as any).fbq('track', 'Purchase', {
-          value: planPrices[planId] || 0,
+          value,
           currency: 'JPY',
           content_name: planId,
           content_type: 'product',
@@ -36,15 +38,18 @@ const PaymentSuccess: React.FC = () => {
       }
 
       // Google広告 購入コンバージョン送信
-      if (typeof window !== 'undefined' && (window as any).gtag) {
-        (window as any).gtag('event', 'conversion', {
-          'send_to': 'AW-17768099802/-4mHCIfF_sgbENrfvphC',
-          'value': planPrices[planId] || 0,
-          'currency': 'JPY',
-          'transaction_id': sessionId
-        });
-        console.log('[Google Ads] Conversion event sent:', planId, sessionId);
-      }
+      // dataLayer.pushを使用することで、gtagロード前でもキューに積まれる
+      (window as any).dataLayer = (window as any).dataLayer || [];
+      const gtag = function(...args: any[]) {
+        (window as any).dataLayer.push(arguments);
+      };
+      gtag('event', 'conversion', {
+        'send_to': 'AW-17768099802/-4mHCIfF_sgbENrfvphC',
+        'value': value,
+        'currency': 'JPY',
+        'transaction_id': sessionId
+      });
+      console.log('[Google Ads] Conversion event sent via dataLayer:', planId, sessionId);
     }
   }, []); // 空の依存配列で初回マウント時のみ実行
 
