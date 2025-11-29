@@ -53,12 +53,15 @@ function App() {
     : []);
   const [pathSegment = '', subPathSegment = ''] = pathSegments;
   const isStripeCancelReturn = pathSegment === 'payment' && subPathSegment === 'cancel';
+  const isStripeSuccessReturn = pathSegment === 'payment' && subPathSegment === 'success';
   const PATH_PAGES = ['terms', 'privacy', 'refund', 'commercial', 'contact', 'pricing', 'landing', 'simple-landing', 'white-landing'];
   const initialVariant = isStripeCancelReturn
     ? 'pricing'
-    : (PATH_PAGES.includes(pathSegment)
-      ? pathSegment
-      : (urlParams.get('variant') || 'landing'));
+    : isStripeSuccessReturn
+      ? 'payment-success'
+      : (PATH_PAGES.includes(pathSegment)
+        ? pathSegment
+        : (urlParams.get('variant') || 'landing'));
   const REGISTRATION_RECENT_MS = 10 * 60 * 1000;
   const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'development';
   const LOADER_FAILSAFE_MS = 12000;
