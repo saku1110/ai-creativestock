@@ -73,13 +73,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       customerId = customer.id
     }
 
+    // success_urlにplan_idとsession_idを含める（Meta Pixel用）
+    const baseSuccessUrl = successUrl || `${req.headers.origin}/payment/success`
+    const successUrlWithParams = `${baseSuccessUrl}?session_id={CHECKOUT_SESSION_ID}&plan_id=${encodeURIComponent(planId || 'standard')}`
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
       customer: customerId,
       // Enable Stripe Link in Checkout
       payment_method_types: ['link', 'card'],
-      success_url: successUrl || `${req.headers.origin}/payment/success`,
+      success_url: successUrlWithParams,
       cancel_url: cancelUrl || `${req.headers.origin}/payment/cancel`,
       allow_promotion_codes: true,
       metadata: {

@@ -11,42 +11,44 @@ const PaymentSuccess: React.FC = () => {
   useEffect(() => {
     const handlePaymentSuccess = async () => {
       try {
-        // URLからセッションIDを取得
+        // URLからセッションIDとプランIDを取得
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session_id');
-        
+        const planIdFromUrl = urlParams.get('plan_id');
+
         if (!sessionId || !user) {
           setLoading(false);
           return;
         }
 
+        // Meta Pixel 購入コンバージョンイベント送信（URLパラメータから即座に送信）
+        const planPrices: Record<string, number> = {
+          standard: 1980,
+          pro: 3980,
+          business: 9800
+        };
+        const planId = planIdFromUrl || 'standard';
+
+        if (typeof window !== 'undefined' && (window as any).fbq) {
+          (window as any).fbq('track', 'Purchase', {
+            value: planPrices[planId] || 0,
+            currency: 'JPY',
+            content_name: planId,
+            content_type: 'product',
+            content_ids: [planId],
+          });
+          console.log('[Meta Pixel] Purchase event sent:', planId);
+        }
+
         // 決済情報の確認とサブスクリプション情報の更新
         await new Promise(resolve => setTimeout(resolve, 2000)); // Webhookの処理完了を待機
-        
+
         // ユーザーデータを更新
         await refreshUserData();
-        
-        // サブスクリプション情報を取得
+
+        // サブスクリプション情報を取得（UI表示用）
         const { data: subscription } = await database.getUserSubscription(user.id);
         setSubscriptionData(subscription);
-
-        // Meta Pixel 購入コンバージョンイベント送信
-        if (typeof window !== 'undefined' && (window as any).fbq && subscription) {
-          const planPrices: Record<string, number> = {
-            standard: 1980,
-            pro: 3980,
-            business: 9800
-          };
-
-          (window as any).fbq('track', 'Purchase', {
-            value: planPrices[subscription.plan] || 0,
-            currency: 'JPY',
-            content_name: subscription.plan || 'subscription',
-            content_type: 'product',
-            content_ids: [subscription.plan],
-          });
-          console.log('[Meta Pixel] Purchase event sent:', subscription.plan);
-        }
 
       } catch (error) {
         console.error('Payment success handling error:', error);
