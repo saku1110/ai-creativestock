@@ -136,6 +136,9 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
             </div>
           ))}
         </div>
+        <p className="text-center text-gray-400 text-sm mt-4">
+          ※プランご契約後、ロゴ（透かし）なしの動画をダウンロードいただけます
+        </p>
       </div>
     </section>
   );
