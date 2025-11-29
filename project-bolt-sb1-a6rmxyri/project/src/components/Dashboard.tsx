@@ -996,11 +996,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onPageChange }) => {
 
   const filteredVideos = useMemo(() => {
     const activeVideos = videos.filter(video => {
-      // 動画URLが無効な場合は除外（取得できない動画カードを非表示）
-      if (!video.videoUrl || video.videoUrl.trim() === '') {
-        return false;
-      }
-
       if (!selectedCategories.has('all') && selectedCategories.size > 0 && !selectedCategories.has(video.category)) {
         return false;
       }
