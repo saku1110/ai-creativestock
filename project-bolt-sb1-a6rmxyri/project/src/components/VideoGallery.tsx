@@ -44,6 +44,15 @@ const LOCAL_GALLERY_VIDEOS: GalleryVideo[] = localLpGridVideos.map(video => ({
 
 const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
   const [remoteVideos, setRemoteVideos] = useState<GalleryVideo[] | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    // タッチデバイス判定（スマホ・タブレット）
+    const checkMobile = () => {
+      setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    };
+    checkMobile();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -126,7 +135,9 @@ const VideoGallery: React.FC<VideoGalleryProps> = ({ onTrialRequest }) => {
                   className="absolute inset-0 w-full h-full object-cover"
                   muted
                   playsInline
-                  preload="metadata"
+                  autoPlay={isMobile}
+                  loop={isMobile}
+                  preload={isMobile ? 'auto' : 'metadata'}
                   onError={() => handleVideoError(video.id)}
                   onContextMenu={(e) => { e.preventDefault(); return false; }}
                   controlsList="nodownload nofullscreen noremoteplayback"
